@@ -1,0 +1,66 @@
+[
+ {
+  "out": "02_Concepts/Plants_v12_候选/moss_cushion.png",
+  "prompt": "Square 1024x1024 image of ONE low, wide cushion of dense velvety moss, about four times as wide as tall, deep teal and blue-green, with a sparse scatter of thin upright moss stalks each ending in a small brown seed capsule. No glow. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Bold, simple, clearly readable form with restrained detail; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, busy fine detail.",
+  "refs": [
+   "02_Concepts/Fronts_for_3D/boulder_moss.png",
+   "02_Concepts/Fronts_for_3D/cup_fungus.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/fern_fronds.png",
+  "prompt": "Square 1024x1024 image of ONE young fern clump: two tightly curled fiddleheads and one open frond arching over to the side, thick stylised leaflets, dark teal-green with paler undersides, growing from a small dark root crown. No glow. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Bold, simple, clearly readable form with restrained detail; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, busy fine detail.",
+  "refs": [
+   "02_Concepts/Fronts_for_3D/boulder_moss.png",
+   "02_Concepts/Fronts_for_3D/cup_fungus.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/bark_curl.png",
+  "prompt": "Square 1024x1024 image of ONE piece of fallen tree bark curled into a half tube lying on its side, like a small open tunnel, rough dark navy-brown outside with frost-white lichen patches, smooth pale inside. No glow. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Bold, simple, clearly readable form with restrained detail; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, busy fine detail.",
+  "refs": [
+   "02_Concepts/Fronts_for_3D/boulder_moss.png",
+   "02_Concepts/Fronts_for_3D/cup_fungus.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/puffball_group.png",
+  "prompt": "Square 1024x1024 image of ONE group of five round puffball fungi of different sizes sitting close together on a little moss bed, smooth pale blue-grey skins, the largest one split open at the top with a faint puff of spore dust. Matte, no glow. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Bold, simple, clearly readable form with restrained detail; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, busy fine detail.",
+  "refs": [
+   "02_Concepts/Fronts_for_3D/boulder_moss.png",
+   "02_Concepts/Fronts_for_3D/cup_fungus.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/seedhead_stalk.png",
+  "prompt": "Square 1024x1024 image of ONE dried dandelion seed head on a tall, slightly bent stalk, about half of the fluffy seeds already gone, warm cream and straw colours, two dry curled leaves at the base. No glow. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Bold, simple, clearly readable form with restrained detail; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, busy fine detail.",
+  "refs": [
+   "02_Concepts/Fronts_for_3D/thorn_succulent.png",
+   "02_Concepts/Fronts_for_3D/dry_grass_tuft.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/lichen_stone.png",
+  "prompt": "Square 1024x1024 image of ONE flat weathered stone, about three times as wide as tall, warm grey-brown, covered in round crusty lichen rosettes in rust orange and ochre yellow, a little grit around its base. No glow. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Bold, simple, clearly readable form with restrained detail; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, busy fine detail.",
+  "refs": [
+   "02_Concepts/Fronts_for_3D/thorn_succulent.png",
+   "02_Concepts/Fronts_for_3D/dry_grass_tuft.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/acorn_cap.png",
+  "prompt": "Square 1024x1024 image of ONE fallen acorn cap lying upturned like a shallow bowl, its scaly outside rendered in clear simple rows, warm brown and ochre, with a cracked empty acorn shell leaning against it. No glow. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Bold, simple, clearly readable form with restrained detail; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, busy fine detail.",
+  "refs": [
+   "02_Concepts/Fronts_for_3D/thorn_succulent.png",
+   "02_Concepts/Fronts_for_3D/dry_grass_tuft.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/dried_flower.png",
+  "prompt": "Square 1024x1024 image of ONE dried flower head lying on its side on a short broken stem, like a dried strawflower: layers of stiff papery petals in faded rust, dusty pink and ochre around a darker seed centre. No glow. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Bold, simple, clearly readable form with restrained detail; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, busy fine detail.",
+  "refs": [
+   "02_Concepts/Fronts_for_3D/thorn_succulent.png",
+   "02_Concepts/Fronts_for_3D/dry_grass_tuft.png"
+  ]
+ }
+]

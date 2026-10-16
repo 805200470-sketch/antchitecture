@@ -1,0 +1,29 @@
+[
+ {
+  "out": "02_Concepts/Textures/v9/blue_floor_a.png",
+  "prompt": "Attached: (1) a board with this game's ant and painted plants, for style; (2) our current floor texture: the right painted style but too plain, too little detail; (3) our old floor texture: far too busy. Paint a NEW seamless tileable ground texture in the painted style of (2) with an amount of detail halfway between (2) and (3): readable small forms and soft painted texture across the whole surface, but calm, with no noise. Seen straight from above (orthographic, no perspective, no horizon). Hand-painted gouache look, soft brush texture, rounded shapes. The base earth colour is the same deep teal-blue as in (2), so this texture can blend with its sister textures. Avoid: fine noise, tiny repeated dots, pits or holes, spikes, glitter, photographic realism, cast shadows, strong highlights, a single focal point, vignette, text. Square image. Variant A, packed earth: the deep teal earth with gentle painted mottling and soft dabs of grit, a few clusters of small rounded slate-blue pebbles.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg",
+   "02_Concepts/Textures/v9/_floor_too_plain.jpg",
+   "02_Concepts/Textures/v9/_floor_too_busy.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Textures/v9/blue_floor_b.png",
+  "prompt": "Attached: (1) a board with this game's ant and painted plants, for style; (2) our current floor texture: the right painted style but too plain, too little detail; (3) our old floor texture: far too busy. Paint a NEW seamless tileable ground texture in the painted style of (2) with an amount of detail halfway between (2) and (3): readable small forms and soft painted texture across the whole surface, but calm, with no noise. Seen straight from above (orthographic, no perspective, no horizon). Hand-painted gouache look, soft brush texture, rounded shapes. The base earth colour is the same deep teal-blue as in (2), so this texture can blend with its sister textures. Avoid: fine noise, tiny repeated dots, pits or holes, spikes, glitter, photographic realism, cast shadows, strong highlights, a single focal point, vignette, text. Square image. Variant B, mossy: the same deep teal earth partly covered by soft cushions of velvety teal-green moss in irregular patches with soft edges, a few faint pale fungal threads between them.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg",
+   "02_Concepts/Textures/v9/_floor_too_plain.jpg",
+   "02_Concepts/Textures/v9/_floor_too_busy.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Textures/v9/blue_floor_c.png",
+  "prompt": "Attached: (1) a board with this game's ant and painted plants, for style; (2) our current floor texture: the right painted style but too plain, too little detail; (3) our old floor texture: far too busy. Paint a NEW seamless tileable ground texture in the painted style of (2) with an amount of detail halfway between (2) and (3): readable small forms and soft painted texture across the whole surface, but calm, with no noise. Seen straight from above (orthographic, no perspective, no horizon). Hand-painted gouache look, soft brush texture, rounded shapes. The base earth colour is the same deep teal-blue as in (2), so this texture can blend with its sister textures. Avoid: fine noise, tiny repeated dots, pits or holes, spikes, glitter, photographic realism, cast shadows, strong highlights, a single focal point, vignette, text. Square image. Variant C, gravel and roots: the same deep teal earth with more gravel and small rounded pebbles, a few thin pale roots running across, two or three small curled dry leaf fragments.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg",
+   "02_Concepts/Textures/v9/_floor_too_plain.jpg",
+   "02_Concepts/Textures/v9/_floor_too_busy.jpg"
+  ]
+ }
+]

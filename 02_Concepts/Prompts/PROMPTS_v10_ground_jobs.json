@@ -1,0 +1,42 @@
+[
+ {
+  "out": "02_Concepts/Textures/v10/amber_floor_a.png",
+  "prompt": "Attached: (1) a board with this game's ant and painted plants, for style; (2) a floor texture the director approved: match ITS painted style and ITS amount of detail exactly. Paint a NEW seamless tileable texture, seen straight from above (orthographic, no perspective, no horizon). Hand-painted gouache look, soft brush texture, rounded shapes, readable small forms, calm overall. Avoid: fine noise, tiny repeated dots, pits or holes, spikes, glitter, photographic realism, cast shadows, strong highlights, a single focal point, vignette, text. Square image. Warm amber nest floor, variant A, packed sandy earth: ochre and sand-coloured earth with gentle painted mottling, soft dabs of grit and a few clusters of small rounded pebbles. Base colour: warm ochre.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg",
+   "02_Concepts/Textures/v10/_detail_level_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Textures/v10/amber_floor_b.png",
+  "prompt": "Attached: (1) a board with this game's ant and painted plants, for style; (2) a floor texture the director approved: match ITS painted style and ITS amount of detail exactly. Paint a NEW seamless tileable texture, seen straight from above (orthographic, no perspective, no horizon). Hand-painted gouache look, soft brush texture, rounded shapes, readable small forms, calm overall. Avoid: fine noise, tiny repeated dots, pits or holes, spikes, glitter, photographic realism, cast shadows, strong highlights, a single focal point, vignette, text. Square image. Warm amber nest floor, variant B, dry litter: the same ochre earth partly covered by soft patches of dry straw-coloured grass fibres and tiny dry leaf fragments, with soft edges. Base colour: warm ochre.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg",
+   "02_Concepts/Textures/v10/_detail_level_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Textures/v10/amber_floor_c.png",
+  "prompt": "Attached: (1) a board with this game's ant and painted plants, for style; (2) a floor texture the director approved: match ITS painted style and ITS amount of detail exactly. Paint a NEW seamless tileable texture, seen straight from above (orthographic, no perspective, no horizon). Hand-painted gouache look, soft brush texture, rounded shapes, readable small forms, calm overall. Avoid: fine noise, tiny repeated dots, pits or holes, spikes, glitter, photographic realism, cast shadows, strong highlights, a single focal point, vignette, text. Square image. Warm amber nest floor, variant C, cracked plates and seeds: the same ochre earth split by a few long soft cracks into wide plates, small rounded pebbles and a few scattered seeds and husks. Base colour: warm ochre.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg",
+   "02_Concepts/Textures/v10/_detail_level_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Textures/v10/blue_bank.png",
+  "prompt": "Attached: (1) a board with this game's ant and painted plants, for style; (2) a floor texture the director approved: match ITS painted style and ITS amount of detail exactly. Paint a NEW seamless tileable texture, seen straight from above (orthographic, no perspective, no horizon). Hand-painted gouache look, soft brush texture, rounded shapes, readable small forms, calm overall. Avoid: fine noise, tiny repeated dots, pits or holes, spikes, glitter, photographic realism, cast shadows, strong highlights, a single focal point, vignette, text. Square image. A steep earthen canyon wall in a dark teal fungal forest, seen face-on: clear horizontal layers of soil in soft bands of deep teal, slate and dark blue, some bands bulging out as rounded ledges, thin pale roots running down across them and a few rounded stones embedded in the layers. Strong readable relief between the layers.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg",
+   "02_Concepts/Textures/v10/_detail_level_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Textures/v10/amber_bank.png",
+  "prompt": "Attached: (1) a board with this game's ant and painted plants, for style; (2) a floor texture the director approved: match ITS painted style and ITS amount of detail exactly. Paint a NEW seamless tileable texture, seen straight from above (orthographic, no perspective, no horizon). Hand-painted gouache look, soft brush texture, rounded shapes, readable small forms, calm overall. Avoid: fine noise, tiny repeated dots, pits or holes, spikes, glitter, photographic realism, cast shadows, strong highlights, a single focal point, vignette, text. Square image. A steep clay canyon wall in a warm amber ant nest, seen face-on: clear horizontal layers of clay in soft bands of terracotta, burnt sienna and ochre, some bands bulging out as rounded ledges, a few dry root threads and rounded pebbles embedded in the layers. Strong readable relief between the layers.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg",
+   "02_Concepts/Textures/v10/_detail_level_reference.jpg"
+  ]
+ }
+]

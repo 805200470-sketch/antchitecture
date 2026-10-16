@@ -1,0 +1,1173 @@
+{
+  "version": 1,
+  "generated": "2026-10-03",
+  "source": "03_Models/Ants_Source.nosync/Ant_00N_Resource/Ant_00N_Resource.blend (Blender 5.0), exported by Tools/ants/export_unity.py",
+  "units": "metres; FBX UnitScaleFactor = 100 -> Unity imports at scale 1.0 (keep 'Convert Units' on)",
+  "axes": "Unity: +Y up, ant faces +Z, its right side is +X; every FBX node has identity rotation and scale 1",
+  "fps": 24,
+  "bodyLengthDefinition": "mandible tip to gaster tip along Z, full-resolution source mesh, rest pose",
+  "speedDefinition": "root travel per cycle of the non-InPlace clip / cycle duration / bodyLength",
+  "rootTravelDefinition": "clips[].rootTravel: root displacement per loop cycle (loops) or over the whole clip (TakeOff/Land), Unity axes",
+  "ants": [
+    {
+      "id": "Ant_001",
+      "fbx": "Ant_001/Ant_001.fbx",
+      "rigNode": "Ant_001_Rig",
+      "rootBone": "root",
+      "rootBonePath": "Ant_001_Rig/root",
+      "boneCount": 44,
+      "socketBone": "prop",
+      "lods": [
+        {
+          "name": "Ant_001_LOD0",
+          "triangles": 60000,
+          "vertices": 30270,
+          "materials": [
+            "A001_Baked",
+            "A001_Eye"
+          ]
+        },
+        {
+          "name": "Ant_001_LOD1",
+          "triangles": 15000,
+          "vertices": 7770,
+          "materials": [
+            "A001_Baked",
+            "A001_Eye"
+          ]
+        },
+        {
+          "name": "Ant_001_LOD2",
+          "triangles": 3990,
+          "vertices": 2270,
+          "materials": [
+            "A001_Baked",
+            "A001_Eye"
+          ]
+        }
+      ],
+      "bodyLength": 2.7142,
+      "bodyCenterZ": 0.0614,
+      "mandibleTipZ": 1.4185,
+      "gasterTipZ": -1.2957,
+      "height": 1.2346,
+      "heightWithoutAntennae": 1.2154,
+      "restBoundsMin": {
+        "x": -0.8987,
+        "y": -0.0096,
+        "z": -1.2957
+      },
+      "restBoundsMax": {
+        "x": 0.8912,
+        "y": 1.2346,
+        "z": 1.6429
+      },
+      "restLowestPointY": -0.0096,
+      "crawlCycleSpeed": 0.1573,
+      "fastCycleSpeed": 0.4406,
+      "crawl": {
+        "cycleFrames": 28,
+        "cycleSeconds": 1.16667,
+        "rootTravelPerCycle": 0.4982,
+        "speedUnitsPerSecond": 0.4271,
+        "speedBodyLengthsPerSecond": 0.1573
+      },
+      "fastCrawl": {
+        "cycleFrames": 12,
+        "cycleSeconds": 0.5,
+        "rootTravelPerCycle": 0.5979,
+        "speedUnitsPerSecond": 1.1958,
+        "speedBodyLengthsPerSecond": 0.4406
+      },
+      "clips": [
+        {
+          "name": "Idle",
+          "frames": 96,
+          "sampledFrames": 97,
+          "durationSeconds": 4.0,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_001_Idle",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "Crawl",
+          "frames": 28,
+          "sampledFrames": 29,
+          "durationSeconds": 1.16667,
+          "loop": true,
+          "rootMotion": true,
+          "sourceAction": "Ant_001_Crawl",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.4982
+          }
+        },
+        {
+          "name": "Crawl_InPlace",
+          "frames": 28,
+          "sampledFrames": 29,
+          "durationSeconds": 1.16667,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_001_Crawl_InPlace",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "FastCrawl",
+          "frames": 12,
+          "sampledFrames": 13,
+          "durationSeconds": 0.5,
+          "loop": true,
+          "rootMotion": true,
+          "sourceAction": "Ant_001_FastCrawl",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.5979
+          }
+        },
+        {
+          "name": "FastCrawl_InPlace",
+          "frames": 12,
+          "sampledFrames": 13,
+          "durationSeconds": 0.5,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_001_FastCrawl_InPlace",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "AntennaTalk",
+          "frames": 96,
+          "sampledFrames": 97,
+          "durationSeconds": 4.0,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_001_AntennaTalk",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      ],
+      "materials": [
+        {
+          "name": "A001_Baked",
+          "slot": 0,
+          "baseColor": "Ant_001/Ant_001_BaseColor.png",
+          "normal": "Ant_001/Ant_001_Normal.png",
+          "roughness": "Ant_001/Ant_001_Roughness.png",
+          "transparent": false,
+          "opacity": 1.0,
+          "note": "body shell"
+        },
+        {
+          "name": "A001_Eye",
+          "slot": 1,
+          "baseColor": "Ant_001/Ant_001_BaseColor.png",
+          "normal": "Ant_001/Ant_001_Normal.png",
+          "roughness": "Ant_001/Ant_001_Roughness.png",
+          "transparent": false,
+          "opacity": 1.0,
+          "note": "eyes: same atlas (eye colour and facets are baked into it); glossy (baked roughness ~0.05)"
+        }
+      ],
+      "textures": {
+        "baseColor": "Ant_001/Ant_001_BaseColor.png",
+        "normal": "Ant_001/Ant_001_Normal.png",
+        "roughness": "Ant_001/Ant_001_Roughness.png",
+        "size": 2048,
+        "baseColorSRGB": true,
+        "normalConvention": "OpenGL (+Y green), tangent space - import as Normal map",
+        "roughnessSRGB": false,
+        "roughnessChannel": "R (R=G=B); roughness, not smoothness: smoothness = 1 - R"
+      },
+      "verification": {
+        "footTipMaxDeviationLOD0_BL": 0.00203,
+        "footTipMaxDeviationLOD1_BL": 0.00294,
+        "footTipMaxDeviationLOD2_BL": 0.00515,
+        "bakedBoneMaxError_BL": 3.1e-06
+      },
+      "suggestedClips": {
+        "idle": "Idle",
+        "crawl": "Crawl_InPlace",
+        "fast": "FastCrawl_InPlace",
+        "talk": "AntennaTalk"
+      }
+    },
+    {
+      "id": "Ant_002",
+      "fbx": "Ant_002/Ant_002.fbx",
+      "rigNode": "Ant_002_Rig",
+      "rootBone": "root",
+      "rootBonePath": "Ant_002_Rig/root",
+      "boneCount": 44,
+      "socketBone": "prop",
+      "lods": [
+        {
+          "name": "Ant_002_LOD0",
+          "triangles": 59999,
+          "vertices": 30342,
+          "materials": [
+            "A002_Baked",
+            "A002_Eye"
+          ]
+        },
+        {
+          "name": "Ant_002_LOD1",
+          "triangles": 14999,
+          "vertices": 7842,
+          "materials": [
+            "A002_Baked",
+            "A002_Eye"
+          ]
+        },
+        {
+          "name": "Ant_002_LOD2",
+          "triangles": 3999,
+          "vertices": 2342,
+          "materials": [
+            "A002_Baked",
+            "A002_Eye"
+          ]
+        }
+      ],
+      "bodyLength": 3.0826,
+      "bodyCenterZ": -0.2166,
+      "mandibleTipZ": 1.3246,
+      "gasterTipZ": -1.7579,
+      "height": 1.6401,
+      "heightWithoutAntennae": 1.4286,
+      "restBoundsMin": {
+        "x": -1.0471,
+        "y": 0.0037,
+        "z": -1.7579
+      },
+      "restBoundsMax": {
+        "x": 1.0471,
+        "y": 1.6401,
+        "z": 1.9069
+      },
+      "restLowestPointY": 0.0037,
+      "crawlCycleSpeed": 0.2317,
+      "fastCycleSpeed": 0.7137,
+      "crawl": {
+        "cycleFrames": 28,
+        "cycleSeconds": 1.16667,
+        "rootTravelPerCycle": 0.8333,
+        "speedUnitsPerSecond": 0.7143,
+        "speedBodyLengthsPerSecond": 0.2317
+      },
+      "fastCrawl": {
+        "cycleFrames": 12,
+        "cycleSeconds": 0.5,
+        "rootTravelPerCycle": 1.1,
+        "speedUnitsPerSecond": 2.2,
+        "speedBodyLengthsPerSecond": 0.7137
+      },
+      "clips": [
+        {
+          "name": "Idle",
+          "frames": 96,
+          "sampledFrames": 97,
+          "durationSeconds": 4.0,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_002_Idle",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "Crawl",
+          "frames": 28,
+          "sampledFrames": 29,
+          "durationSeconds": 1.16667,
+          "loop": true,
+          "rootMotion": true,
+          "sourceAction": "Ant_002_Crawl",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.8333
+          }
+        },
+        {
+          "name": "Crawl_InPlace",
+          "frames": 28,
+          "sampledFrames": 29,
+          "durationSeconds": 1.16667,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_002_Crawl_InPlace",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "FastCrawl",
+          "frames": 12,
+          "sampledFrames": 13,
+          "durationSeconds": 0.5,
+          "loop": true,
+          "rootMotion": true,
+          "sourceAction": "Ant_002_FastCrawl",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 1.1
+          }
+        },
+        {
+          "name": "FastCrawl_InPlace",
+          "frames": 12,
+          "sampledFrames": 13,
+          "durationSeconds": 0.5,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_002_FastCrawl_InPlace",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "AntennaTalk",
+          "frames": 96,
+          "sampledFrames": 97,
+          "durationSeconds": 4.0,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_002_AntennaTalk",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      ],
+      "materials": [
+        {
+          "name": "A002_Baked",
+          "slot": 0,
+          "baseColor": "Ant_002/Ant_002_BaseColor.png",
+          "normal": "Ant_002/Ant_002_Normal.png",
+          "roughness": "Ant_002/Ant_002_Roughness.png",
+          "transparent": false,
+          "opacity": 1.0,
+          "note": "body shell"
+        },
+        {
+          "name": "A002_Eye",
+          "slot": 1,
+          "baseColor": "Ant_002/Ant_002_BaseColor.png",
+          "normal": "Ant_002/Ant_002_Normal.png",
+          "roughness": "Ant_002/Ant_002_Roughness.png",
+          "transparent": false,
+          "opacity": 1.0,
+          "note": "eyes: same atlas (eye colour and facets are baked into it); glossy (baked roughness ~0.05)"
+        }
+      ],
+      "textures": {
+        "baseColor": "Ant_002/Ant_002_BaseColor.png",
+        "normal": "Ant_002/Ant_002_Normal.png",
+        "roughness": "Ant_002/Ant_002_Roughness.png",
+        "size": 2048,
+        "baseColorSRGB": true,
+        "normalConvention": "OpenGL (+Y green), tangent space - import as Normal map",
+        "roughnessSRGB": false,
+        "roughnessChannel": "R (R=G=B); roughness, not smoothness: smoothness = 1 - R"
+      },
+      "verification": {
+        "footTipMaxDeviationLOD0_BL": 0.00055,
+        "footTipMaxDeviationLOD1_BL": 0.00265,
+        "footTipMaxDeviationLOD2_BL": 0.00364,
+        "bakedBoneMaxError_BL": 6.9e-07
+      },
+      "suggestedClips": {
+        "idle": "Idle",
+        "crawl": "Crawl_InPlace",
+        "fast": "FastCrawl_InPlace",
+        "talk": "AntennaTalk"
+      }
+    },
+    {
+      "id": "Ant_003",
+      "fbx": "Ant_003/Ant_003.fbx",
+      "rigNode": "Ant_003_Rig",
+      "rootBone": "root",
+      "rootBonePath": "Ant_003_Rig/root",
+      "boneCount": 48,
+      "socketBone": "prop",
+      "lods": [
+        {
+          "name": "Ant_003_LOD0",
+          "triangles": 60000,
+          "vertices": 30494,
+          "materials": [
+            "A003_Baked",
+            "A003_Eye",
+            "A003_WingMembrane",
+            "A003_WingVein"
+          ]
+        },
+        {
+          "name": "Ant_003_LOD1",
+          "triangles": 15000,
+          "vertices": 7994,
+          "materials": [
+            "A003_Baked",
+            "A003_Eye",
+            "A003_WingMembrane",
+            "A003_WingVein"
+          ]
+        },
+        {
+          "name": "Ant_003_LOD2",
+          "triangles": 3934,
+          "vertices": 2494,
+          "materials": [
+            "A003_Baked",
+            "A003_Eye",
+            "A003_WingMembrane",
+            "A003_WingVein"
+          ]
+        }
+      ],
+      "bodyLength": 2.881,
+      "bodyCenterZ": -0.0933,
+      "mandibleTipZ": 1.3472,
+      "gasterTipZ": -1.5339,
+      "height": 1.6135,
+      "heightWithoutAntennae": 1.376,
+      "restBoundsMin": {
+        "x": -1.1177,
+        "y": 0.0136,
+        "z": -2.346
+      },
+      "restBoundsMax": {
+        "x": 1.1177,
+        "y": 1.6135,
+        "z": 1.8669
+      },
+      "restLowestPointY": 0.0136,
+      "crawlCycleSpeed": 0.2156,
+      "fastCycleSpeed": 0.7373,
+      "crawl": {
+        "cycleFrames": 28,
+        "cycleSeconds": 1.16667,
+        "rootTravelPerCycle": 0.7245,
+        "speedUnitsPerSecond": 0.621,
+        "speedBodyLengthsPerSecond": 0.2156
+      },
+      "fastCrawl": {
+        "cycleFrames": 12,
+        "cycleSeconds": 0.5,
+        "rootTravelPerCycle": 1.0621,
+        "speedUnitsPerSecond": 2.1242,
+        "speedBodyLengthsPerSecond": 0.7373
+      },
+      "clips": [
+        {
+          "name": "Idle",
+          "frames": 96,
+          "sampledFrames": 97,
+          "durationSeconds": 4.0,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_003_Idle",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "Crawl",
+          "frames": 28,
+          "sampledFrames": 29,
+          "durationSeconds": 1.16667,
+          "loop": true,
+          "rootMotion": true,
+          "sourceAction": "Ant_003_Crawl",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.7245
+          }
+        },
+        {
+          "name": "Crawl_InPlace",
+          "frames": 28,
+          "sampledFrames": 29,
+          "durationSeconds": 1.16667,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_003_Crawl_InPlace",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "FastCrawl",
+          "frames": 12,
+          "sampledFrames": 13,
+          "durationSeconds": 0.5,
+          "loop": true,
+          "rootMotion": true,
+          "sourceAction": "Ant_003_FastCrawl",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 1.0621
+          }
+        },
+        {
+          "name": "FastCrawl_InPlace",
+          "frames": 12,
+          "sampledFrames": 13,
+          "durationSeconds": 0.5,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_003_FastCrawl_InPlace",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "AntennaTalk",
+          "frames": 96,
+          "sampledFrames": 97,
+          "durationSeconds": 4.0,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_003_AntennaTalk",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "TakeOff",
+          "frames": 59,
+          "sampledFrames": 60,
+          "durationSeconds": 2.45833,
+          "loop": false,
+          "rootMotion": true,
+          "sourceAction": "Ant_003_TakeOff",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 2.7464,
+            "z": 1.3001
+          }
+        },
+        {
+          "name": "Fly",
+          "frames": 24,
+          "sampledFrames": 25,
+          "durationSeconds": 1.0,
+          "loop": true,
+          "rootMotion": true,
+          "sourceAction": "Ant_003_Fly",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 3.3684
+          }
+        },
+        {
+          "name": "Fly_InPlace",
+          "frames": 24,
+          "sampledFrames": 25,
+          "durationSeconds": 1.0,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_003_Fly_InPlace",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "FastFly",
+          "frames": 24,
+          "sampledFrames": 25,
+          "durationSeconds": 1.0,
+          "loop": true,
+          "rootMotion": true,
+          "sourceAction": "Ant_003_FastFly",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 7.5788
+          }
+        },
+        {
+          "name": "FastFly_InPlace",
+          "frames": 24,
+          "sampledFrames": 25,
+          "durationSeconds": 1.0,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_003_FastFly_InPlace",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "Land",
+          "frames": 79,
+          "sampledFrames": 80,
+          "durationSeconds": 3.29167,
+          "loop": false,
+          "rootMotion": true,
+          "sourceAction": "Ant_003_Land",
+          "rootTravel": {
+            "x": 0.0,
+            "y": -2.7464,
+            "z": 1.4183
+          }
+        }
+      ],
+      "materials": [
+        {
+          "name": "A003_Baked",
+          "slot": 0,
+          "baseColor": "Ant_003/Ant_003_BaseColor.png",
+          "normal": "Ant_003/Ant_003_Normal.png",
+          "roughness": "Ant_003/Ant_003_Roughness.png",
+          "transparent": false,
+          "opacity": 1.0,
+          "note": "body shell"
+        },
+        {
+          "name": "A003_Eye",
+          "slot": 1,
+          "baseColor": "Ant_003/Ant_003_BaseColor.png",
+          "normal": "Ant_003/Ant_003_Normal.png",
+          "roughness": "Ant_003/Ant_003_Roughness.png",
+          "transparent": false,
+          "opacity": 1.0,
+          "note": "eyes: same atlas (eye colour and facets are baked into it); glossy (baked roughness ~0.05)"
+        },
+        {
+          "name": "A003_WingMembrane",
+          "slot": 2,
+          "baseColor": "Ant_003/Ant_003_BaseColor.png",
+          "normal": "Ant_003/Ant_003_Normal.png",
+          "roughness": "",
+          "roughnessConstant": 0.12,
+          "transparent": true,
+          "opacity": 0.34,
+          "note": "translucent wing membrane, closed thin shell: alpha-blend, ZWrite off, Cull Back (Cull Off doubles the layers)"
+        },
+        {
+          "name": "A003_WingVein",
+          "slot": 3,
+          "baseColor": "Ant_003/Ant_003_BaseColor.png",
+          "normal": "Ant_003/Ant_003_Normal.png",
+          "roughness": "",
+          "roughnessConstant": 0.3,
+          "transparent": true,
+          "opacity": 0.9,
+          "note": "wing veins (closed thin tubes on the membrane): alpha-blend, draw after the membrane"
+        }
+      ],
+      "textures": {
+        "baseColor": "Ant_003/Ant_003_BaseColor.png",
+        "normal": "Ant_003/Ant_003_Normal.png",
+        "roughness": "Ant_003/Ant_003_Roughness.png",
+        "size": 2048,
+        "baseColorSRGB": true,
+        "normalConvention": "OpenGL (+Y green), tangent space - import as Normal map",
+        "roughnessSRGB": false,
+        "roughnessChannel": "R (R=G=B); roughness, not smoothness: smoothness = 1 - R"
+      },
+      "verification": {
+        "footTipMaxDeviationLOD0_BL": 0.00077,
+        "footTipMaxDeviationLOD1_BL": 0.00138,
+        "footTipMaxDeviationLOD2_BL": 0.00183,
+        "bakedBoneMaxError_BL": 4.7e-06
+      },
+      "suggestedClips": {
+        "idle": "Idle",
+        "crawl": "Crawl_InPlace",
+        "fast": "FastCrawl_InPlace",
+        "talk": "AntennaTalk",
+        "takeoff": "TakeOff",
+        "fly": "Fly_InPlace",
+        "fastFly": "FastFly_InPlace",
+        "land": "Land"
+      },
+      "flight": {
+        "takeOff": {
+          "frames": 59,
+          "durationSeconds": 2.45833,
+          "forwardTravel": 1.3001,
+          "forwardTravelBL": 0.4513,
+          "rootRise": 2.7464,
+          "rootRiseBL": 0.9533,
+          "rootEndHeight": 2.7464,
+          "rootMaxHeight": 2.7464
+        },
+        "land": {
+          "frames": 79,
+          "durationSeconds": 3.29167,
+          "forwardTravel": 1.4183,
+          "forwardTravelBL": 0.4923,
+          "rootDrop": 2.7464,
+          "rootStartHeight": 2.7464
+        },
+        "fly": {
+          "cycleFrames": 24,
+          "cycleSeconds": 1.0,
+          "rootTravelPerCycle": 3.3684,
+          "speedUnitsPerSecond": 3.3684,
+          "speedBodyLengthsPerSecond": 1.1691,
+          "cruiseRootHeight": 2.7464,
+          "cruiseRootHeightBL": 0.9533
+        },
+        "fastFly": {
+          "cycleFrames": 24,
+          "cycleSeconds": 1.0,
+          "rootTravelPerCycle": 7.5788,
+          "speedUnitsPerSecond": 7.5788,
+          "speedBodyLengthsPerSecond": 2.6306,
+          "cruiseRootHeight": 2.7464
+        },
+        "note": "TakeOff/Land have no InPlace variants: root (bone 'root') carries the climb/descent and forward travel. TakeOff ends in the Fly f1 pose; Land starts from it."
+      },
+      "wingMembraneTextureNote": "membrane charts of the BaseColor atlas were repainted from the model's vertex colours (the source bake had them dark grey)"
+    },
+    {
+      "id": "Ant_004",
+      "fbx": "Ant_004/Ant_004.fbx",
+      "rigNode": "Ant_004_Rig",
+      "rootBone": "root",
+      "rootBonePath": "Ant_004_Rig/root",
+      "boneCount": 44,
+      "socketBone": "prop",
+      "lods": [
+        {
+          "name": "Ant_004_LOD0",
+          "triangles": 60000,
+          "vertices": 30318,
+          "materials": [
+            "A004_Baked",
+            "A004_Eye"
+          ]
+        },
+        {
+          "name": "Ant_004_LOD1",
+          "triangles": 15000,
+          "vertices": 7818,
+          "materials": [
+            "A004_Baked",
+            "A004_Eye"
+          ]
+        },
+        {
+          "name": "Ant_004_LOD2",
+          "triangles": 3999,
+          "vertices": 2318,
+          "materials": [
+            "A004_Baked",
+            "A004_Eye"
+          ]
+        }
+      ],
+      "bodyLength": 3.144,
+      "bodyCenterZ": -0.208,
+      "mandibleTipZ": 1.364,
+      "gasterTipZ": -1.78,
+      "height": 1.3152,
+      "heightWithoutAntennae": 1.2266,
+      "restBoundsMin": {
+        "x": -0.9648,
+        "y": 0.004,
+        "z": -1.78
+      },
+      "restBoundsMax": {
+        "x": 0.9648,
+        "y": 1.3152,
+        "z": 1.8598
+      },
+      "restLowestPointY": 0.004,
+      "crawlCycleSpeed": 0.1197,
+      "fastCycleSpeed": 0.3909,
+      "crawl": {
+        "cycleFrames": 32,
+        "cycleSeconds": 1.33333,
+        "rootTravelPerCycle": 0.5016,
+        "speedUnitsPerSecond": 0.3762,
+        "speedBodyLengthsPerSecond": 0.1197
+      },
+      "fastCrawl": {
+        "cycleFrames": 14,
+        "cycleSeconds": 0.58333,
+        "rootTravelPerCycle": 0.717,
+        "speedUnitsPerSecond": 1.2291,
+        "speedBodyLengthsPerSecond": 0.3909
+      },
+      "clips": [
+        {
+          "name": "Idle",
+          "frames": 96,
+          "sampledFrames": 97,
+          "durationSeconds": 4.0,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_004_Idle",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "Crawl",
+          "frames": 32,
+          "sampledFrames": 33,
+          "durationSeconds": 1.33333,
+          "loop": true,
+          "rootMotion": true,
+          "sourceAction": "Ant_004_Crawl",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.5016
+          }
+        },
+        {
+          "name": "Crawl_InPlace",
+          "frames": 32,
+          "sampledFrames": 33,
+          "durationSeconds": 1.33333,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_004_Crawl_InPlace",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "FastCrawl",
+          "frames": 14,
+          "sampledFrames": 15,
+          "durationSeconds": 0.58333,
+          "loop": true,
+          "rootMotion": true,
+          "sourceAction": "Ant_004_FastCrawl",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.717
+          }
+        },
+        {
+          "name": "FastCrawl_InPlace",
+          "frames": 14,
+          "sampledFrames": 15,
+          "durationSeconds": 0.58333,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_004_FastCrawl_InPlace",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "AntennaTalk",
+          "frames": 96,
+          "sampledFrames": 97,
+          "durationSeconds": 4.0,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_004_AntennaTalk",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      ],
+      "materials": [
+        {
+          "name": "A004_Baked",
+          "slot": 0,
+          "baseColor": "Ant_004/Ant_004_BaseColor.png",
+          "normal": "Ant_004/Ant_004_Normal.png",
+          "roughness": "Ant_004/Ant_004_Roughness.png",
+          "transparent": false,
+          "opacity": 1.0,
+          "note": "body shell"
+        },
+        {
+          "name": "A004_Eye",
+          "slot": 1,
+          "baseColor": "Ant_004/Ant_004_BaseColor.png",
+          "normal": "Ant_004/Ant_004_Normal.png",
+          "roughness": "Ant_004/Ant_004_Roughness.png",
+          "transparent": false,
+          "opacity": 1.0,
+          "note": "eyes: same atlas (eye colour and facets are baked into it); glossy (baked roughness ~0.05)"
+        }
+      ],
+      "textures": {
+        "baseColor": "Ant_004/Ant_004_BaseColor.png",
+        "normal": "Ant_004/Ant_004_Normal.png",
+        "roughness": "Ant_004/Ant_004_Roughness.png",
+        "size": 2048,
+        "baseColorSRGB": true,
+        "normalConvention": "OpenGL (+Y green), tangent space - import as Normal map",
+        "roughnessSRGB": false,
+        "roughnessChannel": "R (R=G=B); roughness, not smoothness: smoothness = 1 - R"
+      },
+      "verification": {
+        "footTipMaxDeviationLOD0_BL": 0.00106,
+        "footTipMaxDeviationLOD1_BL": 0.00281,
+        "footTipMaxDeviationLOD2_BL": 0.00324,
+        "bakedBoneMaxError_BL": 5.5e-06
+      },
+      "suggestedClips": {
+        "idle": "Idle",
+        "crawl": "Crawl_InPlace",
+        "fast": "FastCrawl_InPlace",
+        "talk": "AntennaTalk"
+      }
+    },
+    {
+      "id": "Ant_005",
+      "fbx": "Ant_005/Ant_005.fbx",
+      "rigNode": "Ant_005_Rig",
+      "rootBone": "root",
+      "rootBonePath": "Ant_005_Rig/root",
+      "boneCount": 44,
+      "socketBone": "prop",
+      "lods": [
+        {
+          "name": "Ant_005_LOD0",
+          "triangles": 60000,
+          "vertices": 30676,
+          "materials": [
+            "A005_Baked",
+            "A005_Eye"
+          ]
+        },
+        {
+          "name": "Ant_005_LOD1",
+          "triangles": 15000,
+          "vertices": 8156,
+          "materials": [
+            "A005_Baked",
+            "A005_Eye"
+          ]
+        },
+        {
+          "name": "Ant_005_LOD2",
+          "triangles": 4000,
+          "vertices": 2356,
+          "materials": [
+            "A005_Baked",
+            "A005_Eye"
+          ]
+        }
+      ],
+      "bodyLength": 3.482,
+      "bodyCenterZ": -0.4652,
+      "mandibleTipZ": 1.2759,
+      "gasterTipZ": -2.2062,
+      "height": 1.1977,
+      "heightWithoutAntennae": 0.9509,
+      "restBoundsMin": {
+        "x": -0.9363,
+        "y": 0.0044,
+        "z": -2.2062
+      },
+      "restBoundsMax": {
+        "x": 0.9363,
+        "y": 1.1977,
+        "z": 1.8304
+      },
+      "restLowestPointY": 0.0044,
+      "crawlCycleSpeed": 0.1961,
+      "fastCycleSpeed": 0.6099,
+      "crawl": {
+        "cycleFrames": 22,
+        "cycleSeconds": 0.91667,
+        "rootTravelPerCycle": 0.6261,
+        "speedUnitsPerSecond": 0.683,
+        "speedBodyLengthsPerSecond": 0.1961
+      },
+      "fastCrawl": {
+        "cycleFrames": 9,
+        "cycleSeconds": 0.375,
+        "rootTravelPerCycle": 0.7963,
+        "speedUnitsPerSecond": 2.1236,
+        "speedBodyLengthsPerSecond": 0.6099
+      },
+      "clips": [
+        {
+          "name": "Idle",
+          "frames": 96,
+          "sampledFrames": 97,
+          "durationSeconds": 4.0,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_005_Idle",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "Crawl",
+          "frames": 22,
+          "sampledFrames": 23,
+          "durationSeconds": 0.91667,
+          "loop": true,
+          "rootMotion": true,
+          "sourceAction": "Ant_005_Crawl",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.6261
+          }
+        },
+        {
+          "name": "Crawl_InPlace",
+          "frames": 22,
+          "sampledFrames": 23,
+          "durationSeconds": 0.91667,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_005_Crawl_InPlace",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "FastCrawl",
+          "frames": 9,
+          "sampledFrames": 10,
+          "durationSeconds": 0.375,
+          "loop": true,
+          "rootMotion": true,
+          "sourceAction": "Ant_005_FastCrawl",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.7963
+          }
+        },
+        {
+          "name": "FastCrawl_InPlace",
+          "frames": 9,
+          "sampledFrames": 10,
+          "durationSeconds": 0.375,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_005_FastCrawl_InPlace",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "name": "AntennaTalk",
+          "frames": 96,
+          "sampledFrames": 97,
+          "durationSeconds": 4.0,
+          "loop": true,
+          "rootMotion": false,
+          "sourceAction": "Ant_005_AntennaTalk",
+          "rootTravel": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      ],
+      "materials": [
+        {
+          "name": "A005_Baked",
+          "slot": 0,
+          "baseColor": "Ant_005/Ant_005_BaseColor.png",
+          "normal": "Ant_005/Ant_005_Normal.png",
+          "roughness": "Ant_005/Ant_005_Roughness.png",
+          "transparent": false,
+          "opacity": 1.0,
+          "note": "body shell"
+        },
+        {
+          "name": "A005_Eye",
+          "slot": 1,
+          "baseColor": "Ant_005/Ant_005_BaseColor.png",
+          "normal": "Ant_005/Ant_005_Normal.png",
+          "roughness": "Ant_005/Ant_005_Roughness.png",
+          "transparent": false,
+          "opacity": 1.0,
+          "note": "eyes: same atlas (eye colour and facets are baked into it); glossy (baked roughness ~0.05)"
+        }
+      ],
+      "textures": {
+        "baseColor": "Ant_005/Ant_005_BaseColor.png",
+        "normal": "Ant_005/Ant_005_Normal.png",
+        "roughness": "Ant_005/Ant_005_Roughness.png",
+        "size": 2048,
+        "baseColorSRGB": true,
+        "normalConvention": "OpenGL (+Y green), tangent space - import as Normal map",
+        "roughnessSRGB": false,
+        "roughnessChannel": "R (R=G=B); roughness, not smoothness: smoothness = 1 - R"
+      },
+      "verification": {
+        "footTipMaxDeviationLOD0_BL": 0.00067,
+        "footTipMaxDeviationLOD1_BL": 0.00166,
+        "footTipMaxDeviationLOD2_BL": 0.00204,
+        "bakedBoneMaxError_BL": 1.7e-06
+      },
+      "suggestedClips": {
+        "idle": "Idle",
+        "crawl": "Crawl_InPlace",
+        "fast": "FastCrawl_InPlace",
+        "talk": "AntennaTalk"
+      }
+    }
+  ]
+}

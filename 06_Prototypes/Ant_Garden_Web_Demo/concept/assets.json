@@ -1,0 +1,142 @@
+{
+  "assets": [
+    {
+      "id": "trunk_porous",
+      "image": "env_trunk_porous_01.png",
+      "kind": "trunk",
+      "height": 30,
+      "thickness": 1.0,
+      "cropEdges": true,
+      "tol": 0.06,
+      "replace": true,
+      "flatten": 1.0,
+      "spread": 0.0,
+      "mode": "round",
+      "maxSide": 560,
+      "enabled": false
+    },
+    {
+      "id": "fan_tree",
+      "image": "env_fan_tree_01.png",
+      "kind": "fan",
+      "height": 12,
+      "thickness": 1.5,
+      "tol": 0.06,
+      "replace": true,
+      "flatten": 1.2,
+      "spread": 0.0,
+      "mode": "round",
+      "maxSide": 700,
+      "enabled": false
+    },
+    {
+      "id": "spore_stalks",
+      "image": "env_spore_stalks_01.png",
+      "kind": "spores",
+      "height": 4,
+      "thickness": 1.0,
+      "tol": 0.06,
+      "replace": true,
+      "flatten": 1.0,
+      "spread": 0.32,
+      "mode": "round",
+      "maxSide": 480,
+      "enabled": false
+    },
+    {
+      "id": "curl_fern",
+      "image": "env_curl_fern_01.png",
+      "kind": "curl",
+      "height": 6,
+      "thickness": 1.0,
+      "tol": 0.06,
+      "replace": true,
+      "flatten": 1.0,
+      "spread": 0.28,
+      "mode": "round",
+      "maxSide": 560,
+      "enabled": false
+    },
+    {
+      "id": "moss_mound",
+      "image": "env_moss_mound_01.png",
+      "kind": "mound",
+      "height": 2.2,
+      "thickness": 2.4,
+      "tol": 0.06,
+      "replace": true,
+      "flatten": 3.0,
+      "spread": 0.0,
+      "mode": "round",
+      "maxSide": 440,
+      "enabled": false
+    },
+    {
+      "id": "lace_curtain",
+      "image": "env_lace_curtain_01.png",
+      "kind": "trunk",
+      "height": 14,
+      "thickness": 0.4,
+      "tol": 0.06,
+      "replace": false,
+      "enabled": false
+    },
+    {
+      "id": "curl_glow",
+      "sheet": "sheet_curl_glow.png",
+      "kind": "curl",
+      "height": 5.5,
+      "res": 210,
+      "cluster": [
+        1,
+        3
+      ],
+      "replace": true
+    },
+    {
+      "id": "spore_stalk",
+      "sheet": "sheet_spore_stalk.png",
+      "kind": "spores",
+      "height": 3.0,
+      "res": 170,
+      "cluster": [
+        3,
+        7
+      ],
+      "replace": true
+    },
+    {
+      "id": "fan_tree_v3",
+      "sheet": "sheet_fan_tree.png",
+      "kind": "fan",
+      "height": 12,
+      "res": 220,
+      "replace": true
+    },
+    {
+      "id": "sponge_mound",
+      "sheet": "sheet_sponge_mound.png",
+      "kind": "mound",
+      "height": 2.4,
+      "res": 150,
+      "replace": true
+    },
+    {
+      "id": "trunk_night",
+      "sheet": "sheet_trunk_night.png",
+      "kind": "trunk",
+      "height": 30,
+      "res": 230,
+      "stackSheet": true,
+      "replace": true
+    },
+    {
+      "id": "sponge_tuft",
+      "sheet": "sheet_sponge_mound.png",
+      "kind": "tuft",
+      "height": 2.4,
+      "res": 70,
+      "replace": true
+    }
+  ]
+}

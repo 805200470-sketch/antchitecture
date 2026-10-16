@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Splat Asset Viewer</title>
+<style>
+  :root { --ink: #e6f4f1; --dim: #9fbcb8; --line: rgba(160, 220, 212, 0.22); }
+  html, body { margin: 0; height: 100%; background: #0b1a1c; color: var(--ink); overflow: hidden;
+    font: 13px/1.5 -apple-system, "PingFang SC", sans-serif; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #bar { position: fixed; top: 12px; left: 12px; padding: 8px 12px; border-radius: 8px;
+    background: rgba(6, 20, 22, 0.75); border: 1px solid var(--line); }
+  #bar .dim { color: var(--dim); }
+  select { background: #0b2326; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
+</style>
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+      "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/2.3.1/spark.module.js"
+    }
+  }
+</script>
+</head>
+<body>
+<div id="bar">素材 <select id="pick"></select> <span class="dim" id="info"></span><br>
+<span class="dim">拖动旋转 · 滚轮缩放 · 右键平移。地面网格每格 = 1 只蚂蚁身长</span></div>
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
+
+  const params = new URLSearchParams(location.search);
+  const renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b1a1c);
+  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.01, 500);
+  scene.add(new SparkRenderer({ renderer }));
+  const grid = new THREE.GridHelper(20, 20, 0x2c5552, 0x173032);
+  scene.add(grid);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const pick = document.getElementById('pick');
+  const info = document.getElementById('info');
+  let index = [];
+  try { index = (await (await fetch('./assets/splats/index.json')).json()).assets; } catch { /* no index yet */ }
+  const files = index.map((a) => a.file);
+  if (params.get('file') && !files.includes(params.get('file'))) files.unshift(params.get('file'));
+  for (const f of files) pick.add(new Option(f.split('/').pop(), f));
+  let mesh = null;
+  async function show(file) {
+    if (mesh) { scene.remove(mesh); mesh.dispose?.(); }
+    info.textContent = '载入中…';
+    mesh = new SplatMesh({ url: file });
+    scene.add(mesh);
+    await mesh.initialized;
+    const box = mesh.getBoundingBox();
+    const size = box.getSize(new THREE.Vector3());
+    const c = box.getCenter(new THREE.Vector3());
+    controls.target.copy(c);
+    camera.position.set(c.x + size.y * 0.6, c.y + size.y * 0.3, c.z + size.y * 1.6);
+    info.textContent = `${(mesh.numSplats / 1000).toFixed(0)}k splats · 高 ${size.y.toFixed(1)} · 宽 ${size.x.toFixed(1)}`;
+    window.__viewer = { mesh, camera, controls };
+  }
+  pick.addEventListener('change', () => show(pick.value));
+  if (files.length) { pick.value = params.get('file') ?? files[0]; show(pick.value); }
+  addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+  renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>

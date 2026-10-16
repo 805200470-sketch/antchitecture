@@ -1,0 +1,44 @@
+[
+ {
+  "out": "02_Concepts/Textures/v8/blue_floor.png",
+  "prompt": "The attached board shows this game's art: a smooth, softly glossy, simplified ant, and plants, rocks and pebbles painted in soft gouache and watercolour with bold simple forms and restrained detail. Use it ONLY for style and palette, do not copy any object. Paint a seamless tileable ground texture in exactly that style, seen straight from above (orthographic, no perspective, no horizon): hand-painted with soft brush texture, bold simple rounded shapes, large calm areas with gentle colour variation, only a few small details. Not photographic: no fine noise, no tiny grains, no pits or holes, no spikes, no sharp needles. Soft even light, no cast shadows, no strong highlights, no single focal point, no vignette, no text. Square image. The canyon floor of a glowing fungal forest at night: soft dark teal-blue packed earth, a few rounded flat pebbles in slate blue spread far apart, small soft patches of velvety dark moss, two or three faint pale fungal threads. Palette: deep teal, slate blue, muted cyan.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Textures/v8/blue_bank.png",
+  "prompt": "The attached board shows this game's art: a smooth, softly glossy, simplified ant, and plants, rocks and pebbles painted in soft gouache and watercolour with bold simple forms and restrained detail. Use it ONLY for style and palette, do not copy any object. Paint a seamless tileable ground texture in exactly that style, seen straight from above (orthographic, no perspective, no horizon): hand-painted with soft brush texture, bold simple rounded shapes, large calm areas with gentle colour variation, only a few small details. Not photographic: no fine noise, no tiny grains, no pits or holes, no spikes, no sharp needles. Soft even light, no cast shadows, no strong highlights, no single focal point, no vignette, no text. Square image. A soft earthen canyon wall seen face-on: smooth gently curving layered bands of dark blue-grey earth with a few rounded clods and a few thin pale roots. Palette: muted teal, navy, slate.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Textures/v8/blue_plateau.png",
+  "prompt": "The attached board shows this game's art: a smooth, softly glossy, simplified ant, and plants, rocks and pebbles painted in soft gouache and watercolour with bold simple forms and restrained detail. Use it ONLY for style and palette, do not copy any object. Paint a seamless tileable ground texture in exactly that style, seen straight from above (orthographic, no perspective, no horizon): hand-painted with soft brush texture, bold simple rounded shapes, large calm areas with gentle colour variation, only a few small details. Not photographic: no fine noise, no tiny grains, no pits or holes, no spikes, no sharp needles. Soft even light, no cast shadows, no strong highlights, no single focal point, no vignette, no text. Square image. The top of a plateau: smooth weathered blue-grey stone with soft rounded edges between wide slabs and a few flat frosty white-green lichen patches. Palette: cool muted blue-greys.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Textures/v8/amber_floor.png",
+  "prompt": "The attached board shows this game's art: a smooth, softly glossy, simplified ant, and plants, rocks and pebbles painted in soft gouache and watercolour with bold simple forms and restrained detail. Use it ONLY for style and palette, do not copy any object. Paint a seamless tileable ground texture in exactly that style, seen straight from above (orthographic, no perspective, no horizon): hand-painted with soft brush texture, bold simple rounded shapes, large calm areas with gentle colour variation, only a few small details. Not photographic: no fine noise, no tiny grains, no pits or holes, no spikes, no sharp needles. Soft even light, no cast shadows, no strong highlights, no single focal point, no vignette, no text. Square image. A warm sandy ant-nest floor: soft ochre and sand-coloured ground painted in broad strokes, a few long gentle cracks dividing it into soft wide plates, a few rounded pebbles spread far apart.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Textures/v8/amber_bank.png",
+  "prompt": "The attached board shows this game's art: a smooth, softly glossy, simplified ant, and plants, rocks and pebbles painted in soft gouache and watercolour with bold simple forms and restrained detail. Use it ONLY for style and palette, do not copy any object. Paint a seamless tileable ground texture in exactly that style, seen straight from above (orthographic, no perspective, no horizon): hand-painted with soft brush texture, bold simple rounded shapes, large calm areas with gentle colour variation, only a few small details. Not photographic: no fine noise, no tiny grains, no pits or holes, no spikes, no sharp needles. Soft even light, no cast shadows, no strong highlights, no single focal point, no vignette, no text. Square image. A soft rust-orange clay wall seen face-on: smooth layered clay bands with a few rounded clods and a few thin dry root threads. Palette: terracotta, burnt sienna, warm ochre.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Textures/v8/amber_plateau.png",
+  "prompt": "The attached board shows this game's art: a smooth, softly glossy, simplified ant, and plants, rocks and pebbles painted in soft gouache and watercolour with bold simple forms and restrained detail. Use it ONLY for style and palette, do not copy any object. Paint a seamless tileable ground texture in exactly that style, seen straight from above (orthographic, no perspective, no horizon): hand-painted with soft brush texture, bold simple rounded shapes, large calm areas with gentle colour variation, only a few small details. Not photographic: no fine noise, no tiny grains, no pits or holes, no spikes, no sharp needles. Soft even light, no cast shadows, no strong highlights, no single focal point, no vignette, no text. Square image. A reddish-brown hard crust: soft rounded wide plates with a few flat rusty lichen patches and one or two small dry leaves. Palette: warm muted red-browns.",
+  "refs": [
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ }
+]

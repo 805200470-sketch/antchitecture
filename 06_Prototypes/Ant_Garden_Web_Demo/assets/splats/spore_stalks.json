@@ -1,0 +1,42 @@
+{
+  "source": "/Volumes/T9/Ant_Garden_Demo/concept/env_spore_stalks_01.png",
+  "splats": 77625,
+  "height": 4.0,
+  "width": 2.1052631578947367,
+  "depth": 1.1154361524079974,
+  "mode": "round",
+  "footRadius": 0.9517543859649122,
+  "footprint": [
+    [
+      -0.746,
+      0.433
+    ],
+    [
+      -0.298,
+      0.546
+    ],
+    [
+      0.149,
+      0.558
+    ],
+    [
+      0.596,
+      0.45
+    ],
+    [
+      0.882,
+      0.3
+    ]
+  ],
+  "processing": {
+    "maxSide": 480,
+    "thickness": 1.0,
+    "tol": 0.06,
+    "cropEdges": false,
+    "background": [
+      0.898,
+      0.914,
+      0.918
+    ]
+  }
+}

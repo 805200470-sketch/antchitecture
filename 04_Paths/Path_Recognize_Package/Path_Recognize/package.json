@@ -1,0 +1,22 @@
+{
+  "name": "path-recognize",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Portable ant tunnel centerline recognition and workflow handoff",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/path-recognize.d.mts",
+      "import": "./dist/path-recognize.mjs"
+    }
+  },
+  "scripts": {
+    "start": "node scripts/serve.mjs --open",
+    "test": "node scripts/test.mjs",
+    "verify": "node scripts/verify.mjs",
+    "test:browser": "node scripts/browser-check.mjs"
+  }
+}

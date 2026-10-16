@@ -1,0 +1,65 @@
+[
+ {
+  "out": "02_Concepts/Plants_v12_候选/fern_fronds_v3.png",
+  "prompt": "Square 1024x1024 image of ONE young fern clump: two curled fiddleheads and one open frond arching over to the side, stylised leaflets with a visible central vein, dark teal-green with paler undersides, growing from a small dark root crown. No glow. Level of detail: in between the first two attached images of this object - the first is too detailed (every scale, fibre and crack drawn out), the second too plain. Keep the clear big shapes of the second and bring back some of the first one's characteristic surface detail, but only where it defines the object, painted loosely with soft brush strokes. The third attached image, a moss cushion, shows the right balance of shape and detail. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Clearly readable form; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, hyper-real micro texture, glitter.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/fern_fronds.png",
+   "02_Concepts/Plants_v12_候选/fern_fronds_v2.png",
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/bark_curl_v3.png",
+  "prompt": "Square 1024x1024 image of ONE piece of fallen tree bark curled into a half tube lying on its side, like a small open tunnel: dark navy-brown outside with its main grooves and a few frost-white lichen rosettes, smooth pale inside. No glow. Level of detail: in between the first two attached images of this object - the first is too detailed (every scale, fibre and crack drawn out), the second too plain. Keep the clear big shapes of the second and bring back some of the first one's characteristic surface detail, but only where it defines the object, painted loosely with soft brush strokes. The third attached image, a moss cushion, shows the right balance of shape and detail. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Clearly readable form; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, hyper-real micro texture, glitter.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/bark_curl.png",
+   "02_Concepts/Plants_v12_候选/bark_curl_v2.png",
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/puffball_group_v3.png",
+  "prompt": "Square 1024x1024 image of ONE group of five round puffball fungi of different sizes on a low moss bed, pale blue-grey skins with a soft fine-grained surface, the largest split open at the top with a faint puff of spore dust. Matte, no glow. Level of detail: in between the first two attached images of this object - the first is too detailed (every scale, fibre and crack drawn out), the second too plain. Keep the clear big shapes of the second and bring back some of the first one's characteristic surface detail, but only where it defines the object, painted loosely with soft brush strokes. The third attached image, a moss cushion, shows the right balance of shape and detail. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Clearly readable form; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, hyper-real micro texture, glitter.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/puffball_group.png",
+   "02_Concepts/Plants_v12_候选/puffball_group_v2.png",
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/seedhead_stalk_v3.png",
+  "prompt": "Square 1024x1024 image of ONE dandelion seed head on a tall, slightly bent stalk: a round cream seed ball with a gap where seeds have gone, a few single seeds drifting off, two dry curled leaves at the base. No glow. Level of detail: in between the first two attached images of this object - the first is too detailed (every scale, fibre and crack drawn out), the second too plain. Keep the clear big shapes of the second and bring back some of the first one's characteristic surface detail, but only where it defines the object, painted loosely with soft brush strokes. The third attached image, a moss cushion, shows the right balance of shape and detail. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Clearly readable form; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, hyper-real micro texture, glitter.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/seedhead_stalk.png",
+   "02_Concepts/Plants_v12_候选/seedhead_stalk_v2.png",
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/lichen_stone_v3.png",
+  "prompt": "Square 1024x1024 image of ONE flat weathered stone, about three times as wide as tall, warm grey-brown, with round lichen rosettes in rust orange and ochre yellow (a few large ones and some small), a little grit around its base. No glow. Level of detail: in between the first two attached images of this object - the first is too detailed (every scale, fibre and crack drawn out), the second too plain. Keep the clear big shapes of the second and bring back some of the first one's characteristic surface detail, but only where it defines the object, painted loosely with soft brush strokes. The third attached image, a moss cushion, shows the right balance of shape and detail. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Clearly readable form; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, hyper-real micro texture, glitter.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/lichen_stone.png",
+   "02_Concepts/Plants_v12_候选/lichen_stone_v2.png",
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/acorn_cap_v3.png",
+  "prompt": "Square 1024x1024 image of ONE fallen acorn cap lying upturned like a shallow bowl, its scales shown in a few clear rows, warm brown and ochre, with a cracked empty acorn shell leaning against it. No glow. Level of detail: in between the first two attached images of this object - the first is too detailed (every scale, fibre and crack drawn out), the second too plain. Keep the clear big shapes of the second and bring back some of the first one's characteristic surface detail, but only where it defines the object, painted loosely with soft brush strokes. The third attached image, a moss cushion, shows the right balance of shape and detail. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Clearly readable form; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, hyper-real micro texture, glitter.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/acorn_cap.png",
+   "02_Concepts/Plants_v12_候选/acorn_cap_v2.png",
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/dried_flower_v3.png",
+  "prompt": "Square 1024x1024 image of ONE dried flower head lying on its side on a short broken stem, like a dried strawflower: two or three layers of stiff papery petals in faded rust, dusty pink and ochre around a darker seed centre. No glow. Level of detail: in between the first two attached images of this object - the first is too detailed (every scale, fibre and crack drawn out), the second too plain. Keep the clear big shapes of the second and bring back some of the first one's characteristic surface detail, but only where it defines the object, painted loosely with soft brush strokes. The third attached image, a moss cushion, shows the right balance of shape and detail. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Clearly readable form; soft gouache and watercolour painted look. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo spilling onto the background, hyper-real micro texture, glitter.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/dried_flower.png",
+   "02_Concepts/Plants_v12_候选/dried_flower_v2.png",
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ }
+]

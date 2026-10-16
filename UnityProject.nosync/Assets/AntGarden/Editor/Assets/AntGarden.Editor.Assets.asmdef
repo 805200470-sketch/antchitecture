@@ -1,0 +1,14 @@
+{
+    "name": "AntGarden.Editor.Assets",
+    "rootNamespace": "AntGarden.EditorTools",
+    "references": ["AntGarden.Runtime", "AntGarden.Core", "Unity.Postprocessing.Runtime"],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

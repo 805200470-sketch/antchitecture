@@ -1,0 +1,40 @@
+{
+  "sourceCommit": "81f0708806d2533758f677389885fc5f6b1f105d",
+  "engineVersion": "2.2.0",
+  "networkSchema": "2.5",
+  "sourceFiles": {
+    "dist/app.js": "8a6181711dd64ea9f95b8abb305cc5d63fc227f8611479c5381dc6acbb134349",
+    "dist/assets/sample.jpg": "8be1116c391af78d9e25731a976a1a66b364e78a8feeaf9c0ad7b8be94f7c109",
+    "dist/center-routes.mjs": "65cb44fbad8808da1acd8418090b4cc0eae44d37726360b6d84773ea47c77abc",
+    "dist/engine.mjs": "132df9516026ccefbb1f0cdb44b0c724c98bf5d382fb2cf73f67cc1509f9935b",
+    "dist/index.html": "ee3cce0d84effc6fcbc5b10f5d0758221326e5797fa8ceb9ef70fbdb32806312",
+    "dist/main-paths.mjs": "953f5339009988a7b85075e8537b18ab4c80bc7c581303dcca4f2db017ca4c23",
+    "dist/path-smoothing.mjs": "d9a5dbe687ff745a1a0cab41eab262d4cdb95136371dd71993e845a9e69f1f63",
+    "dist/reconstruction.mjs": "273b93490ad6a14f2c315c5cf65f4de85fde9abe6aa57289b89263294eb4f363",
+    "dist/style.css": "aa527144439074dcd1824d786f339119802abef1729c3cf2730da3a726de3c78",
+    "dist/surface-evidence.mjs": "3ccadc93bc8bccf4ca70714649a1b6dca3bc5a5c84bb9e29dd9e07b4806fa15c",
+    "dist/worker.js": "6d0032e2dc9fec76a6667b224322ebce4a4d39c0edb943cdfd6e81f8c67097fa"
+  },
+  "packagingChanges": [
+    "app.js export serializer extracted to network-export.mjs",
+    "Added standalone adapter, worker, integration example, documentation and portable runners",
+    "1.1.0: Updated app.js, index.html, style.css and integration demo; added shared i18n and browser regression script."
+  ],
+  "omitted": [
+    ".git",
+    ".openai cloud deployment binding",
+    "credentials",
+    "temporary test artifacts",
+    "node_modules"
+  ],
+  "packageVersion": "1.1.0",
+  "uiRevision": {
+    "date": "2026-10-04",
+    "defaultLanguage": "zh",
+    "languages": [
+      "zh",
+      "en"
+    ],
+    "description": "Bilingual workflow UI, focused canvas, step-scoped controls and responsive layout; recognition data unchanged."
+  }
+}

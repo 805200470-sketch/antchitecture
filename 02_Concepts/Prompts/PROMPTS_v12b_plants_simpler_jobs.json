@@ -1,0 +1,51 @@
+[
+ {
+  "out": "02_Concepts/Plants_v12_候选/fern_fronds_v2.png",
+  "prompt": "Square 1024x1024 image of ONE young fern clump: two curled fiddleheads and one frond arching over to the side. Leaflets as simple smooth teardrop shapes in a clean row, dark teal-green with slightly paler undersides, growing from a small rounded dark base. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Simplified, stylised form: a few large clear shapes, broad soft areas of colour, gentle shading; surface texture only hinted, never drawn element by element (no individual scales, fibres, hairs, cracks or speckles). Painted in the same simple manner as the attached moss reference. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow, fine detail, hyper-real rendering.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/bark_curl_v2.png",
+  "prompt": "Square 1024x1024 image of ONE piece of fallen bark curled into a half tube lying on its side, like a small open tunnel. Outside dark navy-brown with a few broad grooves and two or three pale lichen patches as simple soft spots; inside smooth and pale. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Simplified, stylised form: a few large clear shapes, broad soft areas of colour, gentle shading; surface texture only hinted, never drawn element by element (no individual scales, fibres, hairs, cracks or speckles). Painted in the same simple manner as the attached moss reference. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow, fine detail, hyper-real rendering.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/puffball_group_v2.png",
+  "prompt": "Square 1024x1024 image of ONE group of five round puffball fungi of different sizes on a low cushion of moss, smooth matte pale blue-grey skins, the largest one split open at the top. Simple round forms. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Simplified, stylised form: a few large clear shapes, broad soft areas of colour, gentle shading; surface texture only hinted, never drawn element by element (no individual scales, fibres, hairs, cracks or speckles). Painted in the same simple manner as the attached moss reference. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow, fine detail, hyper-real rendering.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/seedhead_stalk_v2.png",
+  "prompt": "Square 1024x1024 image of ONE dandelion seed head on a tall, slightly bent stalk: the seed ball as one soft round cream puff with a small gap where seeds have gone, a few single seeds drifting off; two simple curled dry leaves at the base. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Simplified, stylised form: a few large clear shapes, broad soft areas of colour, gentle shading; surface texture only hinted, never drawn element by element (no individual scales, fibres, hairs, cracks or speckles). Painted in the same simple manner as the attached moss reference. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow, fine detail, hyper-real rendering.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/lichen_stone_v2.png",
+  "prompt": "Square 1024x1024 image of ONE flat rounded stone, about three times as wide as tall, warm grey-brown, with a few large round lichen patches in rust orange and ochre painted as soft flat spots. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Simplified, stylised form: a few large clear shapes, broad soft areas of colour, gentle shading; surface texture only hinted, never drawn element by element (no individual scales, fibres, hairs, cracks or speckles). Painted in the same simple manner as the attached moss reference. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow, fine detail, hyper-real rendering.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/acorn_cap_v2.png",
+  "prompt": "Square 1024x1024 image of ONE fallen acorn cap lying upturned like a shallow bowl, its scaly outside suggested by a few soft rows of shading rather than drawn scale by scale, warm brown and ochre, with a cracked empty acorn shell leaning against it. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Simplified, stylised form: a few large clear shapes, broad soft areas of colour, gentle shading; surface texture only hinted, never drawn element by element (no individual scales, fibres, hairs, cracks or speckles). Painted in the same simple manner as the attached moss reference. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow, fine detail, hyper-real rendering.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ },
+ {
+  "out": "02_Concepts/Plants_v12_候选/dried_flower_v2.png",
+  "prompt": "Square 1024x1024 image of ONE dried flower head lying on its side on a short broken stem: a cup of stiff petals in faded rust and dusty pink around a darker centre, the petals as a few clear simple shapes. Three-quarter view from slightly above, the whole object fully visible, centred with margin. Simplified, stylised form: a few large clear shapes, broad soft areas of colour, gentle shading; surface texture only hinted, never drawn element by element (no individual scales, fibres, hairs, cracks or speckles). Painted in the same simple manner as the attached moss reference. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow, fine detail, hyper-real rendering.",
+  "refs": [
+   "02_Concepts/Plants_v12_候选/moss_cushion.png"
+  ]
+ }
+]

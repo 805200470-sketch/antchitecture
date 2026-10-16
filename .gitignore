@@ -1,0 +1,57 @@
+# ─── 永远不上传 ─────────────────────────────────────────────
+# 密钥（Tripo API key 等）
+.secrets.nosync/
+*.key
+*api_key*
+# git 自己的数据放在本机、不进 iCloud 的文件夹里
+.git.nosync/
+
+# ─── 太大，或者可以重新生成：只留说明文件 ─────────────────────
+# 打包好的游戏（约 2 GB，用 Unity 重新打包即可）
+05_Builds.nosync/*
+!05_Builds.nosync/README.md
+# 原始模型：Tripo 生成的 GLB、蚂蚁 FBX、Blender 源文件（约 3.7 GB）
+# 游戏用的版本已经在 UnityProject.nosync/Assets/AntGarden/Art 里
+03_Models/*
+!03_Models/README.md
+# Codex 出过的全部原图（含没选用的稿子，约 320 MB）
+02_Concepts/Codex_Archive/
+
+# ─── Unity 自动生成的缓存（打开工程时会重新生成）──────────────
+UnityProject.nosync/Library/
+UnityProject.nosync/Temp/
+UnityProject.nosync/Logs/
+UnityProject.nosync/obj/
+UnityProject.nosync/Build/
+UnityProject.nosync/Builds/
+UnityProject.nosync/UserSettings/
+UnityProject.nosync/MemoryCaptures/
+UnityProject.nosync/*.csproj
+UnityProject.nosync/*.sln
+UnityProject.nosync/*.user
+UnityProject.nosync/.vs/
+UnityProject.nosync/.idea/
+
+# ─── 视频、幻灯片（超过 GitHub 单文件 100 MB 上限，放网盘）────────
+*.mp4
+*.mov
+*.m4v
+*.pptx
+*.key.zip
+Docs/最终汇报_2026-10-06/
+
+# ─── 个人的、和团队项目无关的 ────────────────────────────────
+Tools/portfolio/
+# 网上收集的氛围参考图（版权不在我们）
+01_References/Mood/
+
+# ─── 杂项 ────────────────────────────────────────────────
+.DS_Store
+__pycache__/
+*.pyc
+node_modules/
+*.tmp
+*.log
+
+# Unity 崩溃时留下的内存转储
+mono_crash.*

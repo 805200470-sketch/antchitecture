@@ -1,0 +1,26 @@
+[
+ {
+  "out": "02_Concepts/Textures/v7/blue_floor.png",
+  "prompt": "Damp dark forest soil: fine dark grains and coarse sand, a few small rounded pebbles of different sizes spaced far apart, scattered tiny fragments of decayed leaves, a few thin pale fungal threads crossing the soil. Cool blue-grey and very dark teal tones. Seamless tileable texture, seen straight from above (orthographic, no perspective, no horizon). Realistic macro photograph look, as an ant would see the ground: individual grains and small stones are clearly readable, with calm open areas of plain ground between the features, so the surface is not busy. Soft even overcast light, no cast shadows, no strong highlights, no single focal point, no vignette, no text. Square image."
+ },
+ {
+  "out": "02_Concepts/Textures/v7/blue_bank.png",
+  "prompt": "Packed dark earth of a burrow wall: crumbly soil in soft layers, fine pale roots and fungal threads running through it, a few small embedded stones. Cool dark blue-grey and teal-brown tones. Seamless tileable texture, seen straight from above (orthographic, no perspective, no horizon). Realistic macro photograph look, as an ant would see the ground: individual grains and small stones are clearly readable, with calm open areas of plain ground between the features, so the surface is not busy. Soft even overcast light, no cast shadows, no strong highlights, no single focal point, no vignette, no text. Square image."
+ },
+ {
+  "out": "02_Concepts/Textures/v7/blue_plateau.png",
+  "prompt": "Weathered dark slate rock surface: flat stone with shallow cracks and fine grit, a few flat frost-white and pale green lichen rosettes far apart. Cool blue-grey tones. Seamless tileable texture, seen straight from above (orthographic, no perspective, no horizon). Realistic macro photograph look, as an ant would see the ground: individual grains and small stones are clearly readable, with calm open areas of plain ground between the features, so the surface is not busy. Soft even overcast light, no cast shadows, no strong highlights, no single focal point, no vignette, no text. Square image."
+ },
+ {
+  "out": "02_Concepts/Textures/v7/amber_floor.png",
+  "prompt": "Dry ochre sandy ground: fine sand grains, a few hairline cracks forming large irregular plates, small scattered pebbles and a few dry grass fragments. Warm ochre and sand tones. Seamless tileable texture, seen straight from above (orthographic, no perspective, no horizon). Realistic macro photograph look, as an ant would see the ground: individual grains and small stones are clearly readable, with calm open areas of plain ground between the features, so the surface is not busy. Soft even overcast light, no cast shadows, no strong highlights, no single focal point, no vignette, no text. Square image."
+ },
+ {
+  "out": "02_Concepts/Textures/v7/amber_bank.png",
+  "prompt": "Packed rust-orange clay wall: crumbly layered earth, fine dry roots, small embedded pebbles and grit. Warm terracotta and brown tones. Seamless tileable texture, seen straight from above (orthographic, no perspective, no horizon). Realistic macro photograph look, as an ant would see the ground: individual grains and small stones are clearly readable, with calm open areas of plain ground between the features, so the surface is not busy. Soft even overcast light, no cast shadows, no strong highlights, no single focal point, no vignette, no text. Square image."
+ },
+ {
+  "out": "02_Concepts/Textures/v7/amber_plateau.png",
+  "prompt": "Reddish-brown hardpan crust: compacted dry earth with fine grit, a few flat rusty lichen patches and small dry leaf fragments far apart. Warm red-brown tones. Seamless tileable texture, seen straight from above (orthographic, no perspective, no horizon). Realistic macro photograph look, as an ant would see the ground: individual grains and small stones are clearly readable, with calm open areas of plain ground between the features, so the surface is not busy. Soft even overcast light, no cast shadows, no strong highlights, no single focal point, no vignette, no text. Square image."
+ }
+]

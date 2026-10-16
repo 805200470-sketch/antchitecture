@@ -1,0 +1,30 @@
+{
+  "_doc": [
+    "Per-plant settings for plants_to_unity.py, keyed by plant name (GLB name without _p1).",
+    "front: glTF axis the model's front faces (+X, -X, +Z, -Z). Leave out to auto-detect from the Tripo source image.",
+    "glow: parts the shader may light up, as y ranges (0..1) in plants.json. Each part is a rule evaluated on LOD0:",
+    "  widest_component      y extent of the connected part with the largest x/z extent (a canopy)",
+    "  small_components      y extent of all small separate parts (< max_share of the faces each), e.g. drops",
+    "  above_base_component  tallest part, from the top of the widest grounded part (moss base) to its top",
+    "  bulb_top              from where the horizontal radius first exceeds factor x the thinnest stalk radius, to the top",
+    "  {\"range\": [y0, y1]}   fixed values"
+  ],
+  "plants": {
+    "fan_tree": {
+      "glow": {
+        "canopy": {"rule": "widest_component"},
+        "drops": {"rule": "small_components", "max_share": 0.02}
+      }
+    },
+    "curl_glow": {
+      "glow": {
+        "curl": {"rule": "above_base_component"}
+      }
+    },
+    "spore_stalk": {
+      "glow": {
+        "pod": {"rule": "bulb_top", "factor": 2.0}
+      }
+    }
+  }
+}

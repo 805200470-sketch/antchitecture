@@ -1,0 +1,58 @@
+[
+ {
+  "out": "02_Concepts/Fronts_for_3D/ruins/relic_teacup.png",
+  "prompt": "A large white porcelain teacup lying on its side, one big crack and a piece broken out of the rim, faded blue painted flowers on the glaze, a little dark moss in the crack, the handle intact. Square image of ONE object for 3D modelling, three-quarter view from slightly above, the whole object fully visible and centred with margin. Bold, simple, clearly readable form with restrained detail: only the details that matter, quiet surfaces stay quiet; soft gouache and watercolour painted look matching the attached concept frame and style board. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo on the background, glitter, sparkles, over-sharpened micro-texture, busy fine detail, extra objects.",
+  "refs": [
+   "02_Concepts/Ruins_v3/A1_relics_tunnel.png",
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Fronts_for_3D/ruins/relic_key.png",
+  "prompt": "An old iron key lying flat: a long round shaft, a round ornate bow with three lobes, a simple stepped bit; orange rust with patches of green verdigris. Square image of ONE object for 3D modelling, three-quarter view from slightly above, the whole object fully visible and centred with margin. Bold, simple, clearly readable form with restrained detail: only the details that matter, quiet surfaces stay quiet; soft gouache and watercolour painted look matching the attached concept frame and style board. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo on the background, glitter, sparkles, over-sharpened micro-texture, busy fine detail, extra objects.",
+  "refs": [
+   "02_Concepts/Ruins_v3/A1_relics_tunnel.png",
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Fronts_for_3D/ruins/relic_coins.png",
+  "prompt": "A small stack of four old copper coins, each slightly offset so the stack steps like terraces, green verdigris patina, worn embossed rims. Square image of ONE object for 3D modelling, three-quarter view from slightly above, the whole object fully visible and centred with margin. Bold, simple, clearly readable form with restrained detail: only the details that matter, quiet surfaces stay quiet; soft gouache and watercolour painted look matching the attached concept frame and style board. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo on the background, glitter, sparkles, over-sharpened micro-texture, busy fine detail, extra objects.",
+  "refs": [
+   "02_Concepts/Ruins_v3/A1_relics_tunnel.png",
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Fronts_for_3D/ruins/relic_button.png",
+  "prompt": "A round four-hole shirt button lying flat, thick with a raised rim, worn cream-white like old bone, a little dirt in the holes. Square image of ONE object for 3D modelling, three-quarter view from slightly above, the whole object fully visible and centred with margin. Bold, simple, clearly readable form with restrained detail: only the details that matter, quiet surfaces stay quiet; soft gouache and watercolour painted look matching the attached concept frame and style board. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo on the background, glitter, sparkles, over-sharpened micro-texture, busy fine detail, extra objects.",
+  "refs": [
+   "02_Concepts/Ruins_v3/A1_relics_tunnel.png",
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Fronts_for_3D/ruins/temple_spire.png",
+  "prompt": "A tall packed-clay spire with spiral ridges winding up to a blunt tip, a few small round openings, ochre and rust clay, standing on a flat base. Square image of ONE object for 3D modelling, three-quarter view from slightly above, the whole object fully visible and centred with margin. Bold, simple, clearly readable form with restrained detail: only the details that matter, quiet surfaces stay quiet; soft gouache and watercolour painted look matching the attached concept frame and style board. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo on the background, glitter, sparkles, over-sharpened micro-texture, busy fine detail, extra objects.",
+  "refs": [
+   "02_Concepts/Ruins_v3/B1_temple_tunnel.png",
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Fronts_for_3D/ruins/temple_arch.png",
+  "prompt": "A pointed earthen arch standing on a flat base, thick sides, its faces carved with long winding relief lines like ant trails, ochre and burnt sienna clay. Square image of ONE object for 3D modelling, three-quarter view from slightly above, the whole object fully visible and centred with margin. Bold, simple, clearly readable form with restrained detail: only the details that matter, quiet surfaces stay quiet; soft gouache and watercolour painted look matching the attached concept frame and style board. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo on the background, glitter, sparkles, over-sharpened micro-texture, busy fine detail, extra objects.",
+  "refs": [
+   "02_Concepts/Ruins_v3/B1_temple_tunnel.png",
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Fronts_for_3D/ruins/temple_cells.png",
+  "prompt": "A cluster of about seven hexagonal clay cells like a broken honeycomb, open at the top, of different heights, thick walls, ochre clay. Square image of ONE object for 3D modelling, three-quarter view from slightly above, the whole object fully visible and centred with margin. Bold, simple, clearly readable form with restrained detail: only the details that matter, quiet surfaces stay quiet; soft gouache and watercolour painted look matching the attached concept frame and style board. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow halo on the background, glitter, sparkles, over-sharpened micro-texture, busy fine detail, extra objects.",
+  "refs": [
+   "02_Concepts/Ruins_v3/B1_temple_tunnel.png",
+   "02_Concepts/Textures/v8/_style_reference.jpg"
+  ]
+ }
+]

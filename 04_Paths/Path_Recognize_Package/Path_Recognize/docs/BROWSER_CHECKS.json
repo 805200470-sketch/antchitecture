@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-04T13:46:11.833Z",
+  "checks": [
+    "Chinese default; color-image network exactly matches the previous package",
+    "English covers all workflow panels, eight layers, smoothing levels, guide and accessibility labels",
+    "Language preference survives reload",
+    "Invalid upload displays a translated error",
+    "Image replacement, region → extraction workflow and grayscale network match the previous package",
+    "Switching languages preserves edits, ROI, graph, view and undo / redo history",
+    "Six export formats, transparent centerlines, inference exclusion and return to refinement",
+    "Dirty settings and language changes during processing; cancellation retains completed results",
+    "Chinese and English layouts fit mobile, tablet and desktop without horizontal page overflow",
+    "Bilingual integration demo, downstream consumer and inference-free worker export",
+    "Language switching works when browser storage is unavailable",
+    "No uncaught browser errors or external runtime requests"
+  ],
+  "browser": "154.0.8037.93",
+  "success": true
+}

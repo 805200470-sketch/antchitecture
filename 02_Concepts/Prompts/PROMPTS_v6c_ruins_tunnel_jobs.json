@@ -1,0 +1,50 @@
+[
+ {
+  "out": "02_Concepts/Ruins_v3/A1_relics_tunnel.png",
+  "prompt": "Ruins of the giants inside the blue fungal tunnel: a huge cracked white porcelain teacup half buried in the left bank, its mouth the entrance of a dark hall (the focal point); an old rusted key spanning a side gully as a bridge; a stack of green verdigris coins forming terraces on the right bank; a lost four-hole button lying flat as a small plaza on the floor. Glowing teal fungi grow on the relics. Use the first attached image, a screenshot from our game, as the base layout: keep its camera angle, the shape of the canyon floor and banks, and the scale of the ants and the glowing plants, but repaint it as a concept frame in a mature, restrained painted style, and close the canyon over into an underground tunnel: an earthen ceiling with hanging roots overhead, NO sky, no moon, no stars. The second attached image shows the style of our ants; the ants in the scene look like it. Amount of detail: one focal element plus three or four supporting elements from the same story, arranged in a clear hierarchy, richer than a single object but never cluttered; quiet areas are simplified into calm shapes. Limited palette, clean silhouettes, soft edges. Avoid the typical AI-image look: no glitter, no sparkles, no scattered glowing particles or dust, no bokeh balls, no over-sharpened micro-texture, no noisy clutter, no random extra objects, no repeated tiny details, no neon over-saturation, no HDR look. Wide 16:9 landscape image. No text, no frame.",
+  "refs": [
+   "02_Concepts/Ruins_v3/_refs/game_blue_canyon.jpg",
+   "02_Concepts/Ruins_v3/_refs/our_ant.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Ruins_v3/A2_relics_chamber.png",
+  "prompt": "A junction chamber of the nest built around giant relics: the broken half of a huge teacup forms a domed hall roof over the chamber (the focal point); a thimble stands as a small tower, round buttons lie as platforms, and a bent sewing needle leans across the chamber like a fallen beam. Ants gather on the floor. Glowing teal fungi and moss soften the edges. Use the first attached image, a screenshot from our game, as the base layout: keep its camera angle, the shape of the canyon floor and banks, and the scale of the ants and the glowing plants, but repaint it as a concept frame in a mature, restrained painted style, and close the canyon over into an underground tunnel: an earthen ceiling with hanging roots overhead, NO sky, no moon, no stars. The second attached image shows the style of our ants; the ants in the scene look like it. Amount of detail: one focal element plus three or four supporting elements from the same story, arranged in a clear hierarchy, richer than a single object but never cluttered; quiet areas are simplified into calm shapes. Limited palette, clean silhouettes, soft edges. Avoid the typical AI-image look: no glitter, no sparkles, no scattered glowing particles or dust, no bokeh balls, no over-sharpened micro-texture, no noisy clutter, no random extra objects, no repeated tiny details, no neon over-saturation, no HDR look. Wide 16:9 landscape image. No text, no frame.",
+  "refs": [
+   "02_Concepts/Ruins_v3/_refs/game_chamber.jpg",
+   "02_Concepts/Ruins_v3/_refs/our_ant.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Ruins_v3/B1_temple_tunnel.png",
+  "prompt": "The amber tunnel turned into the nave of an ancient ant temple: both banks rise into rows of tall packed-clay spires with spiral ridges and pointed earthen arches between them, carved with winding trail-like relief lines; broken hexagonal clay cells line the floor; at the end of the tunnel an amber shrine glows warm gold (the focal point). Use the first attached image, a screenshot from our game, as the base layout: keep its camera angle, the shape of the canyon floor and banks, and the scale of the ants and the glowing plants, but repaint it as a concept frame in a mature, restrained painted style, and close the canyon over into an underground tunnel: an earthen ceiling with hanging roots overhead, NO sky, no moon, no stars. The second attached image shows the style of our ants; the ants in the scene look like it. Amount of detail: one focal element plus three or four supporting elements from the same story, arranged in a clear hierarchy, richer than a single object but never cluttered; quiet areas are simplified into calm shapes. Limited palette, clean silhouettes, soft edges. Avoid the typical AI-image look: no glitter, no sparkles, no scattered glowing particles or dust, no bokeh balls, no over-sharpened micro-texture, no noisy clutter, no random extra objects, no repeated tiny details, no neon over-saturation, no HDR look. Wide 16:9 landscape image. No text, no frame.",
+  "refs": [
+   "02_Concepts/Ruins_v3/_refs/game_amber_canyon.jpg",
+   "02_Concepts/Ruins_v3/_refs/our_ant.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Ruins_v3/B2_temple_chamber.png",
+  "prompt": "A great chamber of the ancient ant temple: clay spires stand like pillars holding up the earthen roof, a ring of pointed arches around the walls, and in the centre a large block of glowing amber with the silhouette of an ancestral winged ant inside (the focal point). Ants gather around it. Use the first attached image, a screenshot from our game, as the base layout: keep its camera angle, the shape of the canyon floor and banks, and the scale of the ants and the glowing plants, but repaint it as a concept frame in a mature, restrained painted style, and close the canyon over into an underground tunnel: an earthen ceiling with hanging roots overhead, NO sky, no moon, no stars. The second attached image shows the style of our ants; the ants in the scene look like it. Amount of detail: one focal element plus three or four supporting elements from the same story, arranged in a clear hierarchy, richer than a single object but never cluttered; quiet areas are simplified into calm shapes. Limited palette, clean silhouettes, soft edges. Avoid the typical AI-image look: no glitter, no sparkles, no scattered glowing particles or dust, no bokeh balls, no over-sharpened micro-texture, no noisy clutter, no random extra objects, no repeated tiny details, no neon over-saturation, no HDR look. Wide 16:9 landscape image. No text, no frame.",
+  "refs": [
+   "02_Concepts/Ruins_v3/_refs/game_amber_nest.jpg",
+   "02_Concepts/Ruins_v3/_refs/our_ant.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Ruins_v3/C_carapace_tunnel.png",
+  "prompt": "The blue tunnel passing through the remains of giant insects: a huge empty beetle shell embedded in the right bank forms a dark iridescent dome over the trail (the focal point); a translucent dragonfly wing lies across a side gully as a bridge; an empty cicada husk clings to the left bank; a curved mantis foreleg arches over the path. Pale moss and a few glowing fungi grow on the shells. Use the first attached image, a screenshot from our game, as the base layout: keep its camera angle, the shape of the canyon floor and banks, and the scale of the ants and the glowing plants, but repaint it as a concept frame in a mature, restrained painted style, and close the canyon over into an underground tunnel: an earthen ceiling with hanging roots overhead, NO sky, no moon, no stars. The second attached image shows the style of our ants; the ants in the scene look like it. Amount of detail: one focal element plus three or four supporting elements from the same story, arranged in a clear hierarchy, richer than a single object but never cluttered; quiet areas are simplified into calm shapes. Limited palette, clean silhouettes, soft edges. Avoid the typical AI-image look: no glitter, no sparkles, no scattered glowing particles or dust, no bokeh balls, no over-sharpened micro-texture, no noisy clutter, no random extra objects, no repeated tiny details, no neon over-saturation, no HDR look. Wide 16:9 landscape image. No text, no frame.",
+  "refs": [
+   "02_Concepts/Ruins_v3/_refs/game_ant_trail.jpg",
+   "02_Concepts/Ruins_v3/_refs/our_ant.jpg"
+  ]
+ },
+ {
+  "out": "02_Concepts/Ruins_v3/D_machine_tunnel.png",
+  "prompt": "The chamber floor is an old circuit board with copper traces running like canals; a huge brass clockwork gear stands half buried in the far bank (the focal point), wrapped in white fungal threads with glowing cyan spore pods; black microchips with silver pins lie like buildings; a broken curved watch glass leans against the wall as a clear dome. Use the first attached image, a screenshot from our game, as the base layout: keep its camera angle, the shape of the canyon floor and banks, and the scale of the ants and the glowing plants, but repaint it as a concept frame in a mature, restrained painted style, and close the canyon over into an underground tunnel: an earthen ceiling with hanging roots overhead, NO sky, no moon, no stars. The second attached image shows the style of our ants; the ants in the scene look like it. Amount of detail: one focal element plus three or four supporting elements from the same story, arranged in a clear hierarchy, richer than a single object but never cluttered; quiet areas are simplified into calm shapes. Limited palette, clean silhouettes, soft edges. Avoid the typical AI-image look: no glitter, no sparkles, no scattered glowing particles or dust, no bokeh balls, no over-sharpened micro-texture, no noisy clutter, no random extra objects, no repeated tiny details, no neon over-saturation, no HDR look. Wide 16:9 landscape image. No text, no frame.",
+  "refs": [
+   "02_Concepts/Ruins_v3/_refs/game_chamber.jpg",
+   "02_Concepts/Ruins_v3/_refs/our_ant.jpg"
+  ]
+ }
+]

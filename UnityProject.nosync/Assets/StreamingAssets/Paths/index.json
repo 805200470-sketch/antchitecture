@@ -1,0 +1,96 @@
+{
+  "engineVersion": "2.2.0",
+  "paths": [
+    {
+      "id": "path-001",
+      "file": "path-001.json",
+      "nodes": 4,
+      "edges": 3,
+      "junctions": 1
+    },
+    {
+      "id": "path-002",
+      "file": "path-002.json",
+      "nodes": 4,
+      "edges": 3,
+      "junctions": 1
+    },
+    {
+      "id": "path-003",
+      "file": "path-003.json",
+      "nodes": 4,
+      "edges": 3,
+      "junctions": 1
+    },
+    {
+      "id": "path-004",
+      "file": "path-004.json",
+      "nodes": 4,
+      "edges": 3,
+      "junctions": 1
+    },
+    {
+      "id": "path-005",
+      "file": "path-005.json",
+      "nodes": 4,
+      "edges": 3,
+      "junctions": 1
+    },
+    {
+      "id": "path-006",
+      "file": "path-006.json",
+      "nodes": 4,
+      "edges": 4,
+      "junctions": 2
+    },
+    {
+      "id": "path-007",
+      "file": "path-007.json",
+      "nodes": 4,
+      "edges": 3,
+      "junctions": 1
+    },
+    {
+      "id": "path-008",
+      "file": "path-008.json",
+      "nodes": 4,
+      "edges": 3,
+      "junctions": 1
+    },
+    {
+      "id": "path-009",
+      "file": "path-009.json",
+      "nodes": 4,
+      "edges": 3,
+      "junctions": 1
+    },
+    {
+      "id": "path-010",
+      "file": "path-010.json",
+      "nodes": 4,
+      "edges": 4,
+      "junctions": 2
+    },
+    {
+      "id": "path-011",
+      "file": "path-011.json",
+      "nodes": 4,
+      "edges": 4,
+      "junctions": 2
+    },
+    {
+      "id": "path-012",
+      "file": "path-012.json",
+      "nodes": 4,
+      "edges": 3,
+      "junctions": 1
+    },
+    {
+      "id": "path-013",
+      "file": "path-013.json",
+      "nodes": 6,
+      "edges": 5,
+      "junctions": 2
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+- [Ant Garden visual direction](project_visual_direction.md) — approved fungal-jungle look, ant/env contrast rule, splat-image converter constraints

@@ -1,0 +1,62 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Plant_lantern_pods
+  m_Shader: {fileID: 4800000, guid: 12a7c30b1982844729c03df2bcf086de, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 1
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _BumpMap:
+        m_Texture: {fileID: 2800000, guid: 650cd5bc2c5b4429d947fc6c23930aa5, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MainTex:
+        m_Texture: {fileID: 2800000, guid: dd876c90ea1f34ae780d2b4ba6e13767, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ORM:
+        m_Texture: {fileID: 2800000, guid: ef7724b5811f94f43a8f7c87bcef37df, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _Cull: 0
+    - _Glow2MaxY: 1.1
+    - _Glow2MinY: 1
+    - _GlowLumMin: 0.45
+    - _GlowMaxY: 1.1
+    - _GlowMinY: 0.15
+    - _GlowSoft: 0.06
+    - _GlowStrength: 1.8
+    - _GlowTexture: 0.6
+    - _GlowUnder: 0
+    - _GroundBlend: 0.08
+    - _GroundMul: 1
+    - _HueShift: 0
+    - _MetallicScale: 0
+    - _RoughnessMin: 0.45
+    - _Saturation: 1
+    - _Sway: 0.06
+    m_Colors:
+    - _GlowColor: {r: 0.54999995, g: 1, b: 0.95, a: 1}
+    - _GlowTint: {r: 0.54999995, g: 1, b: 0.95, a: 1}
+    - _GroundColor: {r: 0.09999997, g: 0.19999996, b: 0.18999997, a: 1}
+    - _Tint: {r: 1, g: 1, b: 1, a: 1}
+  m_BuildTextureStacks: []
