@@ -5,9 +5,18 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
 - **引擎**：Unity 2022.3.62f3c1（国内版 Hub 的 "c1" 版本），Built-in 渲染管线 + Post Processing v2
 - **语言**：C#；工具脚本用 Python / Node / zsh
 - **演示平台**：Windows 电脑（Mac 上开发和测试）
-- **当前状态（2026-10-16）**：可玩的演示。13 个蚁穴加 2 个遗迹拼成一整块蜂巢；支持键盘鼠标和 Xbox 手柄；有音效，没有背景音乐
+- **当前状态（2026-10-16）**：可玩的演示。13 个蚁穴加 2 处遗迹拼成一整块蜂巢；两处遗迹是窄隧道，地上的光点引路；蚁穴之间的接缝用粒子和土色渗透过渡；支持键盘鼠标和 Xbox 手柄；有音效，没有背景音乐
 
-> 第一次来？按顺序看：本页 → [`Docs/Unity版_操作说明.md`](Docs/Unity版_操作说明.md)（按键、调参数、工具）→ [`Docs/报告/`](Docs/报告/)（最近的改动报告）。
+> **只想玩一下**：去 [Releases](https://github.com/805200470-sketch/antchitecture/releases) 下载 Windows 或 Mac 版，说明在 [`07_Outputs/`](07_Outputs/)。
+>
+> **第一次来、要参与制作**：先读 [**项目地图**](Docs/项目地图/)，它把整个项目分成四类：
+>
+> 1. [从装置到资产与动画](Docs/项目地图/1_从装置到资产与动画.md)：流程、工具、每一步的产出在哪
+> 2. [交互分类](Docs/项目地图/2_交互分类.md)：玩家能做的每一件事
+> 3. [改动影响表](Docs/项目地图/3_改动影响表.md)：改了什么会牵动什么，改完要做什么
+> 4. [体验与产出](07_Outputs/)：怎么玩，所有产出的清单
+>
+> 然后看本页的目录分类和"三类"，细节查 [`Docs/Unity版_操作说明.md`](Docs/Unity版_操作说明.md)。
 
 ---
 
@@ -19,9 +28,10 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
 | [`02_Concepts/`](02_Concepts/) | 概念图：Codex 画的场景、植物、遗迹、地面贴图，以及提示词 | ✅（全部原图 `Codex_Archive/` 不上传） |
 | [`03_Models/`](03_Models/) | 3D 模型原文件：Tripo 生成的 GLB、蚂蚁 FBX、Blender 源文件 | ❌ 太大，只有说明。游戏用的版本在 Unity 工程里 |
 | [`04_Paths/`](04_Paths/) | 蚁穴路径：13 张原始路径图、识别出的路径数据（JSON）、路径识别工具 | ✅ |
-| [`05_Builds.nosync/`](05_Builds.nosync/) | 打包好的游戏（Windows / Mac）和高画质视频 | ❌ 约 2 GB，只有说明 |
+| [`05_Builds.nosync/`](05_Builds.nosync/) | 打包好的游戏（Windows / Mac）和高画质视频 | ❌ 太大，只有说明；下载请到 [Releases](https://github.com/805200470-sketch/antchitecture/releases) |
 | [`06_Prototypes/`](06_Prototypes/) | 早期原型：9 月的网页 MVP、10 月初的 Three.js 网页 Demo | ✅ |
-| [`Docs/`](Docs/) | 文档和成果：操作说明、报告、截图、海报、线稿插图、音效试听 | ✅（视频、PPT 不上传） |
+| [`07_Outputs/`](07_Outputs/) | **体验与产出**：怎么下载、打开、操作游戏；全部产出（游戏包、视频、截图、海报、报告）的清单 | ✅（游戏包和视频在 Releases） |
+| [`Docs/`](Docs/) | 文档和成果：**项目地图**、操作说明、报告、截图、海报、线稿插图、音效试听、汇报讲稿 | ✅（视频、PPT 不上传） |
 | [`Tools/`](Tools/) | 工具脚本：Tripo 建模、Codex 出图、模型转 Unity、地面贴图、视频、海报 | ✅ |
 | [`UnityProject.nosync/`](UnityProject.nosync/) | **游戏本体**：Unity 工程 | ✅（Unity 缓存 `Library/` 等不上传） |
 
@@ -42,17 +52,20 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
 | 每种植物的发光强度、摇摆 | `UnityProject.nosync/Assets/AntGarden/Art/Plants/plant_looks.json` | 改完要在 Unity 里运行一次菜单 **AntGarden → Build Assets** |
 | 概念图、参考图、文档、截图 | `02_Concepts/`、`01_References/`、`Docs/` | 新文件按各文件夹 README 里的规则放；文件名只用英文、数字、下划线 |
 | 新的蚁穴路径图 | `04_Paths/Images/` | 再用 `04_Paths/Path_Recognize_Package/` 识别成 JSON，放进 `UnityProject.nosync/Assets/StreamingAssets/Paths/` |
+| 遗迹隧道的宽窄、引路光点、接缝粒子、隧道明暗 | `game_config.json` 里写：`ruinWidth`（隧道宽窄，0.55）、`trailBrightness` / `trailDensity`（光点亮度 / 疏密）、`seamMotes` / `seamMoteDensity`（接缝光粒）、`seamBlend`（接缝土色渗透，`false` 换回直线）、`atmosphere.exposure`（整体曝光）、`atmosphere.tunnelAmbient` 等（隧道变暗多少） | 例：`{ "trailDensity": 1.5, "atmosphere": { "tunnelAmbient": 1 } }`。改完重开游戏就生效 |
+| 装置的资料（照片、尺寸、制作过程） | `01_References/Photos/`；说明写进 [项目地图 1](Docs/项目地图/1_从装置到资产与动画.md) 的"装置到线稿"一节 | 目前缺，欢迎补 |
 
 ### 🛠 B. 需要改（待办，欢迎认领）
 
 | 待办 | 现状 | 相关位置 |
 |---|---|---|
-| **遗迹隧道收窄 + 发光足迹引路** | 进行中：两个遗迹太宽，像广场，要收窄成隧道、走向更明确，路上加发光小点引路 | `Scripts/Runtime/RuinScene.cs`、`TunnelRoof.cs` |
 | **访客故事 / 故事物件位** | 现在的故事是演示用的占位文字；"上传照片和故事变成物件"这个功能还没做，物件位只显示占位说明 | `Voices.cs` 里的 `Stories`；`Game.cs` 里的 `OpenSlot` |
 | **新植物** | 第三版候选图已画好，等挑选后用 Tripo 建模、转成 Unity 资源 | `02_Concepts/Plants_v12_候选/00_候选三版对照.jpg`；流程见操作说明"加入新的 Tripo 植物" |
 | **背景音乐** | 还没做（音效已有，全部由程序合成） | `Scripts/Runtime/Sfx.cs`；试听 `Docs/音效试听/` |
-| **蜂巢细节** | 蓝色和琥珀格子之间的颜色要不要渐变、琥珀格怎么分布、外圈出口现在是死路，都还没定 | `Docs/报告/2026-10-13_蜂巢拼接/` |
-| **蚂蚁的腿** | 现在用原版动画腿，程序腿也保留着，等最终选定 | `Docs/演示视频`（对比视频在网盘）；`GameConfig.cs` 的 `proceduralLegs` |
+| **蜂巢细节** | 接缝已改成粒子 + 土色渗透（2026-10-16）；琥珀格怎么分布、外圈出口现在是死路，还没定 | `Docs/报告/2026-10-13_蜂巢拼接/` |
+| **遗迹和引路的反馈** | 2026-10-16 改完：隧道收窄、光点引路、隧道稍暗。还要在演示机上试玩，看光点够不够明显、暗度是否合适 | 视频在 Releases：`ruins_tunnels_guide_trail.mp4`；数值见上面 A 类 |
+| **装置资料** | 从装置到路径线稿这一步没有记录 | [项目地图 1](Docs/项目地图/1_从装置到资产与动画.md) |
+| **蚂蚁的腿** | 现在用原版动画腿，程序腿也保留着，等最终选定 | 对比视频在 Releases：`legs_procedural_vs_clips.mp4`；`GameConfig.cs` 的 `proceduralLegs` |
 | **Windows 演示机实测** | 只在 Mac（M3 Max）上测过：高画质 55–60 帧。演示电脑上的帧率和画质要实测 | 游戏里按 `Tab` 切画质 |
 | **英文界面检查** | 海报、视频、PPT 截图要用英文界面（`L` 键切换），新加的文字要检查有没有漏译 | 所有 `Loc.T("中文", "English")` |
 
@@ -84,12 +97,16 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
 | 地形、地面贴图 | `Scripts/Runtime/TerrainBuilder.cs`、`World.cs`；贴图在 `Art/Ground/`，着色器 `Shaders/Terrain.shader` |
 | 植物摆放 | `Scripts/Runtime/Scatter.cs`；规则（种类、密度、成片程度）在 `GameConfig.cs` 的 `scatter.rules` |
 | 发光植物、触角碰亮 | `Scripts/Runtime/GlowPlants.cs`；着色器 `Shaders/Plant.shader` |
-| 遗迹（巨人遗物、古蚁圣殿） | `Scripts/Runtime/RuinScene.cs`、`TunnelRoof.cs` |
+| 遗迹（巨人遗物、古蚁圣殿） | `Scripts/Runtime/RuinScene.cs`、`TunnelRoof.cs`；隧道宽窄在 `Scripts/Core/Stitcher.cs`（`widthScale`） |
+| 遗迹里的引路光点 | `Scripts/Runtime/GuideTrail.cs`；着色器 `Shaders/GuideTrail.shader`（光点、飘动的光尘、靠近变亮） |
+| 蚁穴接缝（粒子、土色渗透） | `Scripts/Runtime/SeamMotes.cs`（光粒）；`TerrainBuilder.cs` 的 `SeamOverlay` + `Shaders/TerrainSeam.shader`（土色渗透，和地面共用 `TerrainCore.cginc`） |
+| 隧道里变暗、雾、环境光 | `Scripts/Runtime/Atmosphere.cs`；数值在 `GameConfig.cs` 的 `atmosphere` |
+| 玩家脚下的光圈 | `Scripts/Runtime/Rings.cs`（`Draped`：每帧贴着地面） |
 | 对话、台词、故事 | `Scripts/Runtime/Voices.cs`；界面上的对话框：`Hud.cs` |
 | 音效 | `Scripts/Runtime/Sfx.cs`；音量在 `GameConfig.cs` 的 `audio` |
 | 地图、小地图 | `Scripts/Runtime/MapPainter.cs`、`BigMap.cs` |
 | 光门（蚁穴之间的门） | `Scripts/Runtime/Gates.cs` |
-| 自动测试 / 截图模式 | `CamCheck.cs`（镜头）、`LegCheck.cs`（腿）、`PadCheck.cs`（手柄）、`SceneShots.cs`（每个场景的截图）、`LookCheck.cs`、`NpcCheck.cs`；用法见操作说明最后一节 |
+| 自动测试 / 截图模式 | `CamCheck.cs`（镜头）、`LegCheck.cs`（腿）、`PadCheck.cs`（手柄）、`SceneShots.cs`（每个场景的截图）、`TrailFilm.cs`（沿引路光点走一遍录像）、`LookCheck.cs`、`NpcCheck.cs`；用法见 [改动影响表](Docs/项目地图/3_改动影响表.md) 最后一节 |
 | 植物模型从 Tripo 到游戏 | `Tools/tripo_batch.sh` → `Tools/plants_to_unity.sh` → Unity 菜单 **AntGarden → Build Assets** |
 | 用 Codex 出图 | `Tools/codex_image.sh`、`Tools/codex_batch.py`；提示词在 `02_Concepts/Prompts/` |
 | 地面贴图从概念图到游戏 | `Tools/make_ground_textures.py`（先用 `Tools/preview_ground_textures.py` 出审核图） |
@@ -104,8 +121,9 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
 
 | 东西 | 在哪里 | 怎么拿 |
 |---|---|---|
-| 打包好的游戏（Windows zip 约 330 MB、Mac app） | 主开发机 `05_Builds.nosync/` | 找负责人要网盘链接，或者自己用 Unity 打包 |
-| 演示视频、汇报 PPT（都超过 100 MB） | 主开发机 `Docs/演示视频/`、`Docs/最终汇报_2026-10-06/` | 网盘 |
+| 打包好的游戏（Windows zip 约 335 MB、Mac） | 仓库的 [Releases](https://github.com/805200470-sketch/antchitecture/releases) | 直接下载；或者自己用 Unity 打包 |
+| 演示视频 | 仓库的 [Releases](https://github.com/805200470-sketch/antchitecture/releases) | 直接下载；清单见 [`07_Outputs/`](07_Outputs/) |
+| 汇报 PPT（超过 100 MB，里面有组员的页面） | 主开发机 `Docs/最终汇报_2026-10-06/` | 找负责人要；讲稿（文字）在仓库里 |
 | 3D 模型原文件、蚂蚁 Blender 源文件（约 3.7 GB） | 主开发机 `03_Models/` | 网盘；游戏用的版本已经在 `UnityProject.nosync/Assets/AntGarden/Art/` |
 | Codex 出过的全部原图 | 主开发机 `02_Concepts/Codex_Archive/` | 网盘；选用的定稿都在 `02_Concepts/` 其他文件夹里 |
 | Tripo API key | 主开发机 `.secrets.nosync/` | 不共享。需要建模时找负责人 |
@@ -114,14 +132,15 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
 
 ## 5. 协作规则
 
-1. **先拉再改**：开始前 `git pull`；改完新建分支提交，再开 Pull Request，不要直接推到 `main`。
-2. **提交信息**：前面写类型，后面一句话说清楚，例如 `feat: 遗迹隧道加发光足迹`、`fix: 手柄 B 键关不掉地图`、`docs: 更新待办`。类型有 `feat` / `fix` / `docs` / `art` / `chore`。
-3. **大文件**：单个文件不要超过 50 MB。视频、PPT、原始模型放网盘，在 README 或报告里写链接。
-4. **Unity**：
+1. **怎么加入**：仓库是公开的，任何人都能看和下载。要提交改动，请把你的 GitHub 用户名发给负责人，负责人在仓库的 **Settings → Collaborators → Add people** 里加你；你在邮箱或 GitHub 通知里点接受即可。
+2. **先拉再改**：开始前 `git pull`；改完新建分支提交，再开 Pull Request，不要直接推到 `main`。
+3. **提交信息**：前面写类型，后面一句话说清楚，例如 `feat: 遗迹隧道加发光足迹`、`fix: 手柄 B 键关不掉地图`、`docs: 更新待办`。类型有 `feat` / `fix` / `docs` / `art` / `chore`。
+4. **大文件**：单个文件不要超过 50 MB。打包好的游戏和视频放 Releases；原始模型放网盘，在 README 或报告里写链接。
+5. **Unity**：
    - 只用 **2022.3.62f3c1**，换版本会改坏 `ProjectSettings`。
    - 挪文件、改名都在 Unity 里做，`.meta` 文件要一起提交。
    - 不要提交 `Library/`（已在 `.gitignore` 里）。
-5. **改完要能证明**：
+6. **改完要能证明**：
    - 改了玩法或画面，附一张游戏截图，放在 `Docs/screenshots/` 下按日期建的文件夹里。
    - 改了镜头、腿、手柄，跑一下对应的检查模式（见操作说明）。
-6. **文件命名**：英文、数字、下划线，不要空格。中文只用在文档和说明文件里。
+7. **文件命名**：英文、数字、下划线，不要空格。中文只用在文档和说明文件里。

@@ -148,7 +148,7 @@ namespace AntGarden
                 }
                 float off = node.clear * 0.62f;
                 float x = node.x + Mathf.Cos(bestDir) * off, z = node.z + Mathf.Sin(bestDir) * off;
-                if (world.HexDist(x, z) > -4) continue;
+                if (world.HexDist(x, z) > -4 || world.reserved.Overlaps(x, z, 1.5f)) continue;
                 Place(plant, x, z, Range(cfg.landmark.height), 1, 0.05f, 0.06f, 1f, true);
             }
         }
@@ -205,6 +205,17 @@ namespace AntGarden
 
         void Place(PlantRef plant, float x, float z, float scale, int stack, float tilt, float jitter, float dim, bool shadows = true)
         {
+            // under a tunnel roof nothing grows through the ceiling: a plant that would is grown smaller, or not at all
+            float ceiling = world.Ceiling(x, z);
+            if (!float.IsInfinity(ceiling))
+            {
+                float room = ceiling - world.Height(x, z) - 0.4f;
+                if (scale * stack > room)
+                {
+                    if (room < scale * stack * 0.45f) return;
+                    scale = room / stack;
+                }
+            }
             float r = plant.footprintRadius * scale;
             // sink to the lowest ground under the footprint so no edge of the base floats
             float y = world.Height(x, z);

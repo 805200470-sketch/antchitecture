@@ -58,6 +58,11 @@ namespace AntGarden
             ctl.rim = rim;
             ctl.sky = sky;
             ctl.fogDensity = a.fogDensity;
+            ctl.tunnelAmbient = a.tunnelAmbient;
+            ctl.tunnelMoon = a.tunnelMoon;
+            ctl.tunnelExposure = a.tunnelExposure;
+            ctl.tunnelRim = a.tunnelRim;
+            ctl.tunnelAntDim = a.tunnelAntDim;
             ctl.probe = MakeSkyProbe();
             return MakeSpores(cam, refs, a);
         }
@@ -155,6 +160,8 @@ namespace AntGarden
     /// <summary>
     /// Blends fog, ambient light, moonlight and sky colours towards the biome of the region the player is
     /// in, so jumping from the blue fungal forest to the amber nest changes the whole mood over a few seconds.
+    /// Under a tunnel roof it is a little darker: the ambient light, the moon and the silhouette light are turned
+    /// down and the exposure lowered a touch, easing in and out over about a second as the ant walks in or out.
     /// </summary>
     public class AtmosphereController : MonoBehaviour
     {
@@ -163,12 +170,35 @@ namespace AntGarden
         public ReflectionProbe probe;
         public float fogDensity;
         public float blendTime = 2.5f;
+        public float tunnelAmbient = 0.9f, tunnelMoon = 0.8f, tunnelRim = 0.9f, tunnelExposure = -0.05f, tunnelAntDim = 0.2f;
         Biome target;
         float elapsed, probeTimer;
         bool settled = true;
+        // the biome's ambient light and the moon's own intensity, before the tunnel's shade
+        Color skyAmbient, equatorAmbient, groundAmbient;
+        float moonIntensity, rimIntensity, shade, shadeTarget, exposureApplied;
+        ColorGrading grading;
+        bool ready;
+
+        void Ready()
+        {
+            if (ready) return;
+            ready = true;
+            skyAmbient = RenderSettings.ambientSkyColor;
+            equatorAmbient = RenderSettings.ambientEquatorColor;
+            groundAmbient = RenderSettings.ambientGroundColor;
+            moonIntensity = moon != null ? moon.intensity : 1f;
+            rimIntensity = rim != null ? rim.intensity : 0f;
+            var volume = FindObjectOfType<PostProcessVolume>();
+            if (volume != null && volume.profile != null) volume.profile.TryGetSettings(out grading);
+        }
+
+        /// <summary>1 under a tunnel roof, 0 under the open sky.</summary>
+        public void SetShade(float target) => shadeTarget = Mathf.Clamp01(target);
 
         public void SetBiome(Biome b, bool instant)
         {
+            Ready();
             target = b;
             elapsed = 0;
             settled = false;
@@ -181,6 +211,12 @@ namespace AntGarden
 
         void Update()
         {
+            Ready();
+            if (Mathf.Abs(shade - shadeTarget) > 1e-3f)
+            {
+                shade = Mathf.MoveTowards(shade, shadeTarget, Time.deltaTime / 1.2f);
+                ApplyShade();
+            }
             if (target == null || settled) return;
             Blend(1 - Mathf.Exp(-Time.deltaTime * 3f / blendTime));
             elapsed += Time.deltaTime;
@@ -204,15 +240,34 @@ namespace AntGarden
         void Blend(float k)
         {
             RenderSettings.fogColor = Color.Lerp(RenderSettings.fogColor, target.fogColor, k);
-            RenderSettings.ambientSkyColor = Color.Lerp(RenderSettings.ambientSkyColor, target.ambientSky, k);
-            RenderSettings.ambientEquatorColor = Color.Lerp(RenderSettings.ambientEquatorColor, target.ambientEquator, k);
-            RenderSettings.ambientGroundColor = Color.Lerp(RenderSettings.ambientGroundColor, target.ambientGround, k);
+            skyAmbient = Color.Lerp(skyAmbient, target.ambientSky, k);
+            equatorAmbient = Color.Lerp(equatorAmbient, target.ambientEquator, k);
+            groundAmbient = Color.Lerp(groundAmbient, target.ambientGround, k);
+            ApplyShade();
             if (moon != null) moon.color = Color.Lerp(moon.color, target.moonColor, k);
             if (rim != null) rim.color = Color.Lerp(rim.color, target.rimColor, k);
             if (sky != null)
             {
                 sky.SetColor("_TopColor", Color.Lerp(sky.GetColor("_TopColor"), target.skyTop, k));
                 sky.SetColor("_HorizonColor", Color.Lerp(sky.GetColor("_HorizonColor"), target.skyHorizon, k));
+            }
+        }
+
+        void ApplyShade()
+        {
+            float a = Mathf.Lerp(1, tunnelAmbient, shade);
+            RenderSettings.ambientSkyColor = skyAmbient * a;
+            RenderSettings.ambientEquatorColor = equatorAmbient * a;
+            RenderSettings.ambientGroundColor = groundAmbient * a;
+            if (moon != null) moon.intensity = moonIntensity * Mathf.Lerp(1, tunnelMoon, shade);
+            if (rim != null) rim.intensity = rimIntensity * Mathf.Lerp(1, tunnelRim, shade);
+            Shader.SetGlobalFloat("_AntDim", tunnelAntDim * shade);   // the ants' own glow, in keeping with the dark
+            if (grading != null)
+            {
+                // relative to whatever else has set it (check views lift it for a moment)
+                float e = tunnelExposure * shade;
+                grading.postExposure.value += e - exposureApplied;
+                exposureApplied = e;
             }
         }
     }

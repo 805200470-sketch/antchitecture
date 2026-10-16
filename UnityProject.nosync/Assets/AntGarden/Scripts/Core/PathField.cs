@@ -35,6 +35,8 @@ namespace AntGarden.Core
         public bool Boundary;
         /// <summary>More than 2 units inside the hexagon frame.</summary>
         public bool Inside;
+        /// <summary>Chamber size factor (stitched worlds: a ruin's rooms shrink with its narrow tunnels; 1 elsewhere).</summary>
+        public double ChamberScale = 1;
     }
 
     /// <summary>A canyon corridor: resampled centreline with a half-width per point.</summary>
@@ -204,7 +206,7 @@ namespace AntGarden.Core
         /// <param name="r">shared hexagon circumradius</param>
         /// <param name="centers">hexagon centres</param>
         /// <param name="edges">edges (Id, Source, Target, Pts, Hws, Connector, Inferred are read)</param>
-        /// <param name="nodes">nodes (Id, X, Z, Type, Boundary are read)</param>
+        /// <param name="nodes">nodes (Id, X, Z, Type, Boundary, ChamberScale are read)</param>
         /// <param name="name">world name</param>
         /// <param name="modules">module placement</param>
         /// <param name="cfg">configuration</param>
@@ -402,7 +404,7 @@ namespace AntGarden.Core
             {
                 string key = Key(n.Id);
                 if (!byId.ContainsKey(key)) order.Add(key);
-                byId[key] = new Node { Id = n.Id, X = n.X, Z = n.Z, Type = n.Type, Boundary = n.Boundary, Hw = 0, Degree = 0, Clear = 0 };
+                byId[key] = new Node { Id = n.Id, X = n.X, Z = n.Z, Type = n.Type, Boundary = n.Boundary, Hw = 0, Degree = 0, Clear = 0, ChamberScale = n.ChamberScale };
             }
             foreach (Edge e in Edges)
             {
@@ -427,7 +429,7 @@ namespace AntGarden.Core
             foreach (Node n in Nodes)
             {
                 n.Clear = n.Hw * (n.Degree >= 3 ? pc.JunctionClearing : n.Degree == 1 ? pc.EndpointClearing : 1);
-                if (n.Degree != 2) n.Clear = JsMath.Clamp(n.Clear, pc.ChamberMin, pc.ChamberMax);
+                if (n.Degree != 2) n.Clear = JsMath.Clamp(n.Clear * n.ChamberScale, pc.ChamberMin * n.ChamberScale, pc.ChamberMax * n.ChamberScale);
                 n.Inside = HexDist(n.X, n.Z) < -2;
             }
             double total = 0;

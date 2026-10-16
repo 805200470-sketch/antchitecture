@@ -29,6 +29,7 @@ Shader "AntGarden/AntShell"
         sampler2D _MainTex, _BumpMap, _RoughMap;
         fixed4 _Tint, _RimColor, _GlowColor;
         float _RimPower, _RimStrength, _GlowStrength, _HueShift, _Saturation;
+        float _AntDim;   // global, set by the game: 0 under the open sky, up to ~0.25 in a tunnel (the ants stay in keeping)
 
         struct Input
         {
@@ -44,7 +45,7 @@ Shader "AntGarden/AntShell"
             o.Smoothness = 1 - tex2D(_RoughMap, IN.uv_MainTex).r;
             float rim = pow(1 - saturate(dot(normalize(IN.viewDir), o.Normal)), _RimPower);
             float lum = dot(col, float3(0.3, 0.55, 0.15));
-            o.Emission = _RimColor.rgb * rim * _RimStrength + _GlowColor.rgb * lum * _GlowStrength;
+            o.Emission = (_RimColor.rgb * rim * _RimStrength + _GlowColor.rgb * lum * _GlowStrength) * (1 - _AntDim);
         }
         ENDCG
     }

@@ -8,7 +8,8 @@ namespace AntGarden
     /// <summary>
     /// Review stills of every region in the current world (-sceneshots &lt;dir&gt;): playing it (the normal camera
     /// behind the walking ant, with the game's UI), the same spot through the ant's own eyes, the whole nest from
-    /// high above, and its map. Spots are a canyon and a junction chamber, or in a ruin the relics themselves.
+    /// high above, and its map. Spots are a canyon and a junction chamber, or in a ruin the way in (looking down the
+    /// glowing specks) and the relics themselves.
     /// Then the game quits.
     /// </summary>
     public static class SceneShots
@@ -20,8 +21,13 @@ namespace AntGarden
             game.hud.SetStatsVisible(false);
             game.hud.SetHelpVisible(false);
             yield return new WaitForSeconds(3f);   // shaders compile, the NPCs spread out
+            // -shotregions 4,5: only these regions (a honeycomb has fifteen)
+            var only = new HashSet<int>();
+            foreach (string part in (Game.Arg("-shotregions") ?? "").Split(','))
+                if (int.TryParse(part.Trim(), out int ri)) only.Add(ri);
             for (int r = 0; r < game.world.regions.Count; r++)
             {
+                if (only.Count > 0 && !only.Contains(r)) continue;
                 int k = 0;
                 foreach (var (name, at, toward) in Spots(game, r))
                 {
@@ -53,8 +59,15 @@ namespace AntGarden
             foreach (RuinScene ruin in game.Ruins)
             {
                 if (ruin.region.index != r) continue;
+                // just inside the way in, looking down the glowing track
+                List<Vector2> track = ruin.TrailMain;
+                if (track != null && track.Count > 4)
+                {
+                    int a = PointAlong(track, 4f), b = PointAlong(track, 13f);
+                    if (b > a) spots.Add(("trail_entry", track[a], track[b]));
+                }
                 var kinds = new HashSet<string>();
-                for (int i = 0; i < ruin.Count && spots.Count < 3; i++)
+                for (int i = 0; i < ruin.Count && spots.Count < 4; i++)
                 {
                     if (!kinds.Add(ruin.IdOf(i))) continue;
                     Vector3 c = ruin.PosOf(i);
@@ -78,6 +91,18 @@ namespace AntGarden
                 if (Approach(game, r, c, chamber.clear + 4f, out Vector2 at)) spots.Add(("chamber", at, c));
             }
             return spots;
+        }
+
+        /// <summary>The index of the point about <paramref name="dist"/> units along a polyline (its last one if shorter).</summary>
+        static int PointAlong(List<Vector2> pts, float dist)
+        {
+            float acc = 0;
+            for (int i = 1; i < pts.Count; i++)
+            {
+                acc += (pts[i] - pts[i - 1]).magnitude;
+                if (acc >= dist) return i;
+            }
+            return pts.Count - 1;
         }
 
         /// <summary>A walkable point on a path about <paramref name="back"/> units from the target, on its way in.</summary>

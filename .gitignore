@@ -38,7 +38,8 @@ UnityProject.nosync/.idea/
 *.m4v
 *.pptx
 *.key.zip
-Docs/最终汇报_2026-10-06/
+# 汇报：PPT 和视频本身不上传（上面的 *.pptx、*.mp4 已排除），讲稿等文字上传；拆分的旧版本不要
+Docs/最终汇报_2026-10-06/其他版本_原尺寸拆分*/
 
 # ─── 个人的、和团队项目无关的 ────────────────────────────────
 Tools/portfolio/
@@ -55,3 +56,6 @@ node_modules/
 
 # Unity 崩溃时留下的内存转储
 mono_crash.*
+
+# 核心测试的编译产物（每次跑测试都会重新生成）
+Tools/core_tests/build/

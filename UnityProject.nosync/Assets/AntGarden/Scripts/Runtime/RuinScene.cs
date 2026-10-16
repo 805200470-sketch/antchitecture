@@ -10,7 +10,9 @@ namespace AntGarden
     /// line. "relics": the giants' relics (a teacup hall, coin terraces, a rusted key, a button plaza).
     /// "temple": the ancestors' temple (clay spires and carved arches along both banks, hexagon cells, and the
     /// amber shrine with an ancestor inside at the end of the tunnel).
-    /// Plan() runs before the plants grow (it reserves the props' ground), Build() after.
+    /// The main tunnel is walked from the end nearer where the player comes in, so the props come in order and the
+    /// ruin's heart (the shrine; the button plaza) is at the far end, and glowing specks scattered along a trodden
+    /// path lead there (GuideTrail). Plan() runs before the plants grow (it reserves the props' ground), Build() after.
     /// </summary>
     public class RuinScene
     {
@@ -38,6 +40,17 @@ namespace AntGarden
         readonly MaterialPropertyBlock block = new MaterialPropertyBlock();
         Vector3 shrineSpot;
         bool hasShrine;
+        WEdge main;                  // the main tunnel, walked from its start (mainForward: pts[0]) to the heart
+        bool mainForward = true;
+        Vector2 goal;                // the heart the glowing specks lead to, and how far short of it the tracks stop
+        float goalRadius;
+        GuideTrail.Route route;      // the glowing specks' tracks, planned with the props
+        MeshRenderer trail;
+        readonly MaterialPropertyBlock trailBlock = new MaterialPropertyBlock();
+        /// <summary>The main glowing track (from the way in nearest the player's start to the heart), or null.</summary>
+        public List<Vector2> TrailMain => route?.mainTrack;
+        /// <summary>The main track from its start, which may lie in the neighbouring nest (across the seam).</summary>
+        public List<Vector2> TrailMainFull => route?.mainFull;
 
         public static string Title(string kind) => kind == "temple"
             ? Loc.T("遗迹 · 古蚁圣殿", "Ruins · The Ancestors' Temple")
@@ -50,7 +63,8 @@ namespace AntGarden
             this.refs = refs;
             this.kind = kind;
             rng = new System.Random(seed);
-            roof = new TunnelRoof(world, region, kind == "temple" ? 8.5f : 6.5f);
+            // a low roof over the narrow canyon: a tunnel, not a hall (the temple a little loftier)
+            roof = new TunnelRoof(world, region, kind == "temple" ? 5.8f : 4.6f);
         }
 
         float R(float a, float b) => a + (float)rng.NextDouble() * (b - a);
@@ -94,6 +108,24 @@ namespace AntGarden
             return (e.pts[0], Vector2.up, e.hw);
         }
 
+        /// <summary>At() along the main tunnel as the player walks it (0 = the end nearer where they come in).</summary>
+        (Vector2 p, Vector2 dir, float hw) Along(float frac)
+        {
+            if (mainForward) return At(main, frac);
+            var (p, dir, hw) = At(main, 1 - frac);
+            return (p, -dir, hw);
+        }
+
+        /// <summary>Where the player comes from: the honeycomb's heart (the ant starts there), or this nest's spawn.</summary>
+        Vector2 EntryPoint()
+        {
+            if (region.cell)
+                foreach (Region r in world.regions)
+                    if (r.cell && r.q == 0 && r.r == 0) return new Vector2(r.cellX, r.cellZ);
+            var sp = world.SpawnPoint(region.index);
+            return new Vector2(sp.x, sp.z);
+        }
+
         void Add(string id, Vector2 p, float size, float yaw, bool collide, bool flat = false)
         {
             spots.Add(new Spot { id = id, pos = new Vector3(p.x, 0, p.y), size = size, yaw = yaw, collide = collide, flat = flat });
@@ -108,60 +140,75 @@ namespace AntGarden
         {
             WEdge e = MainTunnel();
             if (e == null) return;
+            main = e;
+            Vector2 entry = EntryPoint();
+            mainForward = (e.pts[0] - entry).sqrMagnitude <= (e.pts[e.pts.Count - 1] - entry).sqrMagnitude;
             if (kind == "temple")
             {
                 // clay spires in pairs down both banks, carved arches between them facing the path
                 for (float f = 0.1f; f <= 0.86f; f += 0.085f)
                 {
-                    var (p, dir, hw) = At(e, f);
+                    var (p, dir, hw) = Along(f);
                     Vector2 n = new Vector2(-dir.y, dir.x);
                     foreach (int side in new[] { -1, 1 })
                     {
                         Vector2 q = p + n * side * (hw + 1.4f);
                         Add("temple_spire", q, R(5.5f, 8f), R(0, 360), true);
                     }
-                    var (p2, dir2, hw2) = At(e, f + 0.042f);
+                    var (p2, dir2, hw2) = Along(f + 0.042f);
                     Vector2 n2 = new Vector2(-dir2.y, dir2.x);
                     int s2 = rng.NextDouble() < 0.5 ? -1 : 1;
                     Add("temple_arch", p2 + n2 * s2 * (hw2 + 1.0f), R(4.2f, 5.2f), Yaw(-n2 * s2), true);
                 }
+                // hexagon cells at the foot of the banks (the tunnel itself stays clear)
                 foreach (float f in new[] { 0.33f, 0.58f, 0.77f })
                 {
-                    var (p, dir, hw) = At(e, f);
+                    var (p, dir, hw) = Along(f);
                     Vector2 n = new Vector2(-dir.y, dir.x);
                     int side = f < 0.5f ? 1 : -1;
-                    Add("temple_cells", p + n * side * hw * 0.62f, R(1.1f, 1.5f), R(0, 360), true);
+                    Add("temple_cells", p + n * side * (hw + 0.9f), R(1.1f, 1.5f), R(0, 360), true);
                 }
-                // the amber shrine at the end of the tunnel
-                var (end, endDir, _) = At(e, 0.97f);
+                // the amber shrine at the end of the tunnel: the heart
+                var (end, endDir, _) = Along(0.97f);
                 shrineSpot = new Vector3(end.x, 0, end.y);
                 hasShrine = true;
                 world.reserved.Add(new Circle(end.x, end.y, 2.4f, 4f));
+                goal = end;
+                goalRadius = 3.1f;
             }
             else
             {
-                var (a, da, hwa) = At(e, 0.3f);
+                var (a, da, hwa) = Along(0.3f);
                 Vector2 na = new Vector2(-da.y, da.x);
                 Add("relic_teacup", a + na * (hwa + 2.2f), 6f, Yaw(-na), true);
-                var (b, db, hwb) = At(e, 0.5f);
+                var (b, db, hwb) = Along(0.5f);
                 Vector2 nb = new Vector2(-db.y, db.x);
                 Add("relic_coins", b - nb * (hwb + 1.1f) + db * 1.6f, 1.9f, R(0, 360), true);
                 Add("relic_coins", b - nb * (hwb + 1.4f) - db * 1.8f, 1.4f, R(0, 360), true);
-                var (c, dc, hwc) = At(e, 0.68f);
+                var (c, dc, hwc) = Along(0.68f);
                 Vector2 nc = new Vector2(-dc.y, dc.x);
                 Add("relic_key", c + nc * hwc * 0.7f, 7f, Yaw(dc) + 90f, true);
-                // the button lies flat in the roomiest chamber: a plaza the ants walk across
-                WNode best = null;
-                foreach (WNode nd in world.nodes)
-                    if (nd.region == region.index && nd.inside && nd.degree >= 3 && (best == null || nd.clear > best.clear)) best = nd;
+                // the button lies flat in the chamber at the far end of the tunnel: a plaza the ants walk across, the
+                // heart of the ruin (no chamber there: the roomiest one)
+                string farId = mainForward ? e.target : e.source;
+                WNode best = world.nodes.Find(nd => nd.id == farId && nd.degree != 2 && nd.inside);
+                if (best == null)
+                    foreach (WNode nd in world.nodes)
+                        if (nd.region == region.index && nd.inside && nd.degree >= 3 && (best == null || nd.clear > best.clear)) best = nd;
                 if (best != null) Add("relic_button", new Vector2(best.x, best.z), 3.6f, R(0, 360), false, true);
+                bool atEnd = best != null && best.id == farId;
+                goal = atEnd ? new Vector2(best.x, best.z) : Along(1f).p;
+                goalRadius = atEnd ? 2.5f : 1.2f;
             }
+            // the glowing tracks, from every way in to the heart; their lanes are kept clear of plants
+            route = GuideTrail.Plan(world, region, main, mainForward, entry, goal, goalRadius, 4321 + region.index);
+            GuideTrail.Reserve(world, region, route);
         }
 
         // ------------------------------------------------------------------ build
 
-        /// <summary>The tunnel roof and the props, after the plants have grown.</summary>
-        public void Build(Material ground, Transform parent, float roofStep, int seed)
+        /// <summary>The tunnel roof, the props and the glowing specks, after the plants have grown.</summary>
+        public void Build(Material ground, Transform parent, float roofStep, int seed, float trailGain = 1f, float trailDensity = 1f)
         {
             if (refs.roots != null)
             {
@@ -183,6 +230,9 @@ namespace AntGarden
             root.SetParent(parent, false);
             foreach (Spot s in spots) PlaceProp(s, root);
             if (hasShrine) BuildShrine(root);
+            // glowing specks from every way in to the heart (after the props: they lie over and round them)
+            if (route != null && trailGain > 0 && refs.guideTrail != null)
+                trail = GuideTrail.Build(world, region, route, refs.guideTrail, region.biome.plantGlow, trailGain, trailDensity, root, seed + 17);
         }
 
         void PlaceProp(Spot s, Transform parent)
@@ -336,9 +386,18 @@ namespace AntGarden
 
         static readonly Vector3[] tips = new Vector3[2];
 
-        /// <summary>Antenna touches, and the glow of relics that have just spoken fading back.</summary>
+        /// <summary>Antenna touches, the glow of relics that have just spoken fading back, and the way on lighting up.</summary>
         public void Tick(float dt, AntController player, Hud hud)
         {
+            if (trail != null)
+            {
+                // where the ant is along the glowing track (the specks just ahead of it glow a touch more)
+                Vector3 at = player.Position;
+                bool near = at.x > region.minX - 5 && at.x < region.maxX + 5 && at.z > region.minZ - 5 && at.z < region.maxZ + 5;
+                trail.GetPropertyBlock(trailBlock);
+                trailBlock.SetFloat("_PlayerD", near ? GuideTrail.PlayerD(route, at) : -1f);
+                trail.SetPropertyBlock(trailBlock);
+            }
             tips[0] = player.AntennaTip(0);
             tips[1] = player.AntennaTip(1);
             for (int i = 0; i < relics.Count; i++)

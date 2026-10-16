@@ -17,7 +17,11 @@ namespace AntGarden
         public SoundSettings audio = new SoundSettings();
         public bool padRumble = true;       // a short rumble of the game pad on touches, flares and gates
         public float ruinWidth = 0.55f;     // a ruin's canyons in a honeycomb, relative to the nest's own: narrow tunnels
-        public float trailBrightness = 0.9f;// the glowing footprints that lead through a ruin
+        public float trailBrightness = 0.9f;// the glowing specks that lead through a ruin (0 = none)
+        public float trailDensity = 1f;     // how thickly they lie along the way (2 = twice as many)
+        public float seamMotes = 1f;        // the motes rising along the seams between nests (0 = none)
+        public float seamMoteDensity = 1f;  // how thickly they rise
+        public bool seamBlend = true;       // different grounds interleave in patches across a seam (false: a line)
         public ScatterSettings scatter = new ScatterSettings();
         public AtmosphereSettings atmosphere = new AtmosphereSettings();
         public ReliefSettings relief = new ReliefSettings();
@@ -361,7 +365,12 @@ namespace AntGarden
         public float rimLightIntensity = 0.35f;
         public float bloomIntensity = 2.2f;
         public float bloomThreshold = 0.85f;
-        public float exposure = 0.75f;
+        public float exposure = 0.7f;
+        public float tunnelAmbient = 0.9f;   // under a tunnel roof: ambient light × this
+        public float tunnelMoon = 0.8f;      // moonlight × this
+        public float tunnelRim = 0.9f;       // the camera's silhouette light × this
+        public float tunnelAntDim = 0.2f;    // the ants' own glow this much lower (they stay in keeping with the dark)
+        public float tunnelExposure = -0.05f;// and the exposure this much lower (stops)
         public int sporeCount = 900;
     }
 

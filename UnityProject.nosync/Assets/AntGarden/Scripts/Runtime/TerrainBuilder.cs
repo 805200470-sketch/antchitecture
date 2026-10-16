@@ -62,8 +62,21 @@ namespace AntGarden
         /// triangle that crosses from one cell into another is cut along the hexagon's edge and each piece takes
         /// its own cell's ground material, so the colours change along a clean straight line.
         /// </summary>
-        public static IEnumerator BuildCells(World w, List<Region> cells, List<Material> groundByRegion, Material wall, Transform parent, float step, float sideDepth, Action<float> progress)
+        /// <param name="seamShader">a material with AntGarden/TerrainSeam: where neighbouring cells have different
+        /// ground, the two interleave in patches across the seam instead of meeting along a line (null: a line)</param>
+        public static IEnumerator BuildCells(World w, List<Region> cells, List<Material> groundByRegion, Material wall, Transform parent, float step, float sideDepth, Action<float> progress, Material seamShader = null)
         {
+            var seams = seamShader != null ? SeamEdges(cells) : new Dictionary<int, List<SeamEdge>>();
+            var seamMats = new Dictionary<int, Material>();
+            Material SeamMat(int region)
+            {
+                if (!seamMats.TryGetValue(region, out Material m))
+                {
+                    m = new Material(groundByRegion[region]) { name = groundByRegion[region].name + "_seam", shader = seamShader.shader, renderQueue = -1 };
+                    seamMats[region] = m;
+                }
+                return m;
+            }
             var rim = new List<WFrameEdge>();
             foreach (WFrameEdge e in w.frameEdges) if (!e.shared && w.regions[e.region].cell) rim.Add(e);
             Region r0 = cells[0];
@@ -93,6 +106,7 @@ namespace AntGarden
                     var lists = new List<int[]>();
                     foreach (var kv in parts) { mats.Add(groundByRegion[kv.Key]); lists.Add(kv.Value.ToArray()); }
                     MakeMultiMeshObject($"Chunk_{c.cx}_{c.cz}", root, mats, d, lists);
+                    if (seams.Count > 0) SeamOverlay($"Seam_{c.cx}_{c.cz}", root, d, parts, seams, SeamMat);
                 }
                 progress?.Invoke((i + 1f) / (chunks.Count + 1f));
                 yield return null;
@@ -170,6 +184,125 @@ namespace AntGarden
             d.tangents = tangents.ToArray();
             d.colors = colors.ToArray();
             return parts;
+        }
+
+        /// <summary>A seam between this cell and a neighbour with different ground.</summary>
+        sealed class SeamEdge
+        {
+            public int other;
+            public float mx, mz;   // the middle of the shared edge
+            public float nx, nz;   // unit normal from this cell into the other
+            public float tx, tz;   // along the edge
+            public float half;     // half the edge's length
+            public bool second;    // this cell has the higher index of the pair: its side of the pattern is inverted
+        }
+
+        const float SeamBand = 4.5f;   // how far into each cell the two grounds interleave
+
+        static Dictionary<int, List<SeamEdge>> SeamEdges(List<Region> cells)
+        {
+            var map = new Dictionary<int, List<SeamEdge>>();
+            void Add(Region a, Region b, Vector2 mid, Vector2 n)
+            {
+                if (!map.TryGetValue(a.index, out var list)) map[a.index] = list = new List<SeamEdge>();
+                list.Add(new SeamEdge { other = b.index, mx = mid.x, mz = mid.y, nx = n.x, nz = n.y, tx = -n.y, tz = n.x, half = a.cellR / 2, second = a.index > b.index });
+            }
+            for (int i = 0; i < cells.Count; i++)
+            for (int j = i + 1; j < cells.Count; j++)
+            {
+                Region a = cells[i], b = cells[j];
+                if (a.biome.id == b.biome.id) continue;   // the same ground: the seam does not show
+                var ca = new Vector2(a.cellX, a.cellZ);
+                var cb = new Vector2(b.cellX, b.cellZ);
+                float apothem = a.cellR * 0.8660254f, dist = (cb - ca).magnitude;
+                if (Mathf.Abs(dist - 2 * apothem) > apothem * 0.1f) continue;   // not neighbours
+                Vector2 mid = (ca + cb) / 2, n = (cb - ca) / dist;
+                Add(a, b, mid, n);
+                Add(b, a, mid, -n);
+            }
+            return map;
+        }
+
+        /// <summary>
+        /// The other ground's share at a point of this cell near a seam: 0.5 on the seam, falling to 0 a band's
+        /// width in, the band's reach wavering with a slow noise. The same field from both sides (the second cell
+        /// of the pair reads the complement), so the patches meet across the seam.
+        /// </summary>
+        static float SeamShare(SeamEdge e, float x, float z)
+        {
+            float s = (x - e.mx) * e.nx + (z - e.mz) * e.nz;          // < 0 inside this cell
+            float along = Mathf.Abs((x - e.mx) * e.tx + (z - e.mz) * e.tz);
+            float waver = 0.3f * (Mathf.PerlinNoise(x * 0.05f + 11.3f, z * 0.05f - 4.1f) - 0.5f) * (1 - Mathf.Clamp01(Mathf.Abs(s) / SeamBand));
+            float share = 0.5f + 0.5f * s / SeamBand + (e.second ? -waver : waver);
+            // where three cells meet the pattern gives way to the plain seam
+            share *= 1 - Mathf.SmoothStep(0, 1, Mathf.InverseLerp(e.half - 1.5f, e.half + 1f, along));
+            return Mathf.Clamp01(share);
+        }
+
+        /// <summary>The seam band of a chunk: its triangles again, in the neighbouring cell's ground, holed by noise.</summary>
+        static void SeamOverlay(string name, Transform parent, ChunkData d, Dictionary<int, List<int>> parts, Dictionary<int, List<SeamEdge>> seams, Func<int, Material> seamMat)
+        {
+            var verts = new List<Vector3>();
+            var normals = new List<Vector3>();
+            var tangents = new List<Vector4>();
+            var colors = new List<Color>();
+            var uv = new List<Vector2>();
+            var subs = new Dictionary<int, List<int>>();
+            foreach (var kv in parts)
+            {
+                if (!seams.TryGetValue(kv.Key, out var edges)) continue;
+                List<int> tri = kv.Value;
+                for (int t = 0; t < tri.Count; t += 3)
+                {
+                    Vector3 c = (d.verts[tri[t]] + d.verts[tri[t + 1]] + d.verts[tri[t + 2]]) / 3;
+                    // the nearest seam within the band (a triangle joins one overlay only)
+                    SeamEdge best = null;
+                    float bestS = -SeamBand - 0.6f;
+                    foreach (SeamEdge e in edges)
+                    {
+                        float s = (c.x - e.mx) * e.nx + (c.z - e.mz) * e.nz;
+                        float along = Mathf.Abs((c.x - e.mx) * e.tx + (c.z - e.mz) * e.tz);
+                        if (s > bestS && along < e.half + 1f) { bestS = s; best = e; }
+                    }
+                    if (best == null) continue;
+                    float w0 = SeamShare(best, d.verts[tri[t]].x, d.verts[tri[t]].z);
+                    float w1 = SeamShare(best, d.verts[tri[t + 1]].x, d.verts[tri[t + 1]].z);
+                    float w2 = SeamShare(best, d.verts[tri[t + 2]].x, d.verts[tri[t + 2]].z);
+                    if (w0 < 0.02f && w1 < 0.02f && w2 < 0.02f) continue;
+                    if (!subs.TryGetValue(best.other, out var list)) subs[best.other] = list = new List<int>();
+                    float flip = best.second ? 1 : 0;
+                    for (int k = 0; k < 3; k++)
+                    {
+                        int vi = tri[t + k];
+                        list.Add(verts.Count);
+                        verts.Add(d.verts[vi]);
+                        normals.Add(d.normals[vi]);
+                        tangents.Add(d.tangents[vi]);
+                        colors.Add(d.colors[vi]);
+                        uv.Add(new Vector2(k == 0 ? w0 : k == 1 ? w1 : w2, flip));
+                    }
+                }
+            }
+            if (subs.Count == 0) return;
+            var mesh = new Mesh { name = name, indexFormat = verts.Count > 65000 ? IndexFormat.UInt32 : IndexFormat.UInt16 };
+            mesh.SetVertices(verts);
+            mesh.SetNormals(normals);
+            mesh.SetTangents(tangents);
+            mesh.SetColors(colors);
+            mesh.SetUVs(0, uv);
+            mesh.subMeshCount = subs.Count;
+            var mats = new List<Material>();
+            int si = 0;
+            foreach (var kv in subs) { mesh.SetTriangles(kv.Value, si++); mats.Add(seamMat(kv.Key)); }
+            mesh.RecalculateBounds();
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterials = mats.ToArray();
+            mr.receiveShadows = true;
+            mr.shadowCastingMode = ShadowCastingMode.Off;   // the terrain below casts them
+            go.isStatic = true;
         }
 
         static void MakeMultiMeshObject(string name, Transform parent, List<Material> mats, ChunkData d, List<int[]> submeshes)

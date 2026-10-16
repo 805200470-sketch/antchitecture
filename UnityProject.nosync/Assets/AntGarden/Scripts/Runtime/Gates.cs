@@ -36,7 +36,8 @@ namespace AntGarden
                 if (!e.connector || !Crossing(w, e, out Vector2 p, out Vector2 d)) continue;
                 Region r = w.regions[e.region];
                 float hw = Mathf.Max(2.5f, w.HalfWidth(p.x, p.y));
-                gates.Add(Make(w, refs, cfg, root, p, d, hw * cfg.archScale, r.biome.gateColor, r.biome.gateColor, e.region, false));
+                // between the cells of a honeycomb the seam is marked by rising motes (SeamMotes), not an arch
+                gates.Add(Make(w, refs, cfg, root, p, d, hw * cfg.archScale, r.biome.gateColor, r.biome.gateColor, e.region, false, !r.cell));
             }
 
             for (int i = 0; i + 1 < w.regions.Count; i++)
@@ -140,7 +141,8 @@ namespace AntGarden
             return best;
         }
 
-        static Gate Make(World w, RuntimeRefs refs, GateSettings cfg, Transform parent, Vector2 p, Vector2 d, float radius, Color color, Color lightColor, int region, bool portal)
+        /// <param name="marker">false: no arch and veil, a softer light (the gate still names the nest ahead)</param>
+        static Gate Make(World w, RuntimeRefs refs, GateSettings cfg, Transform parent, Vector2 p, Vector2 d, float radius, Color color, Color lightColor, int region, bool portal, bool marker = true)
         {
             var right = new Vector2(d.y, -d.x);
             float y = w.Height(p.x, p.y);
@@ -151,17 +153,20 @@ namespace AntGarden
             go.transform.position = new Vector3(p.x, y - 0.2f, p.y);
             go.transform.rotation = Quaternion.LookRotation(new Vector3(d.x, 0, d.y), Vector3.up);
 
-            var arch = new GameObject("Arch");
-            arch.transform.SetParent(go.transform, false);
-            arch.AddComponent<MeshFilter>().sharedMesh = ArchMesh(radius, cfg.tube * (portal ? 1.4f : 1f));
-            var mr = arch.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = refs.slotRing;
-            mr.shadowCastingMode = ShadowCastingMode.Off;
-            var block = new MaterialPropertyBlock();
-            block.SetColor("_Color", color * cfg.glow);
-            mr.SetPropertyBlock(block);
+            if (marker)
+            {
+                var arch = new GameObject("Arch");
+                arch.transform.SetParent(go.transform, false);
+                arch.AddComponent<MeshFilter>().sharedMesh = ArchMesh(radius, cfg.tube * (portal ? 1.4f : 1f));
+                var mr = arch.AddComponent<MeshRenderer>();
+                mr.sharedMaterial = refs.slotRing;
+                mr.shadowCastingMode = ShadowCastingMode.Off;
+                var block = new MaterialPropertyBlock();
+                block.SetColor("_Color", color * cfg.glow);
+                mr.SetPropertyBlock(block);
+            }
 
-            if (refs.gateCurtain != null)
+            if (marker && refs.gateCurtain != null)
             {
                 var curtain = new GameObject("Curtain");
                 curtain.transform.SetParent(go.transform, false);
@@ -181,7 +186,7 @@ namespace AntGarden
             light.type = LightType.Point;
             light.color = lightColor;
             light.range = cfg.lightRange * (portal ? 1.3f : 1f);
-            light.intensity = cfg.lightIntensity;
+            light.intensity = cfg.lightIntensity * (marker ? 1f : 0.55f);
             light.shadows = LightShadows.None;
 
             return new Gate { position = new Vector3(p.x, y, p.y), dir = d, radius = radius, region = region, portal = portal, go = go };

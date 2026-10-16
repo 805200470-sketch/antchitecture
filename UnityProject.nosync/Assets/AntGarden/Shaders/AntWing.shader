@@ -24,6 +24,7 @@ Shader "AntGarden/AntWing"
         sampler2D _MainTex;
         fixed4 _Tint, _RimColor;
         float _Alpha, _RimStrength;
+        float _AntDim;   // global (see AntShell)
 
         struct Input
         {
@@ -37,7 +38,7 @@ Shader "AntGarden/AntWing"
             float rim = pow(1 - saturate(abs(dot(normalize(IN.viewDir), float3(0, 0, 1)))), 2);
             o.Albedo = col;
             o.Smoothness = 0.8;
-            o.Emission = _RimColor.rgb * rim * _RimStrength;
+            o.Emission = _RimColor.rgb * rim * _RimStrength * (1 - _AntDim);
             o.Alpha = saturate(_Alpha + rim * 0.3);
         }
         ENDCG

@@ -48,6 +48,8 @@ namespace AntGarden.EditorTools
             refs.ants = BuildAnts();
             refs.roots = SimpleMaterial("Roots", "AntGarden/Roots");
             refs.amber = SimpleMaterial("Amber", "AntGarden/Amber");
+            refs.guideTrail = SimpleMaterial("GuideTrail", "AntGarden/GuideTrail");
+            refs.terrainSeam = SimpleMaterial("TerrainSeam", "AntGarden/TerrainSeam");
             refs.groundSets = BuildGroundSets();
             EditorUtility.SetDirty(refs);
             AssetDatabase.SaveAssets();

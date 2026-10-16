@@ -51,6 +51,7 @@ namespace AntGarden
         ParticleSystem spores, burst;
         AtmosphereController atmosphere;
         Transform ring;
+        Rings.Draped playerRing;
         int currentNest = -1, currentRegion = -1;
         float stepRun;              // ground walked since the last footstep sound
         Vector3 lastStep;
@@ -116,7 +117,7 @@ namespace AntGarden
             QualitySettings.globalTextureMipmapLimit = Preset.textureLimit;
             Debug.Log($"[AntGarden] start: world={Selection} quality={Preset.name}");
             StartCoroutine(Build());
-            string capture = Arg("-capture") ?? Arg("-demo") ?? Arg("-photos") ?? Arg("-animcheck") ?? Arg("-lookcheck") ?? Arg("-npccheck") ?? Arg("-camcheck") ?? Arg("-sceneshots") ?? Arg("-legcheck") ?? Arg("-padcheck");
+            string capture = Arg("-capture") ?? Arg("-demo") ?? Arg("-photos") ?? Arg("-animcheck") ?? Arg("-lookcheck") ?? Arg("-npccheck") ?? Arg("-camcheck") ?? Arg("-sceneshots") ?? Arg("-legcheck") ?? Arg("-padcheck") ?? Arg("-trailfilm");
             if (!string.IsNullOrEmpty(capture)) StartCoroutine(Watchdog(capture));
         }
 
@@ -208,7 +209,8 @@ namespace AntGarden
                 {
                     var texts = ReadNetworks(rs.spec);
                     // a ruin in a honeycomb is a tunnel: its canyons narrower than a nest's open halls
-                    List<double> widths = rs.cells?.ConvertAll(c => c.scene != null ? (double)cfg.ruinWidth : 1.0);
+                    List<double> widths = rs.cells?.ConvertAll(c => c.scene != null ? (double)cfg.ruinWidth : 1.0)
+                        ?? (rs.scene != null ? new List<double> { cfg.ruinWidth } : null);
                     (field, connectors, paths, ids) = MakeField(rs.spec, texts, widths);
                 }
                 catch (Exception e) { Fail(Loc.T($"路径数据出错（{rs.spec}）：", $"Bad path data ({rs.spec}): ") + e.GetBaseException().Message); yield break; }
@@ -288,7 +290,8 @@ namespace AntGarden
             var honeycomb = world.regions.FindAll(r => r.cell);
             if (honeycomb.Count > 0)
                 yield return TerrainBuilder.BuildCells(world, honeycomb, groundMats, refs.soilWall, root, Preset.terrainStep, 7f,
-                    p => hud.SetProgress(Loc.T("铺设峡谷地面", "Laying the canyon floor"), 0.08f + 0.3f * p));
+                    p => hud.SetProgress(Loc.T("铺设峡谷地面", "Laying the canyon floor"), 0.08f + 0.3f * p),
+                    cfg.seamBlend ? refs.terrainSeam : null);
             Debug.Log($"[AntGarden] terrain {Time.realtimeSinceStartup - t0:F2}s");
 
             // 3 · story slots, ruin scenes (their ground is kept free), plants, gates
@@ -315,7 +318,9 @@ namespace AntGarden
             }
             gates = Gates.Build(world, refs, cfg.gates, root);
             BuildWorldGates(root);
-            foreach (RuinScene ruin in ruins) ruin.Build(groundMats[ruin.region.index], root, Preset.terrainStep * 1.6f, 99 + ruin.region.index);
+            foreach (RuinScene ruin in ruins) ruin.Build(groundMats[ruin.region.index], root, Preset.terrainStep * 1.6f, 99 + ruin.region.index, cfg.trailBrightness, cfg.trailDensity);
+            // the seams between the nests of a honeycomb: motes rising off them
+            if (honeycomb.Count > 1) SeamMotes.Build(world, honeycomb, refs.guideTrail, cfg.seamMotes, cfg.seamMoteDensity, root, 777);
             // memory plants tell their story when an antenna lights them
             if (world.glow != null)
             {
@@ -382,6 +387,8 @@ namespace AntGarden
             if (!string.IsNullOrEmpty(camDir)) StartCoroutine(CamCheck.Run(this, camDir));
             string shotDir = Arg("-sceneshots");
             if (!string.IsNullOrEmpty(shotDir)) StartCoroutine(SceneShots.Run(this, shotDir));
+            string filmDir = Arg("-trailfilm");
+            if (!string.IsNullOrEmpty(filmDir)) StartCoroutine(TrailFilm.Run(this, filmDir));
             string legDir = Arg("-legcheck");
             if (!string.IsNullOrEmpty(legDir)) StartCoroutine(LegCheck.Run(this, legDir));
             // check: -switchto <world> leaves for that world once ready (as the map's buttons do), and quits when
@@ -442,6 +449,14 @@ namespace AntGarden
                 return (field, report.Connectors, field.Edges.Count, ids);
             }
             var net = NetworkData.Parse(texts[spec]);
+            if (widthScale != null && widthScale[0] != 1)
+            {
+                // a ruin on its own: the same narrow tunnels and small rooms as in the honeycomb
+                double k = widthScale[0];
+                pc.FixedWidth *= k; pc.MinHalfWidth *= k; pc.MaxHalfWidth *= k;
+                pc.MinWidth *= k; pc.MaxWidth *= k; pc.ChamberMin *= k; pc.ChamberMax *= k;
+                pc.JunctionClearing *= k; pc.EndpointClearing *= k;
+            }
             var f = new PathField(net, pc);
             return (f, 0, f.Edges.Count, new[] { spec });
         }
@@ -476,7 +491,8 @@ namespace AntGarden
             Gate back = ArriveFrom != null ? gates.Find(g => g.world == ArriveFrom) : null;
             if (back != null) TeleportToGate(back, false);
             // a soft ring under the player's ant tells it apart from the NPC ants
-            ring = Rings.Make("PlayerRing", 0.58f, 0.66f, refs.slotRing, new Color(0.5f, 0.9f, 0.95f) * 0.8f).transform;
+            playerRing = new Rings.Draped("PlayerRing", 0.58f, 0.66f, refs.slotRing, new Color(0.5f, 0.9f, 0.95f) * 0.8f);
+            ring = playerRing.go.transform;
         }
 
         /// <summary>Animation check: the player's ant becomes another species, in place (camera and ring stay).</summary>
@@ -520,7 +536,7 @@ namespace AntGarden
                 var chambers = world.nodes.FindAll(nd => nd.region == r.index && nd.degree >= 3 && nd.inside && nd.clear >= 1.8f);
                 // the first two regions (the archipelago's heart) keep full colonies; further nests smaller ones
                 int perNest = r.index < (r.cell ? 4 : 2) ? cfg.npcs.countPerNest : cfg.npcs.extraCountPerNest;
-                if (r.cell && !string.IsNullOrEmpty(r.scene)) perNest = cfg.npcs.extraCountPerNest / 2;   // a narrow tunnel holds fewer
+                if (!string.IsNullOrEmpty(r.scene)) perNest = cfg.npcs.extraCountPerNest / 2;   // a narrow tunnel holds fewer
                 int count = Mathf.Min(Mathf.RoundToInt(perNest * r.ids.Length * qualityFactor), cfg.npcs.maxCount - n);
                 var kinds = SpeciesMix(pool, dominant.s, count, rng);
                 var census = new Dictionary<string, int>();
@@ -770,7 +786,7 @@ namespace AntGarden
         /// <summary>Another app in front: drop to a low frame rate (recording and capture runs excepted).</summary>
         void OnApplicationFocus(bool focused)
         {
-            if (cfg == null || Arg("-capture") != null || Arg("-demo") != null || Arg("-photos") != null || Arg("-animcheck") != null || Arg("-lookcheck") != null || Arg("-npccheck") != null || Arg("-camcheck") != null || Arg("-sceneshots") != null || Arg("-legcheck") != null || Arg("-padcheck") != null) return;
+            if (cfg == null || Arg("-capture") != null || Arg("-demo") != null || Arg("-photos") != null || Arg("-animcheck") != null || Arg("-lookcheck") != null || Arg("-npccheck") != null || Arg("-camcheck") != null || Arg("-sceneshots") != null || Arg("-legcheck") != null || Arg("-padcheck") != null || Arg("-trailfilm") != null) return;
             Application.targetFrameRate = focused ? cfg.display.targetFps : cfg.display.backgroundFps;
         }
 
@@ -854,6 +870,7 @@ namespace AntGarden
             Sfx.Tick(dt);
             world.glow?.Tick(dt, player);
             world.trails?.Evaporate(dt);
+            if (ruins.Count > 0) GuideTrail.Follow(player.Position, dt);   // the glowing specks brighten round the ant
             foreach (RuinScene ruin in ruins) ruin.Tick(dt, player, hud);
             // ants in far nests wait unseen; the nest the player is in and its close neighbours live
             UpdateActiveRegions();
@@ -864,8 +881,7 @@ namespace AntGarden
             }
             rig.Tick(dt, player, !mapOpen && !demo);
             Atmosphere.Follow(spores, cam);
-            ring.position = player.Position + Vector3.up * 0.04f;
-            ring.rotation = Quaternion.FromToRotation(Vector3.up, player.transform.up);
+            playerRing.Drape(world, player.Position);   // it lies on the ground under the ant, following every bump
 
             hud.SetMapOpen(bigmap.IsOpen);
             UpdateRegion();
@@ -911,6 +927,8 @@ namespace AntGarden
         /// <summary>Region (biome) and nest changes: blend the atmosphere and show the nest's title.</summary>
         void UpdateRegion()
         {
+            // under a tunnel roof it is darker
+            atmosphere?.SetShade(float.IsInfinity(world.Ceiling(player.Position.x, player.Position.z)) ? 0 : 1);
             Region r = world.RegionAt(player.Position.x, player.Position.z);
             if (r != null && r.index != currentRegion)
             {

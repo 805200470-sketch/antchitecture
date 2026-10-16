@@ -8,4 +8,6 @@
 | `AntGarden_Mac/AntGarden.app` | Mac 版，开发测试用 |
 | `演示视频_高画质/` | 投屏用的高画质演示视频 |
 
-**自己打包**：在 Unity 里点菜单 **AntGarden → Build → Windows (x64)** 或 **macOS**，结果会输出到这里。要压缩包找负责人要网盘链接。
+**下载**：Windows 和 Mac 的压缩包都放在仓库的 [Releases](https://github.com/805200470-sketch/antchitecture/releases) 页面，怎么打开见 [`07_Outputs/`](../07_Outputs/)。
+
+**自己打包**：在 Unity 里点菜单 **AntGarden → Build → Windows (x64)** 或 **macOS**，结果会输出到这里。

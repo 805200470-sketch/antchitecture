@@ -1,0 +1,92 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: TerrainSeam
+  m_Shader: {fileID: 4800000, guid: 2bf3ddeb91afd41ab8ff31d197d74498, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _BankNormal:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _BankTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _FloorNormal:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _FloorNormal2:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _FloorNormal3:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _FloorTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _FloorTex2:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _FloorTex3:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _PlateauNormal:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _PlateauTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _BankScale: 0.08
+    - _BankSmooth: 0.12
+    - _Cavity: 0.2
+    - _DetailMix: 0.45
+    - _DetailScale: 3.7
+    - _DetailStrength: 0.35
+    - _FloorScale: 0.11
+    - _FloorSmooth: 0.38
+    - _FloorVariety: 0
+    - _GlowSpecks: 0.6
+    - _HeightBlend: 0.6
+    - _HueShift: 0
+    - _NormalStrength: 1.4
+    - _ParallaxDepth: 0.12
+    - _ParallaxRange: 22
+    - _PlateauScale: 0.05
+    - _Saturation: 1
+    - _SeamNoise: 0.55
+    - _VarietyScale: 0.06
+    m_Colors:
+    - _BankTint: {r: 0.75, g: 0.97999996, b: 0.92, a: 1}
+    - _FloorTint: {r: 0.85, g: 1.05, b: 1.08, a: 1}
+    - _GlowColor: {r: 0.54999995, g: 1, b: 0.92, a: 1}
+    - _PlateauTint: {r: 0.54999995, g: 0.72, b: 0.76, a: 1}
+  m_BuildTextureStacks: []

@@ -21,6 +21,8 @@ namespace AntGarden
         public Material gateCurtain;
         public Material roots;          // hanging tunnel roots
         public Material amber;          // translucent amber (the ancestor's shrine)
+        public Material guideTrail;     // small glowing particles: the way through a ruin, the motes along the seams
+        public Material terrainSeam;    // ground interleaving across a seam between honeycomb cells
         public List<PlantRef> plants = new List<PlantRef>();
         public List<AntRef> ants = new List<AntRef>();
         public List<GroundSet> groundSets = new List<GroundSet>();

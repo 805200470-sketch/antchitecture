@@ -363,6 +363,9 @@ namespace AntGarden.Core
                 return new[] { r[0] + centers[i][0], r[1] + centers[i][1] };
             }
 
+            // a module's width factor (1 unless the caller narrows it): a ruin's tunnels and rooms
+            double W(int i) => widthScale != null ? widthScale[i] : 1;
+
             var edges = new List<Edge>();
             var nodes = new List<Node>();
             var portNode = new Dictionary<Port, string>();
@@ -374,15 +377,15 @@ namespace AntGarden.Core
                 foreach (Node n in m.Nodes)
                 {
                     double[] w = ToWorld(i, n.X, n.Z);
-                    nodes.Add(new Node { Id = prefix + Str(n.Id), X = w[0], Z = w[1], Type = n.Type, Boundary = n.Boundary });
+                    nodes.Add(new Node { Id = prefix + Str(n.Id), X = w[0], Z = w[1], Type = n.Type, Boundary = n.Boundary, ChamberScale = W(i) });
                 }
                 foreach (Edge e in m.Edges)
                 {
                     var pts = new List<double[]>(e.Pts.Count);
                     foreach (double[] p in e.Pts) pts.Add(ToWorld(i, p[0], p[1]));
                     var hws = new List<double>(e.Hws);
-                    if (widthScale != null && widthScale[i] != 1)
-                        for (int k = 0; k < hws.Count; k++) hws[k] *= widthScale[i];
+                    if (W(i) != 1)
+                        for (int k = 0; k < hws.Count; k++) hws[k] *= W(i);
                     string source = prefix + Str(e.Source);
                     string target = prefix + Str(e.Target);
                     foreach (Port p in ports[i])
@@ -391,7 +394,7 @@ namespace AntGarden.Core
                         // a tail running into a neighbour: cut it back inside this module
                         string id = prefix + "port" + Str(portCount++);
                         double[] w = ToWorld(i, p.Point[0], p.Point[1]);
-                        nodes.Add(new Node { Id = id, X = w[0], Z = w[1], Type = "endpoint", Boundary = false });
+                        nodes.Add(new Node { Id = id, X = w[0], Z = w[1], Type = "endpoint", Boundary = false, ChamberScale = W(i) });
                         portNode[p] = id;
                         if (p.AtEnd)
                         {
@@ -466,7 +469,7 @@ namespace AntGarden.Core
                         }
                     }
                     id = "m" + Str(i) + ":port" + Str(portCount++);
-                    nodes.Add(new Node { Id = id, X = wx, Z = wz, Type = "endpoint", Boundary = false });
+                    nodes.Add(new Node { Id = id, X = wx, Z = wz, Type = "endpoint", Boundary = false, ChamberScale = W(i) });
                     portNode[xl.Port] = id;
                 }
                 if (edge != null)
@@ -512,7 +515,7 @@ namespace AntGarden.Core
                 string splitId = "m" + Str(xl.To) + ":split" + Str(portCount++);
                 double sx = sed.Pts[hitK][0];
                 double sz = sed.Pts[hitK][1];
-                nodes.Add(new Node { Id = splitId, X = sx, Z = sz, Type = "junction", Boundary = false });
+                nodes.Add(new Node { Id = splitId, X = sx, Z = sz, Type = "junction", Boundary = false, ChamberScale = W(xl.To) });
                 edges.Add(new Edge { Id = sed.Id + "b", Source = splitId, Target = sed.Target, Pts = JsMath.Slice(sed.Pts, hitK), Hws = JsMath.Slice(sed.Hws, hitK) });
                 sed.Pts = JsMath.Slice(sed.Pts, 0, hitK + 1);
                 sed.Hws = JsMath.Slice(sed.Hws, 0, hitK + 1);
@@ -520,19 +523,21 @@ namespace AntGarden.Core
                 double[] d0 = Rotate(xl.Port.Dir[0], xl.Port.Dir[1], best.Rot[i]);
                 double L = hitD * 0.4;
                 List<double[]> bpts = Bezier(new[] { wx, wz }, new[] { wx + d0[0] * L, wz + d0[1] * L }, new[] { sx, sz }, new[] { sx, sz }, cfg.ResampleStep);
-                double hw = xl.Port.Hw;
+                // from this module's width at the port to the other's where it branches off (the same unless one is narrowed)
+                double hw0 = xl.Port.Hw * W(i);
+                double hw1 = xl.Port.Hw * W(xl.To);
                 var bhws = new List<double>(bpts.Count);
-                for (int k = 0; k < bpts.Count; k++) bhws.Add(hw);
+                for (int k = 0; k < bpts.Count; k++) bhws.Add(hw0 + (hw1 - hw0) * ((double)k / Math.Max(1, bpts.Count - 1)));
                 edges.Add(new Edge { Id = "branch" + Str(portCount), Source = id, Target = splitId, Pts = bpts, Hws = bhws, Connector = true });
             }
 
             // Split an edge at point index k; returns the new junction node id.
-            string SplitAt(Edge ed, int k, string tag)
+            string SplitAt(Edge ed, int k, string tag, double chamberScale)
             {
                 string id = Str(ed.Id) + ":" + tag + Str(portCount++);
                 double x = ed.Pts[k][0];
                 double z = ed.Pts[k][1];
-                nodes.Add(new Node { Id = id, X = x, Z = z, Type = "junction", Boundary = false });
+                nodes.Add(new Node { Id = id, X = x, Z = z, Type = "junction", Boundary = false, ChamberScale = chamberScale });
                 edges.Add(new Edge { Id = Str(ed.Id) + "~" + Str(portCount), Source = id, Target = ed.Target, Pts = JsMath.Slice(ed.Pts, k), Hws = JsMath.Slice(ed.Hws, k) });
                 ed.Pts = JsMath.Slice(ed.Pts, 0, k + 1);
                 ed.Hws = JsMath.Slice(ed.Hws, 0, k + 1);
@@ -586,8 +591,8 @@ namespace AntGarden.Core
                 double[] pa = bestA.Pts[bestKa];
                 double[] pb = bestB.Pts[bestKb];
                 double hw = JsMath.Min(bestA.Hws[bestKa], bestB.Hws[bestKb]);
-                string ida = SplitAt(bestA, bestKa, "bridge");
-                string idb = SplitAt(bestB, bestKb, "bridge");
+                string ida = SplitAt(bestA, bestKa, "bridge", W(e.I));
+                string idb = SplitAt(bestB, bestKb, "bridge", W(e.J));
                 var mid = new[] { (pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2 };
                 List<double[]> bpts = Bezier(pa, mid, mid, pb, cfg.ResampleStep);
                 var bhws = new List<double>(bpts.Count);
@@ -618,7 +623,8 @@ namespace AntGarden.Core
                 for (int k = 0; k < pts.Count; k++)
                 {
                     double t = (double)k / (pts.Count - 1);
-                    hws.Add((mt.A.Hw + (mt.B.Hw - mt.A.Hw) * t) * (1 + bulge * JsMath.Sin(Math.PI * t)));
+                    double ha = mt.A.Hw * W(mt.I), hb = mt.B.Hw * W(mt.J);   // a narrowed module's end tapers in
+                    hws.Add((ha + (hb - ha) * t) * (1 + bulge * JsMath.Sin(Math.PI * t)));
                 }
                 string src;
                 string dst;
