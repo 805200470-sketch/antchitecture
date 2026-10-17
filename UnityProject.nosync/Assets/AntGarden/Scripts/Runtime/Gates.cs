@@ -76,6 +76,7 @@ namespace AntGarden
         {
             if (id.StartsWith("honeycomb:") || id.Contains("|") || id.StartsWith("stitch:")) return Loc.T("蚁穴群岛", "the Archipelago");
             if (id.Contains("#")) return RuinScene.Title(id.Substring(id.LastIndexOf('#') + 1));
+            if (id.StartsWith("lab:")) return Loc.T("粒子蚁穴", "the Particle Nest");
             return Loc.T("蚁穴 ", "Nest ") + id.Replace("path-", "").Split('@')[0];
         }
 

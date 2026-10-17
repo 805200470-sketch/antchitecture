@@ -170,6 +170,7 @@ namespace AntGarden
         public ReflectionProbe probe;
         public float fogDensity;
         public float blendTime = 2.5f;
+        public float fogScale = 1f;   // the particle nest: a darker fog, so the dark ground fades into night instead of haze
         public float tunnelAmbient = 0.9f, tunnelMoon = 0.8f, tunnelRim = 0.9f, tunnelExposure = -0.05f, tunnelAntDim = 0.2f;
         Biome target;
         float elapsed, probeTimer;
@@ -239,7 +240,7 @@ namespace AntGarden
 
         void Blend(float k)
         {
-            RenderSettings.fogColor = Color.Lerp(RenderSettings.fogColor, target.fogColor, k);
+            RenderSettings.fogColor = Color.Lerp(RenderSettings.fogColor, target.fogColor * fogScale, k);
             skyAmbient = Color.Lerp(skyAmbient, target.ambientSky, k);
             equatorAmbient = Color.Lerp(equatorAmbient, target.ambientEquator, k);
             groundAmbient = Color.Lerp(groundAmbient, target.ambientGround, k);

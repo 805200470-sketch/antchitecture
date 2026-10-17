@@ -31,6 +31,10 @@ Material:
     - _Gain: 1.6
     - _Near: 0.3
     - _PlayerD: -1
+    - _Pulse: 0
+    - _PulseEvery: 2.6
+    - _PulseReach: 16
+    - _PulseSpeed: 5
     - _Spacing: 9
     - _Speed: 3.2
     - _Wave: 1.1

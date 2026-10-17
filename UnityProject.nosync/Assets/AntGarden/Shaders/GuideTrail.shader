@@ -11,6 +11,9 @@
 // _Gain (set per renderer) lifts it into HDR. At rest everything is dim. Near the player's ant it brightens a
 // little and stays bright a moment behind it (_TrailLag follows the ant with a delay); the way on ahead along the
 // track (_PlayerD: the ant's distance to the heart, -1 off the track) lights up, nearest the ant most.
+// And like living light, pulses run out from just behind the ant along the way ahead, two beats and a pause
+// like a heartbeat, every few seconds: the specks they pass swell, lift a little and flare, each a touch early or
+// late and brighter or fainter, so the front ripples but stays one wave (_Pulse turns them on).
 Shader "AntGarden/GuideTrail"
 {
     Properties
@@ -21,6 +24,10 @@ Shader "AntGarden/GuideTrail"
         _AheadReach ("How far ahead the way lights up (units)", Float) = 10
         _Gain ("Overall gain (HDR)", Float) = 1.1
         _PlayerD ("The ant's distance to the heart along the track (-1: off it)", Float) = -1
+        _Pulse ("Pulses running ahead of the ant (0 = none)", Range(0, 2)) = 0
+        _PulseEvery ("Seconds between pulses", Float) = 2.6
+        _PulseSpeed ("How fast a pulse runs (units/s)", Float) = 5
+        _PulseReach ("How far ahead a pulse runs (units)", Float) = 16
     }
     SubShader
     {
@@ -38,6 +45,7 @@ Shader "AntGarden/GuideTrail"
             #include "UnityCG.cginc"
 
             float _Base, _Near, _Ahead, _AheadReach, _Gain, _PlayerD;
+            float _Pulse, _PulseEvery, _PulseSpeed, _PulseReach;
             float4 _TrailPlayer, _TrailLag;   // global: the player's ant, and a point trailing behind it
 
             struct appdata
@@ -84,9 +92,23 @@ Shader "AntGarden/GuideTrail"
                     world.y += v.uv4.y * sin(t * 0.8 + phase);
                     world.xz += 0.07 * float2(sin(t * 0.37 + phase * 1.7), cos(t * 0.29 + phase * 1.3));
                 }
+                // pulses: a heartbeat leaves just behind the ant every _PulseEvery seconds and runs ahead along the
+                // way, fading toward its reach
+                float k = _PlayerD - d;
+                float pulse = 0;
+                if (_Pulse > 0 && _PlayerD >= 0)
+                {
+                    float hh = frac(sin(phase * 91.7 + 3.1) * 43758.5453);
+                    float lag = (k + 1.5) / (_PulseSpeed * (0.93 + 0.14 * hh));
+                    float ph = frac((t - lag) / _PulseEvery + hh * 0.012);
+                    float beat = exp(-ph * 18.0) + 0.6 * step(0.12, ph) * exp(-(ph - 0.12) * 18.0);
+                    pulse = beat * (0.7 + 0.6 * hh) * smoothstep(-1.5, 0.5, k) * (1 - smoothstep(_PulseReach * 0.55, _PulseReach, k));
+                }
+                // as it passes, a speck swells and lifts a little
+                world.y += 0.05 * pulse * step(kind, 0.5);
                 // spread the centre into a camera-facing quad
                 float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
-                world += (right * v.uv.x + up * v.uv.y) * v.uv3.y;
+                world += (right * v.uv.x + up * v.uv.y) * v.uv3.y * (1 + 0.7 * pulse);
                 o.pos = mul(UNITY_MATRIX_VP, float4(world, 1));
                 o.uv = v.uv;
                 o.kind = kind;
@@ -96,9 +118,8 @@ Shader "AntGarden/GuideTrail"
                 float dn = length(world.xz - _TrailPlayer.xz), dl = length(world.xz - _TrailLag.xz);
                 float near = max(1 - smoothstep(0.4, 2.6, dn), 0.6 * (1 - smoothstep(0.4, 2.0, dl)));
                 // the way on: what lies a little nearer the heart than the ant lights up, the nearest most
-                float k = _PlayerD - d;
                 float ahead = _PlayerD >= 0 && k > 0 && k < _AheadReach ? pow(1 - k / _AheadReach, 1.3) * (1 - smoothstep(_AheadReach * 0.7, _AheadReach * 1.2, dn)) : 0;
-                o.glow = (_Base * breathe + _Near * near + _Ahead * ahead) * _Gain * fade;
+                o.glow = (_Base * breathe + _Near * near + _Ahead * ahead + _Pulse * pulse) * _Gain * fade;
                 o.color = v.color.rgb;
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;

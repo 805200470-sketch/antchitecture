@@ -20,8 +20,10 @@ namespace AntGarden
         float captionTarget, fadeTarget;
         bool helpWanted = true, mapOpen;
         RectTransform minimap, playerMarker;
+        RectTransform objective;
+        Text objectiveLabel;
         MapPainter map;
-        float fps = 60, statTimer, regionTimer;
+        float fps = 60, statTimer, regionTimer, regionDuration = 2.8f;
 
         public Hud()
         {
@@ -33,6 +35,11 @@ namespace AntGarden
             titleLabel = UiKit.Label(help, "Title", "", 22, UiKit.Ink, TextAnchor.UpperLeft);
             Pad(titleLabel.rectTransform, 18, 14);
             titleLabel.text = Loc.T("<b>Ant Garden · 蚁穴峡谷</b>", "<b>Ant Garden · Nest Canyon</b>");
+
+            // the chapter's current goal, one quiet line top left (chapters only)
+            objective = UiKit.Rect(root, "Objective", 0, 1, new Vector2(28, -28), new Vector2(760, 40));
+            objectiveLabel = UiKit.Label(objective, "ObjectiveText", "", 21, UiKit.Warm, TextAnchor.MiddleLeft);
+            objective.gameObject.SetActive(false);
 
             stats = UiKit.Rect(root, "Stats", 0, 0, new Vector2(24, 24), new Vector2(520, 64));
             UiKit.Panel(stats, UiKit.PanelBg);
@@ -46,6 +53,10 @@ namespace AntGarden
             promptGroup.alpha = 0;
 
             var region = UiKit.Rect(root, "Region", 0.5f, 1, new Vector2(0, -150), new Vector2(900, 110));
+            // a soft dark shade behind the words, so they read over bright plants
+            var shade = UiKit.Panel(UiKit.Rect(region, "Shade", 0.5f, 0.5f, Vector2.zero, new Vector2(1250, 230)), new Color(0f, 0.02f, 0.04f, 0.6f));
+            shade.sprite = UiKit.Soft();
+            shade.raycastTarget = false;
             regionTitle = UiKit.Label(region, "RegionTitle", "", 40, new Color(0.91f, 0.98f, 0.96f), TextAnchor.UpperCenter);
             regionSub = UiKit.Label(region, "RegionSub", "", 18, UiKit.Dim, TextAnchor.LowerCenter);
             regionGroup = region.gameObject.AddComponent<CanvasGroup>();
@@ -189,7 +200,22 @@ namespace AntGarden
         {
             regionTitle.text = title;
             regionSub.text = sub;
-            regionTimer = 2.8f;
+            regionTimer = regionDuration = 2.8f;
+        }
+
+        /// <summary>A chapter's title card (the region banner, held longer).</summary>
+        public void ShowChapter(string title, string sub)
+        {
+            regionTitle.text = title;
+            regionSub.text = sub;
+            regionTimer = regionDuration = 5f;
+        }
+
+        /// <summary>The chapter's current goal top left; empty hides it.</summary>
+        public void SetObjective(string text)
+        {
+            objectiveLabel.text = string.IsNullOrEmpty(text) ? "" : "✦  " + text;
+            objective.gameObject.SetActive(!string.IsNullOrEmpty(text));
         }
 
         public void ShowSlot(string html)
@@ -228,7 +254,7 @@ namespace AntGarden
                 statsLabel.text = $"<b>{fps:F0}</b> FPS · {npcs} " + Loc.T("只蚂蚁", "ants") + $" · {extra}";
             }
             regionTimer -= dt;
-            regionGroup.alpha = Mathf.Clamp01(regionTimer > 2.2f ? (2.8f - regionTimer) / 0.6f : regionTimer / 0.6f);
+            regionGroup.alpha = Mathf.Clamp01(Mathf.Min((regionDuration - regionTimer) / 0.6f, regionTimer / 0.6f));
             if (map != null && playerMarker != null)
             {
                 Vector2 uv = map.ToUv(player.Position.x, player.Position.z);

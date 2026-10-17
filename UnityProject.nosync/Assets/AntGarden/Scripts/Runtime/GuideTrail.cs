@@ -328,6 +328,10 @@ namespace AntGarden
             block.SetFloat("_Ahead", 0.45f);
             block.SetFloat("_AheadReach", 10f);
             block.SetFloat("_PlayerD", -1f);
+            block.SetFloat("_Pulse", 2f);     // living light running ahead of the ant, like a heartbeat
+            block.SetFloat("_PulseEvery", 2.6f);
+            block.SetFloat("_PulseSpeed", 5f);
+            block.SetFloat("_PulseReach", 16f);
             var mr = glow.Finish($"GuideTrail_r{region.index}", mat, parent, block);
             Debug.Log($"[AntGarden] guide trail r{region.index}: {route.tracks.Count} tracks, {counts[0]} specks, {counts[2]} drifting, {counts[1]} motes, {glow.Count} in all, {route.ways} ways in");
             return mr;

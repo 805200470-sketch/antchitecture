@@ -128,6 +128,22 @@ namespace AntGarden
             return Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f));
         }
 
+        /// <summary>A soft white oval fading out to its edge, for shade behind a title.</summary>
+        public static Sprite Soft()
+        {
+            const int w = 64, h = 32;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float dx = (x - (w - 1) / 2f) / ((w - 1) / 2f), dy = (y - (h - 1) / 2f) / ((h - 1) / 2f);
+                float a = Mathf.Clamp01(1 - (dx * dx + dy * dy));
+                tex.SetPixel(x, y, new Color(1, 1, 1, a * a));
+            }
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f));
+        }
+
         /// <summary>A soft white disc, for dots on the map.</summary>
         public static Sprite Dot()
         {

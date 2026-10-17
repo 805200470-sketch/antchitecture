@@ -191,6 +191,8 @@ namespace AntGarden
                 go.transform.localScale = Vector3.one * h;
                 SetLook(go, plant.name, new Color(0.35f, 0.42f, 0.48f), true);
                 world.glow?.Add(go.GetComponentsInChildren<MeshRenderer>(), go.transform.position, 0, h, region.biome.plantGlow, false);
+                world.plantInstances.Add(new PlantInstance { plant = plant, t = go.transform, hue = region.biome.plantHue, sat = region.biome.plantSaturation,
+                    glow = region.biome.plantGlow, scan = Color.Lerp(region.biome.rimColor, Color.white, 0.55f) * 0.6f, far = true });
                 placed++;
             }
         }

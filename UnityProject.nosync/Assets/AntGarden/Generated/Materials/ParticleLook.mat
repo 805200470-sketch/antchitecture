@@ -28,6 +28,7 @@ Material:
     - _Gain: 1.1
     - _GlowGain: 3
     - _MinPixels: 1.2
+    - _Shimmer: 0
     - _Size: 0.03
     m_Colors: []
   m_BuildTextureStacks: []

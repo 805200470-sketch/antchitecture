@@ -124,6 +124,7 @@ namespace AntGarden
         public float hue, sat;     // the region's hue rotation and saturation (as the Plant shader applies them)
         public Color glow;         // the region's glow colour
         public Color scan;         // the pale colour its points take in the particle look (the region's own)
+        public bool far;           // one of the huge trunks beyond the frame (the particle look gives it few points)
     }
 
     /// <summary>Where one plant was placed (bottom of a stack), for debug views and later lookups.</summary>

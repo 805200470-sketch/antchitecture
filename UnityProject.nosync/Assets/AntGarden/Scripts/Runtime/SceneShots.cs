@@ -76,6 +76,17 @@ namespace AntGarden
                 }
                 return spots;
             }
+            if (game.LabNest != null && r == 0 && game.LabNest.Track != null && game.LabNest.Track.Count > 4)
+            {
+                // the particle nest: the way in, halfway, and the heart
+                List<Vector2> t = game.LabNest.Track;
+                int a0 = PointAlong(t, 3f), a1 = PointAlong(t, 12f);
+                if (a1 > a0) spots.Add(("lab_way_in", t[a0], t[a1]));
+                int m = t.Count / 2;
+                if (m + 6 < t.Count) spots.Add(("lab_halfway", t[m], t[m + 6]));
+                if (Approach(game, r, game.LabNest.Heart, 7f, out Vector2 at)) spots.Add(("lab_heart", at, game.LabNest.Heart));
+                return spots;
+            }
             WEdge e = DemoMode.LongEdge(game, r);
             if (e != null)
             {

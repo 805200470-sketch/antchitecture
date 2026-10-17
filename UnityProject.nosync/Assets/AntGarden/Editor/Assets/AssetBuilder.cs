@@ -339,7 +339,7 @@ namespace AntGarden.EditorTools
                 TuneLods(go, new[] { 0.2f, 0.06f, 0.01f }); // full detail until a plant is small on screen
                 string prefabPath = $"{Gen}/Plants/{name}.prefab";
                 var prefab = PrefabUtility.SaveAsPrefabAsset(go, prefabPath);
-                SurfacePoints(go, baseColor, mat, 10000, name.GetHashCode(), out Vector3[] points, out Color32[] pointColors);
+                SurfacePoints(go, baseColor, mat, 40000, name.GetHashCode(), out Vector3[] points, out Color32[] pointColors);
                 SavePoints(name, points, pointColors);
                 Object.DestroyImmediate(go);
 

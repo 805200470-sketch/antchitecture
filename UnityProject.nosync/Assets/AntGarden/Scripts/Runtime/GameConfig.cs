@@ -23,6 +23,8 @@ namespace AntGarden
         public float seamMoteDensity = 1f;  // how thickly they rise
         public bool seamBlend = true;       // different grounds interleave in patches across a seam (false: a line)
         public bool particleLook = false;   // experiment: plants and ground as glowing points round the ant (P toggles)
+        public string labWorld = "lab:path-012@blue";   // the particle nest experiment (chapter one), on the map's world row
+        public float labWidth = 0.55f;      // its canyons, narrowed into passages
         public ScatterSettings scatter = new ScatterSettings();
         public AtmosphereSettings atmosphere = new AtmosphereSettings();
         public ReliefSettings relief = new ReliefSettings();

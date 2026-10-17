@@ -26,12 +26,14 @@ namespace AntGarden
             game.hud.SetStatsVisible(false);
             yield return new WaitForSeconds(3f);   // shaders compile, the NPCs spread out
             var end = new WaitForEndOfFrame();
-            foreach (RuinScene ruin in game.Ruins)
+            var walks = new List<(string name, List<Vector2> track)>();
+            foreach (RuinScene ruin in game.Ruins) walks.Add((ruin.kind, ruin.TrailMainFull ?? ruin.TrailMain));
+            if (game.LabNest != null) walks.Add(("lab", game.LabNest.Track));
+            foreach (var (name, track) in walks)
             {
-                // from where the main track starts (across the seam, in the neighbouring nest)
-                List<Vector2> track = ruin.TrailMainFull ?? ruin.TrailMain;
+                // from where the main track starts (in a honeycomb across the seam, in the neighbouring nest)
                 if (track == null || track.Count < 4) continue;
-                string sub = Path.Combine(dir, ruin.kind);
+                string sub = Path.Combine(dir, name);
                 Directory.CreateDirectory(sub);
                 float length = 0;
                 for (int i = 1; i < track.Count; i++) length += (track[i] - track[i - 1]).magnitude;
@@ -64,7 +66,7 @@ namespace AntGarden
                     }
                 }
                 game.demoMove = Vector2.zero;
-                Debug.Log($"[AntGarden] trail film {ruin.kind}: {f} frames, track {length:F0} units");
+                Debug.Log($"[AntGarden] trail film {name}: {f} frames, track {length:F0} units");
             }
             File.WriteAllText(Path.Combine(dir, "done.txt"), "ok\n");
             Application.Quit();

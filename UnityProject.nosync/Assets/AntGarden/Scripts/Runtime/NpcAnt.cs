@@ -372,6 +372,23 @@ namespace AntGarden
             }
         }
 
+        /// <summary>Where the camera is (Game sets it every frame): an ant in the way between it and the player's
+        /// ant, or right up against the lens, is not drawn, so none ever blocks the view.</summary>
+        public static Vector3? CameraAt;
+
+        static bool InTheWay(Vector3 p, Vector3 player)
+        {
+            if (CameraAt == null) return false;
+            Vector3 cam = CameraAt.Value, toPlayer = player - cam, toAnt = p - cam;
+            float dp = toPlayer.magnitude, da = toAnt.magnitude;
+            if (da < 1.3f) return true;                    // right up against the lens
+            if (da > dp - 0.9f || dp < 0.5f) return false; // beside the player's ant or beyond it
+            // nearer than the player's ant and inside the view toward it (about 37° round it), or close to the
+            // lens anywhere in view
+            float cos = Vector3.Dot(toAnt, toPlayer) / (da * dp);
+            return cos > 0.8f || (da < 2.6f && cos > 0.45f);
+        }
+
         /// <summary>Advance one frame. Far NPCs keep walking but are not drawn or animated.</summary>
         public void Tick(float dt, AntController player)
         {
@@ -379,7 +396,7 @@ namespace AntGarden
             float far = Vector3.Distance(player.Position, ant.Position);
             bool hidden = far > cfg.drawDistance;
             ant.dormant = hidden;
-            ant.SetVisible(!hidden);
+            ant.SetVisible(!hidden && !InTheWay(ant.Position, player.Position));
             // crowd LOD: nearer ants are animated every frame and cast shadows
             ant.animInterval = far < cfg.lodNear ? 1 : far < cfg.lodMid ? 2 : 4;
             ant.SetShadows(far < cfg.shadowDistance);

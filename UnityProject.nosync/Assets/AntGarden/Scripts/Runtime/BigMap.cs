@@ -101,6 +101,7 @@ namespace AntGarden
             foreach (string id in modules)
             {
                 string label = id.StartsWith("honeycomb:") ? Loc.T("蚁穴群岛", "Archipelago")
+                    : id.StartsWith("lab:") ? Loc.T("实验 · 粒子蚁穴", "Lab · Particle Nest")
                     : id.Contains("#") ? RuinScene.Title(id.Substring(id.LastIndexOf('#') + 1))
                     : id.Contains("|") ? Loc.T("蚁穴群岛", "Archipelago")
                     : id.StartsWith("stitch:") ? Loc.T("拼接 ", "Stitch ") + id.Substring(id.LastIndexOf(':') + 1).Replace("path-", "").Replace(",", "+")

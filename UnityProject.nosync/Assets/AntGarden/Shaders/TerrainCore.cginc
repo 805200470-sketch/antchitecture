@@ -191,6 +191,12 @@ void TerrainSurf(Input IN, inout SurfaceOutputStandard o)
     float speck = step(0.93, hash21(cell)) * (1 - smoothstep(0.02, 0.07, dotR));
     float twinkle = 0.6 + 0.4 * sin(_Time.y * 1.3 + hash21(cell + 7) * 6.28);
     o.Emission = _GlowColor.rgb * speck * twinkle * lw.x * _GlowSpecks * 3;
+
+    // the particle look: the ground sinks dark behind its points, its sheen and glints with it
+    float keep = 1 - _GroundDim;
+    o.Smoothness *= keep;
+    o.Occlusion *= keep;
+    o.Emission *= keep;
 }
 
 #endif

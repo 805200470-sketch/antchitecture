@@ -19,6 +19,11 @@ namespace AntGarden
     public class Game : MonoBehaviour
     {
         public static string Selection;
+        /// <summary>The particle nest experiment ("lab:path-012@blue"): chapter one, see LabNest.</summary>
+        public static bool Lab => Selection != null && Selection.StartsWith("lab:");
+        LabNest lab;
+        public LabNest LabNest => lab;
+        Transform worldRoot;
         public static string QualityName;
         /// <summary>The ruin scenes, each a single nest closed over into a tunnel (see RuinScene).</summary>
         public static readonly string[] RuinWorlds = { "path-003@blue#relics", "path-010@amber#temple" };
@@ -156,6 +161,7 @@ namespace AntGarden
         static List<RegionSpec> ParseWorld(string selection)
         {
             var list = new List<RegionSpec>();
+            if (selection.StartsWith("lab:")) selection = selection.Substring(4);   // the particle nest: one nest
             // "honeycomb:path-001@blue,path-010@amber#temple,…": every module one hexagon of one stitched field
             if (selection.StartsWith("honeycomb:"))
             {
@@ -193,7 +199,7 @@ namespace AntGarden
             yield return null;
             refs = RuntimeRefs.Load();
             if (refs == null) { Fail(Loc.T("缺少素材清单（RuntimeRefs），请在编辑器里运行 AntGarden/Build Assets", "Asset list (RuntimeRefs) missing: run AntGarden/Build Assets in the editor")); yield break; }
-            worlds = ListWorlds(cfg.defaultWorld);
+            worlds = ListWorlds(cfg.defaultWorld, cfg.labWorld);
 
             // 1 · path fields, one per region (main thread: Unity file APIs, and each takes well under a second)
             Stage(Loc.T("由路径计算峡谷…", "Carving the canyon from the paths…"), 0.05f);
@@ -211,7 +217,8 @@ namespace AntGarden
                     var texts = ReadNetworks(rs.spec);
                     // a ruin in a honeycomb is a tunnel: its canyons narrower than a nest's open halls
                     List<double> widths = rs.cells?.ConvertAll(c => c.scene != null ? (double)cfg.ruinWidth : 1.0)
-                        ?? (rs.scene != null ? new List<double> { cfg.ruinWidth } : null);
+                        ?? (rs.scene != null ? new List<double> { cfg.ruinWidth } : null)
+                        ?? (Lab ? new List<double> { cfg.labWidth } : null);   // the particle nest: passages
                     (field, connectors, paths, ids) = MakeField(rs.spec, texts, widths);
                 }
                 catch (Exception e) { Fail(Loc.T($"路径数据出错（{rs.spec}）：", $"Bad path data ({rs.spec}): ") + e.GetBaseException().Message); yield break; }
@@ -234,6 +241,7 @@ namespace AntGarden
             }
             world.label = WorldLabel();
             var root = new GameObject("World").transform;
+            worldRoot = root;
             world.glow = new GlowPlants(cfg.glow, root, 4242);
 
             // 2 · ground, one terrain material per region (its biome's palette)
@@ -306,6 +314,13 @@ namespace AntGarden
                 world.roofs.Add(ruin.roof);
                 ruins.Add(ruin);
             }
+            lab = null;
+            if (Lab)
+            {
+                lab = new LabNest(world, world.regions[0], refs);
+                var sp = world.SpawnPoint(0);
+                lab.Plan(new Vector2(sp.x, sp.z));
+            }
             int placed = 0;
             for (int i = 0; i < world.regions.Count; i++)
             {
@@ -322,10 +337,11 @@ namespace AntGarden
             foreach (RuinScene ruin in ruins) ruin.Build(groundMats[ruin.region.index], root, Preset.terrainStep * 1.6f, 99 + ruin.region.index, cfg.trailBrightness, cfg.trailDensity);
             // the seams between the nests of a honeycomb: motes rising off them
             if (honeycomb.Count > 1) SeamMotes.Build(world, honeycomb, refs.guideTrail, cfg.seamMotes, cfg.seamMoteDensity, root, 777);
+            lab?.Build(root, cfg.trailBrightness, cfg.trailDensity);
             // memory plants tell their story when an antenna lights them
             if (world.glow != null)
             {
-                world.glow.onFlare = at => { Sfx.Flare(at); Pad.Rumble(0.05f, 0.12f, 0.07f); };
+                world.glow.onFlare = at => { Sfx.Flare(at); Pad.Rumble(0.05f, 0.12f, 0.07f); lab?.OnPlantLit(hud); };
                 world.glow.onStory = (k, at) =>
                 {
                     hud.ShowLine(Loc.T("留在这里的话 · 一位访客", "Left here · by a visitor"), Voices.T(Voices.Stories[k % Voices.Stories.Length]));
@@ -346,7 +362,15 @@ namespace AntGarden
             Sfx.Init(cfg.audio, cam);
             Pad.rumble = cfg.padRumble;
             if (Arg("-sfxdump") != null) { Sfx.Dump(Arg("-sfxdump")); Application.Quit(); }
+            if (Lab) { cfg.atmosphere.exposure -= 0.45f; cfg.atmosphere.fogDensity *= 1.35f; }   // the particle nest: a darker night
             spores = Atmosphere.Apply(cam, refs, cfg.atmosphere, Preset);
+            if (Lab && spores != null)
+            {
+                // its motes are golden, like fireflies
+                var sr = spores.GetComponent<ParticleSystemRenderer>();
+                sr.material = new Material(sr.sharedMaterial);
+                sr.material.SetColor("_Color", new Color(2.2f, 1.45f, 0.55f));
+            }
             // plants beyond the haze are not drawn at all (a honeycomb puts many nests in view at once)
             var cull = new float[32];
             cull[Scatter.PlantLayer] = Preset.plantCull;
@@ -354,6 +378,7 @@ namespace AntGarden
             cam.layerCullDistances = cull;
             cam.layerCullSpherical = true;
             atmosphere = cam.GetComponent<AtmosphereController>();
+            if (Lab && atmosphere != null) atmosphere.fogScale = 0.3f;
             atmosphere?.SetBiome(world.regions[0].biome, true);
 
             // 5 · ants
@@ -369,6 +394,7 @@ namespace AntGarden
             hud.BuildMinimap(painter);
             bigmap = new BigMap(hud.canvas, painter, world, cfg, gates, Teleport, TeleportToGate, SwitchWorld, worlds);
             hud.SetHelp(world.label);
+            if (Lab) hud.SetHelpVisible(false);   // chapter one: one goal at a time instead
             hud.HideLoading();
             Ready = true;
             Debug.Log($"[AntGarden] ready: {world.label}");
@@ -464,10 +490,11 @@ namespace AntGarden
 
         static string PathFile(string id) => Path.Combine(Application.streamingAssetsPath, "Paths", id + ".json");
 
-        static List<string> ListWorlds(string defaultWorld)
+        static List<string> ListWorlds(string defaultWorld, string labWorld)
         {
             var list = new List<string> { defaultWorld };
             list.AddRange(RuinWorlds);
+            if (!string.IsNullOrEmpty(labWorld)) list.Add(labWorld);
             string dir = Path.Combine(Application.streamingAssetsPath, "Paths");
             var singles = new List<string>();
             if (Directory.Exists(dir))
@@ -499,7 +526,29 @@ namespace AntGarden
             particleLook.Init(world, player.transform, refs.particleLook);
             // -particlelook soft: the compromise (meshes keep most of their colour, a layer of points on them)
             if (Arg("-particlelook") == "soft") { particleLook.plantDim = 0.45f; particleLook.groundDim = 0.15f; particleLook.scanMix = 0.45f; }
-            if (cfg.particleLook || Arg("-particlelook") != null) particleLook.SetOn(true);
+            if (Lab)
+            {
+                // the particle nest: no meshes, only dense pale points, as in Dream
+                particleLook.mode = ParticleLook.Mode.Replace;
+                particleLook.pointSize = 0.011f;
+                particleLook.brightness = 0.42f;
+                particleLook.glowBrightness = 1.4f;
+                particleLook.shimmer = 0.006f;
+                particleLook.groundDim = 0.96f;
+                particleLook.groundBrightness = 3.2f;
+                particleLook.scanMix = 0.92f;
+                particleLook.scanOverride = new Color(0.8f, 0.88f, 1f, 1f);
+                particleLook.groundColour = new Color(0.6f, 0.7f, 1f, 1f);
+                particleLook.budget = 3200000;
+                particleLook.dust = 10f;
+                // the walls and floor become points too, densest along the glowing ways
+                if (lab != null) particleLook.focus = lab.Tracks;
+                foreach (Transform t in worldRoot)
+                    if (t.name.StartsWith("Terrain_"))
+                        foreach (MeshFilter mf in t.GetComponentsInChildren<MeshFilter>())
+                            if (mf.name != "SoilWalls") particleLook.ground.Add(mf);
+            }
+            if (Lab || cfg.particleLook || Arg("-particlelook") != null) particleLook.SetOn(true);
         }
 
         /// <summary>Animation check: the player's ant becomes another species, in place (camera and ring stay).</summary>
@@ -544,6 +593,7 @@ namespace AntGarden
                 // the first two regions (the archipelago's heart) keep full colonies; further nests smaller ones
                 int perNest = r.index < (r.cell ? 4 : 2) ? cfg.npcs.countPerNest : cfg.npcs.extraCountPerNest;
                 if (!string.IsNullOrEmpty(r.scene)) perNest = cfg.npcs.extraCountPerNest / 2;   // a narrow tunnel holds fewer
+                if (Lab) perNest = 30;
                 int count = Mathf.Min(Mathf.RoundToInt(perNest * r.ids.Length * qualityFactor), cfg.npcs.maxCount - n);
                 var kinds = SpeciesMix(pool, dominant.s, count, rng);
                 var census = new Dictionary<string, int>();
@@ -882,10 +932,12 @@ namespace AntGarden
             Sfx.Tick(dt);
             world.glow?.Tick(dt, player);
             world.trails?.Evaporate(dt);
-            if (ruins.Count > 0) GuideTrail.Follow(player.Position, dt);   // the glowing specks brighten round the ant
+            if (ruins.Count > 0 || lab != null) GuideTrail.Follow(player.Position, dt);   // the glowing specks brighten round the ant
+            lab?.Tick(dt, player.Position, hud);
             foreach (RuinScene ruin in ruins) ruin.Tick(dt, player, hud);
             // ants in far nests wait unseen; the nest the player is in and its close neighbours live
             UpdateActiveRegions();
+            NpcAnt.CameraAt = cam != null ? cam.transform.position : (Vector3?)null;
             foreach (var n in npcs)
             {
                 if (regionActive[n.region]) n.Tick(dt, player);
