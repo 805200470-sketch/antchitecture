@@ -55,6 +55,7 @@ Shader "AntGarden/Plant"
         fixed4 _GlowColor;
         float _RoughnessMin, _MetallicScale, _GroundBlend, _GlowMinY, _GlowMaxY, _Glow2MinY, _Glow2MaxY, _GlowStrength, _GlowTexture, _GlowLumMin, _Sway;
         float _GlowSoft, _GlowUnder;
+        float _PlantDim;   // global, set by the particle look (ParticleLook.cs): the mesh sinks behind its points
 
         UNITY_INSTANCING_BUFFER_START(Props)
             UNITY_DEFINE_INSTANCED_PROP(fixed4, _Tint)
@@ -100,7 +101,7 @@ Shader "AntGarden/Plant"
             fixed3 orm = tex2D(_ORM, IN.uv_MainTex).rgb;
             // the base fades softly into the region's ground colour (switched off for stacked segments)
             float ground = (1 - smoothstep(0, max(_GroundBlend, 1e-3), IN.localY)) * UNITY_ACCESS_INSTANCED_PROP(Props, _GroundMul);
-            o.Albedo = lerp(col, UNITY_ACCESS_INSTANCED_PROP(Props, _GroundColor).rgb, ground * 0.6);
+            o.Albedo = lerp(col, UNITY_ACCESS_INSTANCED_PROP(Props, _GroundColor).rgb, ground * 0.6) * (1 - _PlantDim);
             float3 n = UnpackNormal(tex2D(_BumpMap, IN.uv_MainTex));
             n.z *= IN.facing < 0 ? -1 : 1; // back faces of open shells (trunk interiors) light correctly
             o.Normal = n;
@@ -126,7 +127,7 @@ Shader "AntGarden/Plant"
             float flash = UNITY_ACCESS_INSTANCED_PROP(Props, _GlowFlash);
             e = e * UNITY_ACCESS_INSTANCED_PROP(Props, _GlowBoost) * (1 + flash * 3.5)
                 + glow * (0.15 + lum) * flash * (_GlowStrength * 0.5 + 0.6) * step(1e-3, _GlowStrength);
-            o.Emission = e;
+            o.Emission = e * (1 - _PlantDim * 0.7);
         }
         ENDCG
     }

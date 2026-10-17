@@ -52,6 +52,7 @@ namespace AntGarden
         AtmosphereController atmosphere;
         Transform ring;
         Rings.Draped playerRing;
+        ParticleLook particleLook;
         int currentNest = -1, currentRegion = -1;
         float stepRun;              // ground walked since the last footstep sound
         Vector3 lastStep;
@@ -493,6 +494,12 @@ namespace AntGarden
             // a soft ring under the player's ant tells it apart from the NPC ants
             playerRing = new Rings.Draped("PlayerRing", 0.58f, 0.66f, refs.slotRing, new Color(0.5f, 0.9f, 0.95f) * 0.8f);
             ring = playerRing.go.transform;
+            // experiment: the particle look (P toggles)
+            particleLook = gameObject.AddComponent<ParticleLook>();
+            particleLook.Init(world, player.transform, refs.particleLook);
+            // -particlelook soft: the compromise (meshes keep most of their colour, a layer of points on them)
+            if (Arg("-particlelook") == "soft") { particleLook.plantDim = 0.45f; particleLook.groundDim = 0.15f; particleLook.scanMix = 0.45f; }
+            if (cfg.particleLook || Arg("-particlelook") != null) particleLook.SetOn(true);
         }
 
         /// <summary>Animation check: the player's ant becomes another species, in place (camera and ring stay).</summary>
@@ -833,6 +840,11 @@ namespace AntGarden
                 if (Input.GetKeyDown(KeyCode.Tab)) CycleQuality();
                 if (Input.GetKeyDown(KeyCode.F) || Input.GetKeyDown(KeyCode.F11)) ToggleFullScreen();
                 if (Input.GetKeyDown(KeyCode.L)) ToggleLanguage();
+                if (Input.GetKeyDown(KeyCode.P) && particleLook != null)
+                {
+                    particleLook.SetOn(!particleLook.On);
+                    hud.ShowLine(Loc.T("粒子化（实验）", "Particle look (experiment)"), particleLook.On ? Loc.T("开", "on") : Loc.T("关", "off"));
+                }
                 if (!mapOpen && (Input.GetKeyDown(KeyCode.Space) || (Pad.Back && !back)) && player.speed < 0.1f)
                 {
                     // reaching out with the antennae is also how you talk: to the ant or relic in front of you

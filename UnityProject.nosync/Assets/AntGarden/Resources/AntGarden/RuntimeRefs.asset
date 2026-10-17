@@ -24,6 +24,7 @@ MonoBehaviour:
   amber: {fileID: 2100000, guid: e2faead73cdc840e6b23f10608034293, type: 2}
   guideTrail: {fileID: 2100000, guid: 4ae026546da184ceba08987e8541015a, type: 2}
   terrainSeam: {fileID: 2100000, guid: 7c32ea15a9b9643e48e41e5864098d5c, type: 2}
+  particleLook: {fileID: 2100000, guid: b2f0e83bbe1124ac88d8c53d179fe298, type: 2}
   plants:
   - name: amber_resin
     prefab: {fileID: 8144775433280480473, guid: 4a215baa7601b464fb9a6b8c0e9a947e, type: 3}

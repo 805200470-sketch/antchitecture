@@ -50,6 +50,7 @@ namespace AntGarden.EditorTools
             refs.amber = SimpleMaterial("Amber", "AntGarden/Amber");
             refs.guideTrail = SimpleMaterial("GuideTrail", "AntGarden/GuideTrail");
             refs.terrainSeam = SimpleMaterial("TerrainSeam", "AntGarden/TerrainSeam");
+            refs.particleLook = SimpleMaterial("ParticleLook", "AntGarden/ParticleLook");
             refs.groundSets = BuildGroundSets();
             EditorUtility.SetDirty(refs);
             AssetDatabase.SaveAssets();
@@ -338,6 +339,8 @@ namespace AntGarden.EditorTools
                 TuneLods(go, new[] { 0.2f, 0.06f, 0.01f }); // full detail until a plant is small on screen
                 string prefabPath = $"{Gen}/Plants/{name}.prefab";
                 var prefab = PrefabUtility.SaveAsPrefabAsset(go, prefabPath);
+                SurfacePoints(go, baseColor, mat, 10000, name.GetHashCode(), out Vector3[] points, out Color32[] pointColors);
+                SavePoints(name, points, pointColors);
                 Object.DestroyImmediate(go);
 
                 var pr = new PlantRef { name = name, prefab = prefab };
@@ -351,6 +354,95 @@ namespace AntGarden.EditorTools
                 list.Add(pr);
             }
             return list;
+        }
+
+        /// <summary>
+        /// Points spread evenly over a plant's surface (its most detailed LOD), in the plant's own space, in random
+        /// order, with their colours from the base colour texture; alpha 255 marks points in the glowing part (the
+        /// material's glow bands, bright enough in the texture). For the particle look.
+        /// </summary>
+        static void SurfacePoints(GameObject go, string texPath, Material mat, int count, int seed, out Vector3[] points, out Color32[] colors)
+        {
+            points = new Vector3[0];
+            colors = new Color32[0];
+            var group = go.GetComponentInChildren<LODGroup>();
+            Renderer[] renderers = group != null && group.GetLODs().Length > 0 ? group.GetLODs()[0].renderers : go.GetComponentsInChildren<MeshRenderer>();
+            var tris = new List<(Vector3 a, Vector3 b, Vector3 c, Vector2 ua, Vector2 ub, Vector2 uc)>();
+            Matrix4x4 toRoot = go.transform.worldToLocalMatrix;
+            foreach (Renderer r in renderers)
+            {
+                var mf = r != null ? r.GetComponent<MeshFilter>() : null;
+                if (mf == null || mf.sharedMesh == null) continue;
+                Matrix4x4 m = toRoot * mf.transform.localToWorldMatrix;
+                using (var arr = Mesh.AcquireReadOnlyMeshData(mf.sharedMesh))
+                {
+                    var data = arr[0];
+                    var pos = new Unity.Collections.NativeArray<Vector3>(data.vertexCount, Unity.Collections.Allocator.Temp);
+                    var uv = new Unity.Collections.NativeArray<Vector2>(data.vertexCount, Unity.Collections.Allocator.Temp);
+                    data.GetVertices(pos);
+                    bool hasUv = data.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.TexCoord0);
+                    if (hasUv) data.GetUVs(0, uv);
+                    for (int sm = 0; sm < data.subMeshCount; sm++)
+                    {
+                        var desc = data.GetSubMesh(sm);
+                        if (desc.topology != MeshTopology.Triangles) continue;
+                        var idx = new Unity.Collections.NativeArray<int>(desc.indexCount, Unity.Collections.Allocator.Temp);
+                        data.GetIndices(idx, sm);
+                        for (int i = 0; i + 2 < idx.Length; i += 3)
+                            tris.Add((m.MultiplyPoint3x4(pos[idx[i]]), m.MultiplyPoint3x4(pos[idx[i + 1]]), m.MultiplyPoint3x4(pos[idx[i + 2]]),
+                                      hasUv ? uv[idx[i]] : Vector2.zero, hasUv ? uv[idx[i + 1]] : Vector2.zero, hasUv ? uv[idx[i + 2]] : Vector2.zero));
+                        idx.Dispose();
+                    }
+                    pos.Dispose();
+                    uv.Dispose();
+                }
+            }
+            if (tris.Count == 0) return;
+            // pick triangles by area
+            var cdf = new double[tris.Count];
+            double total = 0;
+            for (int i = 0; i < tris.Count; i++) { total += Vector3.Cross(tris[i].b - tris[i].a, tris[i].c - tris[i].a).magnitude * 0.5; cdf[i] = total; }
+            Texture2D tex = null;
+            if (File.Exists(texPath)) { tex = new Texture2D(2, 2, TextureFormat.RGBA32, false); tex.LoadImage(File.ReadAllBytes(texPath)); }
+            float g1 = mat.GetFloat("_GlowMinY"), g2 = mat.GetFloat("_GlowMaxY"), h1 = mat.GetFloat("_Glow2MinY"), h2 = mat.GetFloat("_Glow2MaxY");
+            float strength = mat.GetFloat("_GlowStrength"), lumMin = mat.GetFloat("_GlowLumMin");
+            var rng = new System.Random(seed);
+            points = new Vector3[count];
+            colors = new Color32[count];
+            for (int k = 0; k < count; k++)
+            {
+                double pick = rng.NextDouble() * total;
+                int lo = 0, hi = cdf.Length - 1;
+                while (lo < hi) { int mid = (lo + hi) / 2; if (cdf[mid] < pick) lo = mid + 1; else hi = mid; }
+                var t = tris[lo];
+                float r1 = Mathf.Sqrt((float)rng.NextDouble()), r2 = (float)rng.NextDouble();
+                float wa = 1 - r1, wb = r1 * (1 - r2), wc = r1 * r2;
+                Vector3 p = t.a * wa + t.b * wb + t.c * wc;
+                Vector2 u = t.ua * wa + t.ub * wb + t.uc * wc;
+                Color c = tex != null ? tex.GetPixelBilinear(u.x, u.y) : Color.gray;
+                float lum = c.r * 0.3f + c.g * 0.55f + c.b * 0.15f;
+                bool glows = strength > 0 && ((p.y >= g1 && p.y <= g2) || (p.y >= h1 && p.y <= h2)) && (lumMin <= 0 || lum >= lumMin);
+                points[k] = p;
+                colors[k] = new Color32((byte)(c.r * 255), (byte)(c.g * 255), (byte)(c.b * 255), (byte)(glows ? 255 : 0));
+            }
+            if (tex != null) Object.DestroyImmediate(tex);
+        }
+
+        /// <summary>A plant's surface points as Resources/AntGarden/Points/&lt;name&gt;.bytes: per point x, y, z (floats) and rgba bytes.</summary>
+        static void SavePoints(string name, Vector3[] points, Color32[] colors)
+        {
+            string dir = $"{Root}/Resources/AntGarden/Points";
+            Directory.CreateDirectory(dir);
+            using (var w = new BinaryWriter(File.Create($"{dir}/{name}.bytes")))
+            {
+                w.Write(points.Length);
+                for (int i = 0; i < points.Length; i++)
+                {
+                    w.Write(points[i].x); w.Write(points[i].y); w.Write(points[i].z);
+                    w.Write(colors[i].r); w.Write(colors[i].g); w.Write(colors[i].b); w.Write(colors[i].a);
+                }
+            }
+            AssetDatabase.ImportAsset($"{dir}/{name}.bytes");
         }
 
         static double FirstNum(object e, double def, params string[] keys)

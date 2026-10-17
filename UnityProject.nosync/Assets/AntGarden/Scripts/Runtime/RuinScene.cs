@@ -252,6 +252,7 @@ namespace AntGarden
             y -= s.flat ? scale * 0.75f : 0.12f * scale;   // the button sinks until only its face shows
             var go = Object.Instantiate(p.prefab, new Vector3(s.pos.x, y, s.pos.z), Quaternion.Euler(0, s.yaw, 0), parent);
             go.transform.localScale = Vector3.one * scale;
+            world.plantInstances.Add(new PlantInstance { plant = p, t = go.transform, hue = 0, sat = 1, glow = new Color(1f, 0.82f, 0.5f), scan = new Color(1f, 0.93f, 0.8f) });
             var renderers = go.GetComponentsInChildren<MeshRenderer>();
             foreach (var mr in renderers)
             {

@@ -22,6 +22,7 @@ namespace AntGarden
         public float seamMotes = 1f;        // the motes rising along the seams between nests (0 = none)
         public float seamMoteDensity = 1f;  // how thickly they rise
         public bool seamBlend = true;       // different grounds interleave in patches across a seam (false: a line)
+        public bool particleLook = false;   // experiment: plants and ground as glowing points round the ant (P toggles)
         public ScatterSettings scatter = new ScatterSettings();
         public AtmosphereSettings atmosphere = new AtmosphereSettings();
         public ReliefSettings relief = new ReliefSettings();

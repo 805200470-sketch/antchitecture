@@ -11,6 +11,7 @@ float _DetailScale, _DetailMix, _ParallaxDepth, _ParallaxRange, _HeightBlend, _C
 fixed4 _FloorTint, _BankTint, _PlateauTint, _GlowColor;
 float _FloorScale, _BankScale, _PlateauScale, _FloorSmooth, _BankSmooth, _DetailStrength, _GlowSpecks;
 float _NormalStrength, _HueShift, _Saturation;
+float _GroundDim;   // global, set by the particle look (ParticleLook.cs): the ground sinks behind its points
 
 struct Input
 {
@@ -153,7 +154,7 @@ void TerrainSurf(Input IN, inout SurfaceOutputStandard o)
     // broad light/dark patches so the ground never reads as a repeating tile
     float big = vnoise(IN.wpos.xz * 0.045) * 0.65 + vnoise(IN.wpos.xz * 0.13) * 0.35;
     albedo *= lerp(1.0, 0.65 + 0.7 * big, _DetailStrength);
-    o.Albedo = AG_HueShift(albedo, _HueShift, _Saturation);
+    o.Albedo = AG_HueShift(albedo, _HueShift, _Saturation) * (1 - _GroundDim);
 
     // surface relief: each layer's own normal map, plus the close-up floor detail
     float3 nf = triplanarNormal(_FloorNormal, IN.wpos, n, w, _FloorScale, shift);

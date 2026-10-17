@@ -116,6 +116,16 @@ namespace AntGarden
     /// which keeps the 3D canyon and the map in the same orientation as the source photo.
     /// On top of the core heights the world adds gentle relief, so even the canyon floor rolls.
     /// </summary>
+    /// <summary>One placed plant or prop and how it is coloured, for the particle look (ParticleLook).</summary>
+    public struct PlantInstance
+    {
+        public PlantRef plant;
+        public Transform t;
+        public float hue, sat;     // the region's hue rotation and saturation (as the Plant shader applies them)
+        public Color glow;         // the region's glow colour
+        public Color scan;         // the pale colour its points take in the particle look (the region's own)
+    }
+
     /// <summary>Where one plant was placed (bottom of a stack), for debug views and later lookups.</summary>
     public struct Placement
     {
@@ -129,6 +139,7 @@ namespace AntGarden
         public readonly List<Region> regions = new List<Region>();
         public readonly CircleGrid colliders = new CircleGrid();
         public readonly CircleGrid reserved = new CircleGrid();   // ground kept free of plants (ruin props)
+        public readonly List<PlantInstance> plantInstances = new List<PlantInstance>();   // for the particle look
         public readonly CircleGrid steps = new CircleGrid();      // low things ants walk over (h = height of the top)
         public float tunnelClimb = 3.2f;     // how far up the banks an ant may climb under a tunnel roof
         public readonly List<TunnelRoof> roofs = new List<TunnelRoof>();

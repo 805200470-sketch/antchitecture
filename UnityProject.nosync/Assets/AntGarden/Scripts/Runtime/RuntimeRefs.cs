@@ -23,6 +23,7 @@ namespace AntGarden
         public Material amber;          // translucent amber (the ancestor's shrine)
         public Material guideTrail;     // small glowing particles: the way through a ruin, the motes along the seams
         public Material terrainSeam;    // ground interleaving across a seam between honeycomb cells
+        public Material particleLook;   // the particle look: plants and ground drawn as glowing points (P)
         public List<PlantRef> plants = new List<PlantRef>();
         public List<AntRef> ants = new List<AntRef>();
         public List<GroundSet> groundSets = new List<GroundSet>();
@@ -52,6 +53,33 @@ namespace AntGarden
         public Vector3 size = Vector3.one;     // normalized (height = 1)
         public float footprintRadius = 0.3f;   // at height 1
         public Vector3[] circles;              // (x, z, r) collision circles at height 1
+        // the particle look: points on the plant's surface (at height 1, in random order, so any first n are an
+        // even sample) and their colours from its texture; alpha 255 marks a point in the glowing part. Read on
+        // first use from Resources/AntGarden/Points/<name>.bytes (written by AssetBuilder)
+        [NonSerialized] public Vector3[] points;
+        [NonSerialized] public Color32[] pointColors;
+        [NonSerialized] bool pointsTried;
+
+        public bool LoadPoints()
+        {
+            if (pointsTried) return points != null && points.Length > 0;
+            pointsTried = true;
+            var asset = Resources.Load<TextAsset>("AntGarden/Points/" + name);
+            if (asset == null) return false;
+            int n;
+            using (var r = new System.IO.BinaryReader(new System.IO.MemoryStream(asset.bytes)))
+            {
+                n = r.ReadInt32();
+                points = new Vector3[n];
+                pointColors = new Color32[n];
+                for (int i = 0; i < n; i++)
+                {
+                    points[i] = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                    pointColors[i] = new Color32(r.ReadByte(), r.ReadByte(), r.ReadByte(), r.ReadByte());
+                }
+            }
+            return n > 0;
+        }
     }
 
     /// <summary>An ant prefab (LODGroup + Animator) with its clips and gait measurements.</summary>

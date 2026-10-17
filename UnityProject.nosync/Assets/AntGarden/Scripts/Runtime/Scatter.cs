@@ -239,6 +239,9 @@ namespace AntGarden
                 go.transform.localScale = Vector3.one * scale;
                 SetLayer(go, scale * stack > 6f ? BigPlantLayer : PlantLayer);
                 SetLook(go, plant.name, tint, s == 0); // only the bottom segment of a stack fades into the ground
+                bool native = GameConfig.InList(region.biome.nativePlants, plant.name);
+                world.plantInstances.Add(new PlantInstance { plant = plant, t = go.transform, hue = native ? 0 : region.biome.plantHue,
+                    sat = native ? 1 : region.biome.plantSaturation, glow = region.biome.plantGlow, scan = Color.Lerp(region.biome.rimColor, Color.white, 0.55f) });
                 if (!shadows)
                     foreach (var mr in go.GetComponentsInChildren<MeshRenderer>()) mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 renderers.AddRange(go.GetComponentsInChildren<MeshRenderer>());
