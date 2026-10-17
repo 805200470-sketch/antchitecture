@@ -25,6 +25,7 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
+    - _Contrast: 1.5
     - _Gain: 0.6
     - _MinPixels: 0.9
     - _Pale: 0.45

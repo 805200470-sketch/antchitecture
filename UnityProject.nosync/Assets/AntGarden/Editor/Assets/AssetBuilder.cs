@@ -52,6 +52,7 @@ namespace AntGarden.EditorTools
             refs.terrainSeam = SimpleMaterial("TerrainSeam", "AntGarden/TerrainSeam");
             refs.particleLook = SimpleMaterial("ParticleLook", "AntGarden/ParticleLook");
             refs.particleAnt = SimpleMaterial("ParticleAnt", "AntGarden/ParticleAnt");
+            refs.particleCarpet = SimpleMaterial("ParticleCarpet", "AntGarden/ParticleCarpet");
             refs.groundSets = BuildGroundSets();
             EditorUtility.SetDirty(refs);
             AssetDatabase.SaveAssets();
@@ -464,7 +465,8 @@ namespace AntGarden.EditorTools
         /// skinned on the GPU with the ant's own skeleton. Bones are kept as "slots": the bone's path under the
         /// prefab root and the bindpose of the mesh that uses it. Colours from the base colour texture (eyes dark,
         /// wings dimmer). Resources/AntGarden/Points/ant_&lt;id&gt;.bytes: "AGA1", slots (path, 16 floats), points (x, y, z,
-        /// rgba, slot 0, slot 1 as ushorts, weight 0).
+        /// rgba, slot 0, slot 1 as ushorts, weight 0); "AGA2" adds each point's normal (x, y, z) after its position,
+        /// so the points can be lit.
         /// </summary>
         static void SaveAntPoints(GameObject go, string id, string texPath, int count)
         {
@@ -475,11 +477,12 @@ namespace AntGarden.EditorTools
             var slotIndex = new Dictionary<(string, int), int>();   // (renderer path, bone) -> slot
             var slotPaths = new List<string>();
             var slotPoses = new List<Matrix4x4>();
-            var tris = new List<(Vector3 a, Vector3 b, Vector3 c, Vector2 ua, Vector2 ub, Vector2 uc, int[] sa, int[] sb, int[] sc, float[] wa, float[] wb, float[] wc, int kind)>();
+            var tris = new List<(Vector3 a, Vector3 b, Vector3 c, Vector2 ua, Vector2 ub, Vector2 uc, int[] sa, int[] sb, int[] sc, float[] wa, float[] wb, float[] wc, int kind, Vector3 na, Vector3 nb, Vector3 nc)>();
             foreach (SkinnedMeshRenderer r in smrs)
             {
                 Mesh mesh = r.sharedMesh;
                 Vector3[] v = mesh.vertices;
+                Vector3[] nm = mesh.normals;
                 Vector2[] uv = mesh.uv;
                 BoneWeight[] bw = mesh.boneWeights;
                 Matrix4x4[] bind = mesh.bindposes;
@@ -517,8 +520,11 @@ namespace AntGarden.EditorTools
                         var (sa, wa) = Weights(a);
                         var (sb, wb) = Weights(b);
                         var (sc, wc) = Weights(c);
+                        Vector3 face = Vector3.Cross(v[b] - v[a], v[c] - v[a]).normalized;
+                        bool hasN = nm != null && nm.Length == v.Length;
                         tris.Add((v[a], v[b], v[c], uv.Length == v.Length ? uv[a] : Vector2.zero, uv.Length == v.Length ? uv[b] : Vector2.zero,
-                            uv.Length == v.Length ? uv[c] : Vector2.zero, sa, sb, sc, wa, wb, wc, kind));
+                            uv.Length == v.Length ? uv[c] : Vector2.zero, sa, sb, sc, wa, wb, wc, kind,
+                            hasN ? nm[a] : face, hasN ? nm[b] : face, hasN ? nm[c] : face));
                     }
                 }
             }
@@ -533,7 +539,7 @@ namespace AntGarden.EditorTools
             Directory.CreateDirectory(dir);
             using (var w = new BinaryWriter(File.Create($"{dir}/ant_{id}.bytes")))
             {
-                w.Write(0x31414741);   // "AGA1"
+                w.Write(0x32414741);   // "AGA2"
                 w.Write(slotPaths.Count);
                 for (int i = 0; i < slotPaths.Count; i++)
                 {
@@ -562,7 +568,9 @@ namespace AntGarden.EditorTools
                     Color col = tex != null ? tex.GetPixelBilinear(u.x, u.y) : new Color(0.6f, 0.8f, 0.8f);
                     if (t.kind == 1) col = new Color(0.05f, 0.08f, 0.14f);
                     else if (t.kind == 2) col *= 0.5f;
+                    Vector3 pn = (t.na * fa + t.nb * fb + t.nc * fc).normalized;
                     w.Write(p.x); w.Write(p.y); w.Write(p.z);
+                    w.Write(pn.x); w.Write(pn.y); w.Write(pn.z);
                     w.Write((byte)(Mathf.Clamp01(col.r) * 255)); w.Write((byte)(Mathf.Clamp01(col.g) * 255)); w.Write((byte)(Mathf.Clamp01(col.b) * 255));
                     w.Write((byte)(t.kind == 1 ? 1 : t.kind == 2 ? 2 : 0));
                     w.Write((ushort)s0); w.Write((ushort)s1); w.Write(w0);
@@ -705,7 +713,7 @@ namespace AntGarden.EditorTools
                 var animator = go.GetComponentInChildren<Animator>();
                 if (animator != null) animator.runtimeAnimatorController = null;
                 var prefab = PrefabUtility.SaveAsPrefabAsset(go, $"{Gen}/Ants/{id}.prefab");
-                SaveAntPoints(go, id, $"{dir}/{id}/{id}_BaseColor.png", 9000);
+                SaveAntPoints(go, id, $"{dir}/{id}/{id}_BaseColor.png", 24000);
                 Object.DestroyImmediate(go);
 
                 var all = AssetDatabase.LoadAllAssetsAtPath(fbx).OfType<AnimationClip>().Where(c => !c.name.StartsWith("__preview__")).ToList();

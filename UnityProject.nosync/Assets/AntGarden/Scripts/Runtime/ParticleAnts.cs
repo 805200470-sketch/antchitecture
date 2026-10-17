@@ -7,21 +7,23 @@ namespace AntGarden
 {
     /// <summary>
     /// The particle nest's NPC ants as points (Shaders/ParticleAnt.shader). Each kind's points
-    /// (AssetBuilder.SaveAntPoints: spread over its surface, each with the two bones that move it most) sit in one
-    /// buffer; every frame each shown ant's bone × bindpose matrices go into another, and the GPU skins the points
+    /// (AssetBuilder.SaveAntPoints: spread over its surface, each with its normal and the two bones that move it
+    /// most) sit in one buffer; every frame each shown ant's bone × bindpose matrices go into another, and the GPU skins the points
     /// with them. The ants' meshes are not drawn, but their animation and procedural legs run as before, so the
-    /// points walk, step and touch antennae with them. Far ants get fewer points.
+    /// points walk, step and touch antennae with them. The points are lit and only the front surface's show, so
+    /// the body's detail reads, not just its outline. Far ants get fewer points.
     /// </summary>
     [DefaultExecutionOrder(1000)]   // after the ants have moved and been posed
     public class ParticleAnts : MonoBehaviour
     {
-        public float size = 0.008f;     // a point's radius (units)
-        public float gain = 0.6f;
-        public float pale = 0.45f;      // how far colours go from the ant's own toward a pale glow
+        public float size = 0.0045f;    // a point's radius (units)
+        public float gain = 1.2f;
+        public float pale = 0.2f;      // how far colours go from the ant's own toward a pale glow
+        public float contrast = 1.5f;   // how much the texture's light and dark are exaggerated
         public float fullUntil = 6f;    // all its points this close to the camera
         public float fewBeyond = 18f;   // a third of them from here on
 
-        struct AntPoint { public Vector3 pos; public uint col; public uint slots; public float w; }
+        struct AntPoint { public Vector3 pos; public Vector3 nrm; public uint col; public uint slots; public float w; }
 
         class Kind
         {
@@ -81,7 +83,7 @@ namespace AntGarden
             if (asset == null) return null;
             using (var r = new BinaryReader(new MemoryStream(asset.bytes)))
             {
-                if (r.ReadInt32() != 0x31414741) return null;   // "AGA1"
+                if (r.ReadInt32() != 0x32414741) return null;   // "AGA2"
                 int ns = r.ReadInt32();
                 var paths = new string[ns];
                 var poses = new Matrix4x4[ns];
@@ -97,12 +99,13 @@ namespace AntGarden
                 for (int i = 0; i < n; i++)
                 {
                     var pos = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                    var nrm = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
                     uint cr = r.ReadByte(), cg = r.ReadByte(), cb = r.ReadByte(), ck = r.ReadByte();
                     uint s0 = r.ReadUInt16(), s1 = r.ReadUInt16();
-                    pts[i] = new AntPoint { pos = pos, col = cr | (cg << 8) | (cb << 16) | (ck << 24), slots = s0 | (s1 << 16), w = r.ReadSingle() };
+                    pts[i] = new AntPoint { pos = pos, nrm = nrm, col = cr | (cg << 8) | (cb << 16) | (ck << 24), slots = s0 | (s1 << 16), w = r.ReadSingle() };
                 }
                 if (n == 0) return null;
-                k = new Kind { count = n, paths = paths, poses = poses, points = new ComputeBuffer(n, 24) };
+                k = new Kind { count = n, paths = paths, poses = poses, points = new ComputeBuffer(n, 36) };
                 k.points.SetData(pts);
             }
             kinds[id] = k;
@@ -134,6 +137,7 @@ namespace AntGarden
                 s.block.SetFloat("_Size", size);
                 s.block.SetFloat("_Gain", gain);
                 s.block.SetFloat("_Pale", pale);
+                s.block.SetFloat("_Contrast", contrast);
                 Graphics.DrawProcedural(mat, new Bounds(p, Vector3.one * 5f), MeshTopology.Triangles, n * 3, 1, null, s.block, ShadowCastingMode.Off, false, 0);
             }
         }

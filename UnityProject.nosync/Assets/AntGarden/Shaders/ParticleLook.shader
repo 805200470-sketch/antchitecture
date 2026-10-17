@@ -9,6 +9,8 @@
 // second draw of dense ground points round the ant: each is drawn only within its own distance of the ant,
 // between _ShellFade.x and .y, so they thin out toward the edge and fade in and out one by one as it walks.
 // A point's random values come from its position, so they stay the same when the shell is made again.
+// Plants and their glowing parts can be tinted from two small palettes (_UsePalette): for them the fourth byte's
+// low six bits are not a size but the tints' places, glow << 3 | body (_GlowPal, _BodyPal).
 // Where the shell makes the plants many times denser (round the ant), each of their points is dimmer
 // (_NearDim: from .x to .y units away the gain goes from .z to 1), so the detail grows, not the glare.
 Shader "AntGarden/ParticleLook"
@@ -41,6 +43,8 @@ Shader "AntGarden/ParticleLook"
             StructuredBuffer<Point> _Points;
             float _Size, _Gain, _GlowGain, _MinPixels, _Shimmer, _Shell;
             float4 _ShellFade, _NearDim;
+            float _UsePalette;
+            float4 _BodyPal[8], _GlowPal[8];
             float4 _TrailPlayer;   // global (GuideTrail): points near the ant brighten a little
 
             struct v2f
@@ -78,7 +82,9 @@ Shader "AntGarden/ParticleLook"
                 float3 rgb = GammaToLinearSpace(float3(p.col & 255, (p.col >> 8) & 255, (p.col >> 16) & 255) / 255.0);
                 uint b = (p.col >> 24) & 255, kind = b >> 6, sz = b & 63;
                 float glow = kind == 3 ? 1 : 0, ground = kind == 2 ? 1 : 0, dust = kind == 1 ? 1 : 0;
-                float scale = sz == 0 ? 1 : sz * 0.125;
+                bool tinted = _UsePalette > 0.5 && (kind == 0 || kind == 3);
+                float scale = sz == 0 || tinted ? 1 : sz * 0.125;
+                if (tinted) rgb *= kind == 3 ? _GlowPal[(sz >> 3) & 7].rgb : _BodyPal[sz & 7].rgb;
                 float t = _Time.y;
                 float3 pos = p.pos + _Shimmer * (1 - ground) * float3(sin(t * (0.9 + h * 1.3) + h * 17.0), sin(t * (0.7 + h * 1.1) + h * 29.0), sin(t * (0.8 + h * 1.7) + h * 41.0));
                 // dust wanders slowly through the air

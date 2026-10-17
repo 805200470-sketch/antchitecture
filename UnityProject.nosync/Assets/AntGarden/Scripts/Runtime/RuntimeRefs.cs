@@ -25,6 +25,7 @@ namespace AntGarden
         public Material terrainSeam;    // ground interleaving across a seam between honeycomb cells
         public Material particleLook;   // the particle look: plants and ground drawn as glowing points (P)
         public Material particleAnt;    // the particle nest's NPC ants: points skinned with their skeletons
+        public Material particleCarpet; // the particle nest: the dense floor of points round the ant, made on the GPU
         public List<PlantRef> plants = new List<PlantRef>();
         public List<AntRef> ants = new List<AntRef>();
         public List<GroundSet> groundSets = new List<GroundSet>();

@@ -60,6 +60,22 @@ namespace AntGarden
         public float shellMove = 3f;        // made again once the ant is this far from where they were made
         public float nearPlantGain = 1f;    // a plant point's brightness where the shell is densest (it is dimmer there)
 
+        // replace: the carpet, the floor round the ant as a dense grid of points made on the GPU
+        // (Shaders/ParticleCarpet.shader) from a height map and a layer map of the terrain baked here
+        public Material carpet;             // its material (null: no carpet)
+        public float carpetStep = 0.013f;   // spacing of its points (units)
+        public Vector2 carpetFade = new Vector2(3.5f, 6f);   // drawn out to y round the ant, thinning out from x
+        public float carpetGain = 0.1f;
+        public float carpetSize = 0.0055f;
+
+        // replace: colour. Plants take a pale tint by kind from bodyPalette (one family of near colours, a rare
+        // warm one), their glowing parts one from glowPalette (now and then a warm accent); the ground a tint by
+        // layer: floor, bank, plateau, and the bank's top edge (alpha 0: groundColour)
+        public Color[] bodyPalette, glowPalette;   // 8 each (null: the scan colour only)
+        public float bodyAccent = 0.06f;    // share of plants with a warm body
+        public float glowAccent = 0.22f;    // share of plants with warm glowing parts
+        public Color floorColour = Color.clear, bankColour = Color.clear, plateauColour = Color.clear, edgeColour = Color.clear;
+
         // replace: where the ant is led (the glowing tracks): plants and ground are densest near them
         public List<List<Vector2>> focus;
         public float focusReach = 7f;       // how fast the density falls off away from them (units)
@@ -73,6 +89,7 @@ namespace AntGarden
         {
             public Vector3[] pts;
             public uint[] cols;
+            public uint palette;    // its tints (fourth colour byte, low six bits: glow << 3 | body)
             public float[] keep;
             public Matrix4x4 m;
             public Vector3 pos;
@@ -85,6 +102,7 @@ namespace AntGarden
         class GroundLook
         {
             public Color32[] floor, bank, plateau;
+            public Texture floorTex;
             public int fw, fh, bw, bh, pw, ph;
             public float floorScale, bankScale, plateauScale, hue, sat = 1, meanLum = 0.2f;
             public Color floorTint = Color.white, bankTint = Color.white, plateauTint = Color.white;
@@ -121,7 +139,12 @@ namespace AntGarden
         readonly Dictionary<long, List<int>> cells = new Dictionary<long, List<int>>();
         readonly Dictionary<Material, GroundLook> looks = new Dictionary<Material, GroundLook>();
         const float CellSize = 4f;
-        Color groundTint;
+        Color groundTint, floorTintL, bankTintL, plateauTintL, edgeTintL;
+        // the carpet's maps and how it is drawn
+        Texture2D heightMap, layerMap;
+        Vector4 heightRect;
+        MaterialPropertyBlock carpetBlock;
+        int carpetN;
         // the shell: made on a worker thread, uploaded a chunk a frame into the back buffer, then swapped in
         readonly ComputeBuffer[] shellBuffers = new ComputeBuffer[2];
         readonly int[] shellCounts = new int[2];
@@ -159,6 +182,16 @@ namespace AntGarden
                 mat.SetFloat("_Shimmer", shimmer);
                 mat.SetFloat("_MinPixels", mode == Mode.Replace ? 0.9f : 1.2f);
                 mat.SetVector("_NearDim", new Vector4(shellFade.x, shellFade.y, mode == Mode.Replace && shellPlantArea > 0 ? nearPlantGain : 1f, 0));
+                bool pal = mode == Mode.Replace && bodyPalette != null && glowPalette != null && bodyPalette.Length >= 8 && glowPalette.Length >= 8;
+                mat.SetFloat("_UsePalette", pal ? 1f : 0f);
+                if (pal)
+                {
+                    var b = new Vector4[8];
+                    var g = new Vector4[8];
+                    for (int i = 0; i < 8; i++) { b[i] = bodyPalette[i].linear; g[i] = glowPalette[i].linear; }
+                    mat.SetVectorArray("_BodyPal", b);
+                    mat.SetVectorArray("_GlowPal", g);
+                }
             }
             Shader.SetGlobalFloat("_PlantDim", on && mode == Mode.Overlay ? plantDim : 0f);
             Shader.SetGlobalFloat("_GroundDim", on ? groundDim : 0f);
@@ -184,6 +217,12 @@ namespace AntGarden
             mainBlock.SetBuffer("_Points", buffer);
             mainBlock.SetFloat("_Shell", 0f);
             Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, count * 3, 1, null, mainBlock, ShadowCastingMode.Off, false, 0);
+            if (carpetN > 0)
+            {
+                Vector3 a = follow.position;
+                Graphics.DrawProcedural(carpet, new Bounds(a, new Vector3(carpetFade.y * 2 + 4, 60, carpetFade.y * 2 + 4)), MeshTopology.Triangles,
+                    carpetN * carpetN * 3, 1, null, carpetBlock, ShadowCastingMode.Off, false, 0);
+            }
             if (shellCounts[shellFront] > 0)
             {
                 shellBlock.SetBuffer("_Points", shellBuffers[shellFront]);
@@ -236,6 +275,8 @@ namespace AntGarden
         {
             buffer?.Release();
             foreach (ComputeBuffer b in shellBuffers) b?.Release();
+            if (heightMap != null) Destroy(heightMap);
+            if (layerMap != null) Destroy(layerMap);
             Shader.SetGlobalFloat("_PlantDim", 0f);
             Shader.SetGlobalFloat("_GroundDim", 0f);
         }
@@ -266,6 +307,7 @@ namespace AntGarden
                 wanted += n;
             }
             float share = replace && wanted > budget ? (float)budget / wanted : 1f;
+            int ord = 0;
             foreach (var (pi, n0) in picks)
             {
                 int n = Mathf.Max(60, Mathf.RoundToInt(n0 * share));
@@ -273,15 +315,16 @@ namespace AntGarden
                 float[] keep = replace ? Keep(pi.plant) : null;
                 Matrix4x4 m = pi.t.localToWorldMatrix;
                 Vector3[] src = pi.plant.points;
+                uint pal = replace ? Palette(pi, ord++) << 24 : 0;
                 int taken = 0, k = 0;
                 for (; k < src.Length && k < cols.Length && taken < n; k++)
                 {
                     if (keep != null && PointHash(k) > keep[k]) continue;   // the texture's darker parts get fewer points
-                    points.Add(new Point { pos = m.MultiplyPoint3x4(src[k]), col = cols[k] });
+                    points.Add(new Point { pos = m.MultiplyPoint3x4(src[k]), col = cols[k] | pal });
                     taken++;
                 }
                 if (replace && !pi.far)
-                    plants.Add(new PlantSlot { pts = src, cols = cols, keep = keep, m = m, pos = pi.t.position, height = pi.t.lossyScale.y, baseEnd = k, baseCount = taken });
+                    plants.Add(new PlantSlot { pts = src, cols = cols, palette = pal, keep = keep, m = m, pos = pi.t.position, height = pi.t.lossyScale.y, baseEnd = k, baseCount = taken });
             }
             int plantPoints = points.Count;
             var rng = new System.Random(7);
@@ -332,6 +375,22 @@ namespace AntGarden
             return (h & 0xFFFFFF) / 16777216f;
         }
 
+        /// <summary>A plant's tints: its kind picks one of the near colours for its body and one for its glow; now and
+        /// then (by the plant itself) a warm one instead. Glow index in bits 3-5, body in 0-2.</summary>
+        uint Palette(PlantInstance pi, int index)
+        {
+            if (bodyPalette == null || glowPalette == null) return 0;
+            uint kind = 2166136261u;
+            foreach (char ch in pi.plant.name) kind = (kind ^ ch) * 16777619u;
+            uint own = (uint)index * 2654435761u ^ kind;
+            own ^= own >> 15; own *= 2246822519u; own ^= own >> 13;
+            float r1 = (own & 0xFFFF) / 65535f, r2 = ((own >> 16) & 0xFFFF) / 65535f;
+            uint body = r1 < bodyAccent ? 6u + ((own >> 3) & 1u) : kind % 6u;
+            uint[] coolGlow = { 0, 1, 2, 6 }, warmGlow = { 3, 4, 5, 7 };
+            uint glow = r2 < glowAccent ? warmGlow[(own >> 7) % 4] : coolGlow[(kind >> 4) % 4];
+            return (glow << 3) | body;
+        }
+
         /// <summary>
         /// Replace: how likely each of a plant's points is kept, from its texture's light and dark (against the
         /// plant's own mean), so the lighter parts of the texture are drawn with more points, like a halftone.
@@ -352,7 +411,7 @@ namespace AntGarden
             float mean = n > 0 ? Mathf.Max(1e-3f, (float)(sum / n)) : 0.2f;
             var keep = new float[src.Length];
             for (int k = 0; k < src.Length; k++)
-                keep[k] = src[k].a > 127 ? 1f : Mathf.Lerp(1f, Mathf.Clamp(0.2f + 0.8f * Mathf.Pow(lum[k] / mean, 1.2f), 0.2f, 1f), grain);
+                keep[k] = src[k].a > 127 ? 1f : Mathf.Lerp(1f, Mathf.Clamp(0.06f + 0.94f * Mathf.Pow(lum[k] / mean, 2f), 0.06f, 1f), grain);
             keeps[plant] = keep;
             return keep;
         }
@@ -399,6 +458,10 @@ namespace AntGarden
                 bin.Add(i);
             }
             groundTint = (groundColour.a > 0 ? groundColour : scanOverride.a > 0 ? scanOverride : new Color(0.7f, 0.8f, 1f)).linear;
+            floorTintL = floorColour.a > 0 ? floorColour.linear : groundTint;
+            bankTintL = bankColour.a > 0 ? bankColour.linear : groundTint;
+            plateauTintL = plateauColour.a > 0 ? plateauColour.linear : groundTint;
+            edgeTintL = edgeColour.a > 0 ? edgeColour.linear : bankTintL;
             // each look's mean brightness, so its light and dark are read against it
             var rng = new Rng(99);
             foreach (GroundLook look in looks.Values)
@@ -416,6 +479,91 @@ namespace AntGarden
                 }
                 if (n > 0) look.meanLum = Mathf.Max(1e-3f, (float)(sum / n));
             }
+            if (carpet != null) BakeCarpet();
+        }
+
+        /// <summary>
+        /// The carpet's maps: the terrain's top surface height and its layer weights (floor, bank, plateau, open) on
+        /// a grid of 1/8 unit over the nest, rasterised from its triangles; and the material settings for drawing it.
+        /// </summary>
+        void BakeCarpet()
+        {
+            const float cell = 0.125f;
+            float x0 = world.minX - 1, z0 = world.minZ - 1;
+            int w = Mathf.Min(2048, Mathf.CeilToInt((world.maxX - world.minX + 2) / cell));
+            int h = Mathf.Min(2048, Mathf.CeilToInt((world.maxZ - world.minZ + 2) / cell));
+            var height = new float[w * h];
+            var layers = new Color32[w * h];
+            for (int i = 0; i < height.Length; i++) height[i] = float.MinValue;
+            foreach (var (v, _, c, t, _) in meshes)
+                for (int k = 0; k < t.Length; k += 3)
+                {
+                    Vector3 a = v[t[k]], b = v[t[k + 1]], d = v[t[k + 2]];
+                    int i0 = Mathf.Max(0, Mathf.FloorToInt((Mathf.Min(a.x, Mathf.Min(b.x, d.x)) - x0) / cell));
+                    int i1 = Mathf.Min(w - 1, Mathf.CeilToInt((Mathf.Max(a.x, Mathf.Max(b.x, d.x)) - x0) / cell));
+                    int j0 = Mathf.Max(0, Mathf.FloorToInt((Mathf.Min(a.z, Mathf.Min(b.z, d.z)) - z0) / cell));
+                    int j1 = Mathf.Min(h - 1, Mathf.CeilToInt((Mathf.Max(a.z, Mathf.Max(b.z, d.z)) - z0) / cell));
+                    float den = (b.z - d.z) * (a.x - d.x) + (d.x - b.x) * (a.z - d.z);
+                    if (Mathf.Abs(den) < 1e-9f) continue;
+                    for (int j = j0; j <= j1; j++)
+                    for (int i = i0; i <= i1; i++)
+                    {
+                        float px = x0 + (i + 0.5f) * cell, pz = z0 + (j + 0.5f) * cell;
+                        float wa = ((b.z - d.z) * (px - d.x) + (d.x - b.x) * (pz - d.z)) / den;
+                        float wb = ((d.z - a.z) * (px - d.x) + (a.x - d.x) * (pz - d.z)) / den;
+                        float wc = 1 - wa - wb;
+                        if (wa < -1e-4f || wb < -1e-4f || wc < -1e-4f) continue;
+                        float y = a.y * wa + b.y * wb + d.y * wc;
+                        int idx = j * w + i;
+                        if (y <= height[idx]) continue;
+                        height[idx] = y;
+                        layers[idx] = c[t[k]] * wa + c[t[k + 1]] * wb + c[t[k + 2]] * wc;
+                    }
+                }
+            for (int i = 0; i < height.Length; i++) if (height[i] == float.MinValue) height[i] = -100f;
+            heightMap = new Texture2D(w, h, TextureFormat.RFloat, false, true) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            heightMap.SetPixelData(height, 0);
+            heightMap.Apply(false, true);
+            layerMap = new Texture2D(w, h, TextureFormat.RGBA32, false, true) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            layerMap.SetPixels32(layers);
+            layerMap.Apply(false, true);
+            heightRect = new Vector4(x0, z0, w * cell, h * cell);
+            GroundLook look = null;
+            foreach (GroundLook l in looks.Values) { look = l; break; }
+            carpetN = Mathf.CeilToInt(carpetFade.y * 2 / carpetStep) + 2;
+            carpetBlock = new MaterialPropertyBlock();
+            carpetBlock.SetTexture("_HeightMap", heightMap);
+            carpetBlock.SetTexture("_LayerMap", layerMap);
+            carpetBlock.SetVector("_HeightRect", heightRect);
+            carpetBlock.SetVector("_Fade", carpetFade);
+            carpetBlock.SetFloat("_Step", carpetStep);
+            carpetBlock.SetFloat("_N", carpetN);
+            carpetBlock.SetFloat("_Size", carpetSize);
+            carpetBlock.SetFloat("_Gain", carpetGain);
+            carpetBlock.SetFloat("_MinPixels", 0.8f);
+            carpetBlock.SetFloat("_Grain", grain);
+            carpetBlock.SetFloat("_TexMix", groundTexMix);
+            carpetBlock.SetVector("_TintFloor", floorTintL);
+            carpetBlock.SetVector("_TintBank", bankTintL);
+            if (look != null && look.floorTex != null)
+            {
+                carpetBlock.SetTexture("_FloorTex", look.floorTex);
+                carpetBlock.SetFloat("_FloorScale", look.floorScale);
+                carpetBlock.SetVector("_FloorTint", look.floorTint);
+                carpetBlock.SetFloat("_HueShift", look.hue);
+                carpetBlock.SetFloat("_Saturation", look.sat);
+                carpetBlock.SetFloat("_MeanLum", look.meanLum);
+            }
+            else
+            {
+                carpetBlock.SetTexture("_FloorTex", Texture2D.grayTexture);
+                carpetBlock.SetFloat("_FloorScale", 1f);
+                carpetBlock.SetVector("_FloorTint", Color.white);
+                carpetBlock.SetFloat("_Saturation", 1f);
+                carpetBlock.SetFloat("_MeanLum", 0.2f);
+                carpetBlock.SetFloat("_Grain", 0f);
+            }
+            Debug.Log($"[AntGarden] particle carpet: {carpetN}² points round the ant, maps {w}×{h}");
         }
 
         static long CellKey(int x, int z) => ((long)x << 32) | (uint)z;
@@ -427,6 +575,7 @@ namespace AntGarden
             if (looks.TryGetValue(m, out GroundLook look)) return look;
             look = new GroundLook
             {
+                floorTex = m.GetTexture("_FloorTex"),
                 floor = Readback(m.GetTexture("_FloorTex"), out int fw0, out int fh0),
                 bank = Readback(m.GetTexture("_BankTex"), out int bw0, out int bh0),
                 plateau = Readback(m.GetTexture("_PlateauTex"), out int pw0, out int ph0),
@@ -528,7 +677,7 @@ namespace AntGarden
                     for (int k = p.baseEnd, taken = 0; k < p.pts.Length && k < p.cols.Length && taken < want; k++)
                     {
                         if (p.keep != null && PointHash(k) > p.keep[k]) continue;
-                        shellWork.Add(new Point { pos = p.m.MultiplyPoint3x4(p.pts[k]), col = p.cols[k] });
+                        shellWork.Add(new Point { pos = p.m.MultiplyPoint3x4(p.pts[k]), col = p.cols[k] | p.palette });
                         taken++;
                     }
                 }
@@ -545,7 +694,7 @@ namespace AntGarden
             var (v, nr, c, t, look) = meshes[g.mesh];
             int ia = t[g.k], ib = t[g.k + 1], ic = t[g.k + 2];
             bool textured = look != null && look.floor != null;
-            if (textured) want *= 1 + 0.45f * grain;   // the halftone thins them: start with more
+            if (textured) want *= 1 + 0.7f * grain;    // the halftone thins them: start with more
             int many = (int)want;
             if (rng.Next() < want - many) many++;
             for (int j = 0; j < many; j++)
@@ -564,21 +713,32 @@ namespace AntGarden
                 {
                     Color albedo = Albedo(look, p, n, lw);
                     float al = Lum(albedo), rel = al / look.meanLum;
-                    if (roll > Mathf.Lerp(1f, Mathf.Clamp(0.25f + 0.75f * Mathf.Pow(rel, 1.2f), 0.25f, 1f), grain)) continue;
-                    lum *= (0.75f + 0.5f * jitter) * Mathf.Lerp(1f, Mathf.Clamp(0.12f + 0.88f * Mathf.Pow(rel, 1.4f), 0.05f, 3f), grain);
+                    if (roll > Mathf.Lerp(1f, Mathf.Clamp(0.05f + 0.95f * Mathf.Pow(rel, 2f), 0.05f, 1f), grain)) continue;
+                    lum *= (0.9f + 0.2f * jitter) * Mathf.Lerp(1f, Mathf.Clamp(0.06f + 0.94f * Mathf.Pow(rel, 2.4f), 0.03f, 3.5f), grain);
                     Color own = albedo * (lum / Mathf.Max(1e-4f, al));   // its own colour, as bright as the pale one
-                    col = Color.Lerp(groundTint * lum, own, groundTexMix);
+                    col = Color.Lerp(LayerTint(lw) * lum, own, groundTexMix);
                 }
                 else
                 {
                     float patch = Noise(p.x * 0.31f + 17.3f, p.z * 0.31f + p.y * 0.45f + 5.1f);
                     float layers = 0.68f + 0.32f * (float)System.Math.Sin(p.y * 6.5f + Noise(p.x * 0.12f, p.z * 0.12f) * 6f);
                     lum *= (0.4f + 1.2f * jitter) * (0.3f + 1.2f * patch) * (1 + (layers - 1) * lw.g);
-                    col = groundTint * lum;
+                    col = LayerTint(lw) * lum;
                 }
                 bool splat = splatRoll < splats;
                 into.Add(new Point { pos = p + n * 0.035f, col = PackLinear(col * (bright * (splat ? 0.16f : 1f)), Ground, splat ? 40u : 10u) });
             }
+        }
+
+        /// <summary>The pale tint of a ground point by layer: floor, bank, plateau, and the bank's top edge (where it meets
+        /// the plateau, the outline of the passage) leaning to the edge colour.</summary>
+        Color LayerTint(Color lw)
+        {
+            float total = Mathf.Max(1e-3f, lw.r + lw.g + lw.b);
+            Color t = (floorTintL * lw.r + bankTintL * lw.g + plateauTintL * lw.b) * (1f / total);
+            float edge = lw.g * lw.b * 4f;
+            if (edge > 1) edge = 1;
+            return Color.Lerp(t, edgeTintL, edge * 0.7f);
         }
 
         /// <summary>The terrain's colour at p as its shader paints it: the floor, bank and plateau textures projected
@@ -666,7 +826,7 @@ namespace AntGarden
             if (dust <= 0) return;
             float area = (world.maxX - world.minX) * (world.maxZ - world.minZ);
             int tries = Mathf.RoundToInt(area * dustHeight * dust);
-            Color pale = new Color(0.62f, 0.75f, 1f).linear, gold = new Color(1f, 0.74f, 0.4f).linear;
+            Color pale = new Color(0.62f, 0.75f, 1f).linear, gold = new Color(1f, 0.74f, 0.4f).linear, rose = new Color(0.95f, 0.66f, 1f).linear;
             for (int i = 0; i < tries; i++)
             {
                 float x = Mathf.Lerp(world.minX, world.maxX, (float)rng.NextDouble());
@@ -676,8 +836,11 @@ namespace AntGarden
                 float floor = world.WalkHeight(x, z);
                 float y = floor + 0.12f + Mathf.Pow((float)rng.NextDouble(), 1.6f) * dustHeight;
                 if (y > world.Ceiling(x, z) - 0.2f) continue;
-                bool golden = rng.NextDouble() < 0.14;
-                Color col = golden ? gold * (0.5f + 0.9f * (float)rng.NextDouble()) : pale * (0.25f + 0.6f * (float)rng.NextDouble());
+                double kind = rng.NextDouble();
+                bool golden = kind < 0.14, rosy = !golden && kind < 0.2;
+                Color col = golden ? gold * (0.5f + 0.9f * (float)rng.NextDouble())
+                          : rosy ? rose * (0.4f + 0.7f * (float)rng.NextDouble())
+                          : pale * (0.25f + 0.6f * (float)rng.NextDouble());
                 points.Add(new Point { pos = new Vector3(x, y, z), col = Pack(col.gamma, Dust, golden ? 10u : 0u) });
             }
         }
@@ -757,9 +920,11 @@ namespace AntGarden
                 // flat scan (grain 0): brighter where the surface is lighter, compressed; with grain, the texture's
                 // light and dark against the plant's mean, a little exaggerated
                 float flat = 0.18f + 1.3f * Mathf.Sqrt(lum);
-                float rel = Mathf.Clamp(0.1f + 0.9f * Mathf.Pow(lum / mean, 1.3f), 0.04f, 2.8f);
+                float rel = Mathf.Clamp(0.05f + 0.95f * Mathf.Pow(lum / mean, 2.2f), 0.02f, 3.6f);
                 Color scan = scanColour.linear * Mathf.Lerp(flat, rel, grain);
-                Color c = glows ? Color.Lerp(Color.Lerp(shifted, pi.glow.linear, 0.7f), scanColour.linear, mode == Mode.Replace ? 0.5f : 0f)
+                bool tinted = mode == Mode.Replace && glowPalette != null;
+                Color c = glows ? (tinted ? Color.Lerp(shifted, Color.white * (0.55f + 0.9f * Mathf.Sqrt(lum)), 0.85f)
+                                          : Color.Lerp(Color.Lerp(shifted, pi.glow.linear, 0.7f), scanColour.linear, mode == Mode.Replace ? 0.5f : 0f))
                                 : Color.Lerp(shifted * 1.6f, scan, scanMix);
                 cols[k] = Pack(c.gamma, glows ? Glow : Plant);
             }

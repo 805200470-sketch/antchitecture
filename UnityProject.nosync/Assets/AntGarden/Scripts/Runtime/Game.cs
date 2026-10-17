@@ -529,31 +529,51 @@ namespace AntGarden
             if (Arg("-particlelook") == "soft") { particleLook.plantDim = 0.45f; particleLook.groundDim = 0.15f; particleLook.scanMix = 0.45f; }
             if (Lab)
             {
-                // the particle nest: no meshes, only dense pale points, as in Dream, keeping their textures' grain
+                // the particle nest: no meshes, only dense points, as in Dream, keeping their textures' grain and
+                // some of their colour; one family of near colours (cyan, blue, periwinkle, mint, lilac), a few warm
+                // accents (sand, blush on bodies; amber, coral, pink, gold on glowing parts) beside the golden way
                 particleLook.mode = ParticleLook.Mode.Replace;
                 particleLook.pointSize = 0.011f;
                 particleLook.brightness = 0.42f;
                 particleLook.glowBrightness = 1.4f;
                 particleLook.shimmer = 0.006f;
-                particleLook.scanOverride = new Color(0.8f, 0.88f, 1f, 1f);
-                particleLook.scanMix = 0.6f;
-                particleLook.grain = 0.85f;
+                particleLook.scanOverride = new Color(0.94f, 0.96f, 1f, 1f);
+                particleLook.scanMix = 0.4f;
+                particleLook.grain = 1f;
+                particleLook.bodyPalette = new[]
+                {
+                    new Color(0.70f, 0.95f, 1.00f), new Color(0.72f, 0.84f, 1.00f), new Color(0.80f, 0.76f, 1.00f), new Color(0.66f, 1.00f, 0.88f),
+                    new Color(0.88f, 0.76f, 1.00f), new Color(0.60f, 0.80f, 1.00f), new Color(1.00f, 0.86f, 0.66f), new Color(1.00f, 0.74f, 0.82f),
+                };
+                particleLook.glowPalette = new[]
+                {
+                    new Color(0.70f, 1.00f, 1.00f), new Color(0.50f, 1.00f, 0.85f), new Color(0.80f, 0.65f, 1.00f), new Color(1.00f, 0.70f, 0.35f),
+                    new Color(1.00f, 0.55f, 0.55f), new Color(1.00f, 0.55f, 0.85f), new Color(0.75f, 0.88f, 1.00f), new Color(1.00f, 0.85f, 0.45f),
+                };
                 // plants: fewer points for each over the whole nest, many more round the ant (the shell)
                 particleLook.perArea = 450f;
                 particleLook.farShare = 0.2f;
                 particleLook.budget = 2200000;
                 particleLook.shellPlantArea = 2400f;
                 particleLook.nearPlantGain = 0.3f;
-                // the ground: the terrain sinks dark; sparse points over the nest, dense round the ant
-                particleLook.groundDim = 0.96f;
+                // the ground: the terrain sinks dark; sparse points over the nest, dense round the ant, and underfoot
+                // the carpet, made on the GPU; by layer a teal floor, blue-violet walls, a lilac edge along their tops
+                particleLook.groundDim = 0.985f;
                 particleLook.groundBrightness = 3.2f;
                 particleLook.groundColour = new Color(0.6f, 0.7f, 1f, 1f);
-                particleLook.groundTexMix = 0.3f;
+                particleLook.floorColour = new Color(0.55f, 0.85f, 1f, 1f);
+                particleLook.bankColour = new Color(0.62f, 0.66f, 1f, 1f);
+                particleLook.plateauColour = new Color(0.5f, 0.58f, 0.95f, 1f);
+                particleLook.edgeColour = new Color(0.9f, 0.72f, 1f, 1f);
+                particleLook.groundTexMix = 0.55f;
                 particleLook.groundNear = 160f;
                 particleLook.groundBudget = 1000000;
                 particleLook.shellDensity = 1000f;
                 particleLook.shellFade = new Vector2(5f, 12f);
-                particleLook.dust = 10f;
+                particleLook.carpet = refs.particleCarpet;
+                particleLook.carpetGain = 0.085f;
+                particleLook.bodyAccent = 0.04f;
+                particleLook.dust = 18f;
                 // the walls and floor become points too, densest along the glowing ways
                 if (lab != null) particleLook.focus = lab.Tracks;
                 foreach (Transform t in worldRoot)
