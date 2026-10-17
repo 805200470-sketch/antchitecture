@@ -17,7 +17,7 @@ namespace AntGarden
     public class ParticleAnts : MonoBehaviour
     {
         public float size = 0.0045f;    // a point's radius (units)
-        public float gain = 1.2f;
+        public float gain = 2f;
         public float pale = 0.2f;      // how far colours go from the ant's own toward a pale glow
         public float contrast = 1.5f;   // how much the texture's light and dark are exaggerated
         public float fullUntil = 6f;    // all its points this close to the camera

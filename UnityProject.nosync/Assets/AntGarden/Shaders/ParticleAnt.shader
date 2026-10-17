@@ -74,7 +74,7 @@ Shader "AntGarden/ParticleAnt"
                 Skin(id, p, pos, nrm, h, size, want);
                 float2 c = corners[id % 3];
                 float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
-                o.pos = mul(UNITY_MATRIX_VP, float4(pos + (right * c.x + up * c.y) * size * 1.7, 1));
+                o.pos = mul(UNITY_MATRIX_VP, float4(pos + (right * c.x + up * c.y) * size * 1.4, 1));
                 o.uv = c;
                 return o;
             }
@@ -118,7 +118,7 @@ Shader "AntGarden/ParticleAnt"
                 Skin(id, p, pos, nrm, h, size, want);
                 float3 V = normalize(_WorldSpaceCameraPos - pos);
                 // a little toward the camera, so the front surface's own dots pass the depth written above
-                float3 drawn = pos + V * 0.02;
+                float3 drawn = pos + V * 0.03;
                 float2 c = corners[id % 3];
                 float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
                 o.pos = mul(UNITY_MATRIX_VP, float4(drawn + (right * c.x + up * c.y) * size, 1));
@@ -136,7 +136,7 @@ Shader "AntGarden/ParticleAnt"
                 float key = saturate(dot(n, L) * 0.6 + 0.4);
                 key *= key;
                 float rim = pow(1 - saturate(dot(n, V)), 3);
-                float3 lit = rgb * (0.22 + 1.25 * key) + float3(0.55, 0.8, 1.0) * rim * 0.35 * (0.4 + lum * 3);
+                float3 lit = rgb * (0.55 + 1.5 * key) + float3(0.55, 0.8, 1.0) * rim * 0.12 * (0.4 + lum * 3);
                 float breathe = 0.9 + 0.1 * sin(_Time.y * (0.6 + h) + h * 23);
                 float spread = saturate(want / size);
                 o.col = lit * _Gain * breathe * lerp(0.3, 1, spread) * (kind == 1 ? 0.3 : kind == 2 ? 0.55 : 1);
