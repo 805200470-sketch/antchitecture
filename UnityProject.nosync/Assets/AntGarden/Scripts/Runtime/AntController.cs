@@ -39,20 +39,41 @@ namespace AntGarden
         public float Saturation { get; private set; } = 1;
         /// <summary>Shown (not far off, not in the camera's way): drawn as its meshes, or as points.</summary>
         public bool Visible { get; private set; } = true;
-        bool pointsOnly;
-        /// <summary>The particle nest: the meshes are not drawn (ParticleAnts draws the ant as points), but the
-        /// skeleton keeps moving.</summary>
-        public bool PointsOnly
+        bool pointsOnly, darkBody;
+        /// <summary>The particle nest: ParticleAnts draws the ant as points. The meshes are not drawn, or, given a
+        /// dark body material, drawn with it (wings with nothing), so nothing behind the ant shows through its
+        /// points; the skeleton keeps moving either way.</summary>
+        public void DrawAsPoints(Material body)
         {
-            get => pointsOnly;
-            set
+            pointsOnly = true;
+            darkBody = body != null;
+            var animator = model != null ? model.GetComponentInChildren<Animator>() : null;
+            if (animator != null) animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            if (renderers == null) return;
+            Material none = null;
+            if (darkBody)
             {
-                pointsOnly = value;
-                if (renderers != null) foreach (var r in renderers) r.enabled = !value && Visible;
-                var animator = model != null ? model.GetComponentInChildren<Animator>() : null;
-                if (value && animator != null) animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                none = new Material(body) { name = "AntOccluder_none" };
+                none.SetFloat("_ZWrite", 0);
+                none.SetFloat("_ColorMask", 0);
+            }
+            foreach (var r in renderers)
+            {
+                if (darkBody)
+                {
+                    var mats = r.sharedMaterials;
+                    for (int i = 0; i < mats.Length; i++)
+                    {
+                        string n = mats[i] != null ? mats[i].name.ToLowerInvariant() : "";
+                        mats[i] = n.Contains("wing") || n.Contains("vein") ? none : body;
+                    }
+                    r.sharedMaterials = mats;
+                    r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                }
+                r.enabled = darkBody && Visible;
             }
         }
+        public bool PointsOnly => pointsOnly;
 
         Transform lean;
         Transform model;
@@ -534,7 +555,7 @@ namespace AntGarden
         /// <summary>Shadows only for near ants (crowd LOD).</summary>
         public void SetShadows(bool on)
         {
-            if (on == shadows || renderers == null) return;
+            if (on == shadows || renderers == null || pointsOnly) return;
             shadows = on;
             foreach (var r in renderers) r.shadowCastingMode = on ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
         }
@@ -544,7 +565,7 @@ namespace AntGarden
         {
             Visible = v;
             if (renderers == null) return;
-            foreach (var r in renderers) r.enabled = v && !pointsOnly;
+            foreach (var r in renderers) r.enabled = v && (!pointsOnly || darkBody);
         }
 
         static float Smooth(float a, float b, float v)

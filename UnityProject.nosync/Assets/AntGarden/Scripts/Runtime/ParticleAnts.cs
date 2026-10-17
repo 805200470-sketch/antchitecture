@@ -10,16 +10,18 @@ namespace AntGarden
     /// (AssetBuilder.SaveAntPoints: spread over its surface, each with its normal and the two bones that move it
     /// most) sit in one buffer; every frame each shown ant's bone × bindpose matrices go into another, and the GPU skins the points
     /// with them. The ants' meshes are not drawn, but their animation and procedural legs run as before, so the
-    /// points walk, step and touch antennae with them. The points are lit and only the front surface's show, so
-    /// the body's detail reads, not just its outline. Far ants get fewer points.
+    /// points walk, step and touch antennae with them. The points are lit opaque beads of different sizes and
+    /// colours, over the ant's own mesh drawn dark (nothing behind shows through), so the body's detail reads,
+    /// not just its outline. Far ants get fewer points.
     /// </summary>
     [DefaultExecutionOrder(1000)]   // after the ants have moved and been posed
     public class ParticleAnts : MonoBehaviour
     {
-        public float size = 0.0045f;    // a point's radius (units)
-        public float gain = 2f;
-        public float pale = 0.2f;      // how far colours go from the ant's own toward a pale glow
+        public float size = 0.0052f;    // a point's radius (units)
+        public float gain = 1.3f;
+        public float pale = 0.12f;      // how far colours go from the ant's own toward a pale glow
         public float contrast = 1.5f;   // how much the texture's light and dark are exaggerated
+        public Color bodyColour = new Color(0.02f, 0.05f, 0.06f);   // the ant's own mesh, dark, under its points
         public float fullUntil = 6f;    // all its points this close to the camera
         public float fewBeyond = 18f;   // a third of them from here on
 
@@ -55,6 +57,7 @@ namespace AntGarden
         {
             mat = refs.particleAnt;
             if (mat == null) return;
+            if (refs.antOccluder != null) refs.antOccluder.SetColor("_Color", bodyColour);
             int slots = 0;
             foreach (NpcAnt n in npcs)
             {
@@ -65,7 +68,7 @@ namespace AntGarden
                 var bones = new Transform[k.paths.Length];
                 for (int i = 0; i < bones.Length; i++)
                     bones[i] = string.IsNullOrEmpty(k.paths[i]) ? a.Model : a.Model.Find(k.paths[i]) ?? a.Model;
-                a.PointsOnly = true;
+                a.DrawAsPoints(refs.antOccluder);
                 ants.Add(new Shown { ant = a, kind = k, bones = bones, skinBase = slots, block = new MaterialPropertyBlock() });
                 slots += bones.Length;
             }

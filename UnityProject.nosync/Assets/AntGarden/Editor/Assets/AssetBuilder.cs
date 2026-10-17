@@ -53,6 +53,7 @@ namespace AntGarden.EditorTools
             refs.particleLook = SimpleMaterial("ParticleLook", "AntGarden/ParticleLook");
             refs.particleAnt = SimpleMaterial("ParticleAnt", "AntGarden/ParticleAnt");
             refs.particleCarpet = SimpleMaterial("ParticleCarpet", "AntGarden/ParticleCarpet");
+            refs.antOccluder = SimpleMaterial("AntOccluder", "AntGarden/AntOccluder");
             refs.groundSets = BuildGroundSets();
             EditorUtility.SetDirty(refs);
             AssetDatabase.SaveAssets();
@@ -713,7 +714,7 @@ namespace AntGarden.EditorTools
                 var animator = go.GetComponentInChildren<Animator>();
                 if (animator != null) animator.runtimeAnimatorController = null;
                 var prefab = PrefabUtility.SaveAsPrefabAsset(go, $"{Gen}/Ants/{id}.prefab");
-                SaveAntPoints(go, id, $"{dir}/{id}/{id}_BaseColor.png", 24000);
+                SaveAntPoints(go, id, $"{dir}/{id}/{id}_BaseColor.png", 40000);
                 Object.DestroyImmediate(go);
 
                 var all = AssetDatabase.LoadAllAssetsAtPath(fbx).OfType<AnimationClip>().Where(c => !c.name.StartsWith("__preview__")).ToList();
