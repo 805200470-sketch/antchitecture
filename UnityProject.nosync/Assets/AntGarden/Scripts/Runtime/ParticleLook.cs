@@ -6,15 +6,17 @@ namespace AntGarden
 {
     /// <summary>
     /// Toward the look of point clouds and Gaussian splats (Marshmallow Laser Feast's "Dream"): plants, ruin props
-    /// and ground drawn as glowing points sampled from their surfaces (AssetBuilder.SurfacePoints), all in one
-    /// DrawProcedural call from one buffer (Shaders/ParticleLook.shader). Two ways:
+    /// and ground drawn as glowing points sampled from their surfaces (AssetBuilder.SurfacePoints), drawn from
+    /// buffers with DrawProcedural (Shaders/ParticleLook.shader). Two ways:
     /// - Overlay (P toggles; -particlelook [soft]): round the ant, a layer of points over the meshes, which dim.
     /// - Replace (the particle nest, chapter one): the plant meshes are hidden and the whole nest is made of dense
-    ///   points, pale and nearly colourless like a scan, breathing a little. The walls and floor of the canyons
-    ///   become points too (sampled from the terrain's own triangles, a few of them big soft splats), the terrain
-    ///   itself sinking nearly black so it only hides what lies behind it; dust floats in the canyons' air. Points
-    ///   are densest along the ways the ant is led (focus) and thin out away from them. Colliders, touches and
-    ///   walking are unchanged.
+    ///   points, pale like a scan but keeping their textures' light and dark, colour and grain: lighter parts of a
+    ///   texture get more points and brighter ones, like a halftone. The walls and floor of the canyons become
+    ///   points too, sampled from the terrain's own triangles and coloured from its own textures (read back from
+    ///   the GPU once), the terrain itself sinking nearly black so it only hides what lies behind it; dust floats in
+    ///   the canyons' air. Sparse over the whole nest (densest along the ways the ant is led), dense round the ant:
+    ///   the shell, made again on a worker thread as it walks, adds ground and plant points near it, each fading in
+    ///   at its own distance. Colliders, touches and walking are unchanged.
     /// </summary>
     public class ParticleLook : MonoBehaviour
     {
@@ -35,6 +37,7 @@ namespace AntGarden
         public float groundDim = 0.5f;      // and the ground
         public float scanMix = 0.65f;       // how far a point's colour goes from its texture toward the pale scan colour
         public Color scanOverride = Color.clear;   // replace: one pale colour for every plant (alpha 0: each region's own)
+        public float grain = 0f;            // replace: how much a texture's light and dark thin and dim its points (0..1)
 
         // replace: the ground as points
         public readonly List<MeshFilter> ground = new List<MeshFilter>();   // the terrain's meshes
@@ -44,15 +47,18 @@ namespace AntGarden
         public float splatShare = 0.06f;    // this share of them are big soft splats
         public Color groundColour = Color.clear;   // their colour (alpha 0: the scan colour)
         public float groundBrightness = 1f;
+        public float groundTexMix = 0f;     // how much of the terrain textures' own colour the points keep (0..1)
         public float dust = 0f;             // dust motes per unit³ of the canyons' air along the ways
         public float dustHeight = 3.2f;     // how high above the floor it floats
 
         // replace: the dense points round the ant, made again on a worker thread as it walks (the shell)
-        public float shellDensity = 0f;     // points per unit² of wall and floor round the ant (0: none)
+        public float shellDensity = 0f;     // ground points per unit² round the ant (0: no shell)
+        public float shellPlantArea = 0f;   // plant points round the ant for a plant one unit tall (× height²)
         public float shellReach = 15f;      // made this far round it
         public Vector2 shellFade = new Vector2(7f, 12f);   // drawn out to y, thinning out from x
-        public float shellBrightness = 0.5f;               // each of its points, against a sparse ground point
+        public float shellBrightness = 0.5f;               // each of its ground points, against a sparse one
         public float shellMove = 3f;        // made again once the ant is this far from where they were made
+        public float nearPlantGain = 1f;    // a plant point's brightness where the shell is densest (it is dimmer there)
 
         // replace: where the ant is led (the glowing tracks): plants and ground are densest near them
         public List<List<Vector2>> focus;
@@ -61,6 +67,28 @@ namespace AntGarden
 
         struct Point { public Vector3 pos; public uint col; }
         struct GroundTri { public int mesh, k; public float area, kind, x, z; }
+
+        /// <summary>A plant as the shell sees it (copied on the main thread: workers cannot touch transforms).</summary>
+        class PlantSlot
+        {
+            public Vector3[] pts;
+            public uint[] cols;
+            public float[] keep;
+            public Matrix4x4 m;
+            public Vector3 pos;
+            public float height;
+            public int baseEnd;     // where the sparse points stopped (the shell goes on from here)
+            public int baseCount;
+        }
+
+        /// <summary>A terrain material's textures, read back from the GPU, with how the terrain shader maps them.</summary>
+        class GroundLook
+        {
+            public Color32[] floor, bank, plateau;
+            public int fw, fh, bw, bh, pw, ph;
+            public float floorScale, bankScale, plateauScale, hue, sat = 1, meanLum = 0.2f;
+            public Color floorTint = Color.white, bankTint = Color.white, plateauTint = Color.white;
+        }
 
         /// <summary>A small random sequence (xorshift), the same for the same seed: a triangle's points never change.</summary>
         struct Rng
@@ -72,6 +100,7 @@ namespace AntGarden
 
         // what a point is (the colour's fourth byte, top two bits; the low six: its size × 1/8, 0 = as it is)
         const uint Plant = 0, Dust = 1, Ground = 2, Glow = 3;
+        const int UploadChunk = 262144;     // shell points uploaded per frame
 
         World world;
         Transform follow;
@@ -84,24 +113,29 @@ namespace AntGarden
         readonly List<Point> points = new List<Point>(1 << 20);
         readonly List<Renderer> hidden = new List<Renderer>();
         readonly Dictionary<(PlantRef, float, float, Color, Color), uint[]> colours = new Dictionary<(PlantRef, float, float, Color, Color), uint[]>();
+        readonly Dictionary<PlantRef, float[]> keeps = new Dictionary<PlantRef, float[]>();
+        readonly List<PlantSlot> plants = new List<PlantSlot>();
         // the terrain's triangles in world space (replace), binned on a coarse grid for the shell
-        readonly List<(Vector3[] v, Vector3[] n, Color[] c, int[] t)> meshes = new List<(Vector3[], Vector3[], Color[], int[])>();
+        readonly List<(Vector3[] v, Vector3[] n, Color[] c, int[] t, GroundLook look)> meshes = new List<(Vector3[], Vector3[], Color[], int[], GroundLook)>();
         GroundTri[] tris;
         readonly Dictionary<long, List<int>> cells = new Dictionary<long, List<int>>();
+        readonly Dictionary<Material, GroundLook> looks = new Dictionary<Material, GroundLook>();
         const float CellSize = 4f;
         Color groundTint;
-        // the shell: made on a worker thread, uploaded and drawn here
-        ComputeBuffer shellBuffer;
-        int shellCount;
+        // the shell: made on a worker thread, uploaded a chunk a frame into the back buffer, then swapped in
+        readonly ComputeBuffer[] shellBuffers = new ComputeBuffer[2];
+        readonly int[] shellCounts = new int[2];
+        int shellFront, uploading = -1, uploadedSoFar;
         Vector2 shellAt;
         bool shellStarted;
         System.Threading.Tasks.Task shellTask;
-        readonly List<Point> shellWork = new List<Point>(1 << 19);
+        readonly List<Point> shellWork = new List<Point>(1 << 20);
         readonly MaterialPropertyBlock mainBlock = new MaterialPropertyBlock(), shellBlock = new MaterialPropertyBlock();
         float[] focusD2;   // squared distance to the nearest way, on a grid
         int fw, fh;
         float fx0, fz0;
         const float FocusCell = 1f;
+        static readonly float[] Linear = MakeLinear();
 
         public bool On => on;
         public int Count => count;
@@ -124,6 +158,7 @@ namespace AntGarden
                 mat.SetFloat("_GlowGain", glowBrightness);
                 mat.SetFloat("_Shimmer", shimmer);
                 mat.SetFloat("_MinPixels", mode == Mode.Replace ? 0.9f : 1.2f);
+                mat.SetVector("_NearDim", new Vector4(shellFade.x, shellFade.y, mode == Mode.Replace && shellPlantArea > 0 ? nearPlantGain : 1f, 0));
             }
             Shader.SetGlobalFloat("_PlantDim", on && mode == Mode.Overlay ? plantDim : 0f);
             Shader.SetGlobalFloat("_GroundDim", on ? groundDim : 0f);
@@ -149,35 +184,46 @@ namespace AntGarden
             mainBlock.SetBuffer("_Points", buffer);
             mainBlock.SetFloat("_Shell", 0f);
             Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, count * 3, 1, null, mainBlock, ShadowCastingMode.Off, false, 0);
-            if (shellCount > 0)
+            if (shellCounts[shellFront] > 0)
             {
-                shellBlock.SetBuffer("_Points", shellBuffer);
+                shellBlock.SetBuffer("_Points", shellBuffers[shellFront]);
                 shellBlock.SetFloat("_Shell", 1f);
                 shellBlock.SetVector("_ShellFade", shellFade);
-                Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, shellCount * 3, 1, null, shellBlock, ShadowCastingMode.Off, false, 0);
+                Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, shellCounts[shellFront] * 3, 1, null, shellBlock, ShadowCastingMode.Off, false, 0);
             }
         }
 
         /// <summary>The shell: once the ant has walked shellMove from where it was made, it is made again round the
-        /// ant on a worker thread; when that is done it is uploaded and drawn instead.</summary>
+        /// ant on a worker thread; then uploaded a chunk a frame into the buffer not being drawn, and swapped in.</summary>
         void UpdateShell()
         {
-            if (shellDensity <= 0 || tris == null) return;
+            if ((shellDensity <= 0 && shellPlantArea <= 0) || tris == null) return;
             if (shellTask != null)
             {
                 if (!shellTask.IsCompleted) return;
                 if (shellTask.IsFaulted) Debug.LogException(shellTask.Exception);
                 else if (shellWork.Count > 0)
                 {
-                    if (shellBuffer == null || shellBuffer.count < shellWork.Count)
+                    uploading = 1 - shellFront;
+                    uploadedSoFar = 0;
+                    if (shellBuffers[uploading] == null || shellBuffers[uploading].count < shellWork.Count)
                     {
-                        shellBuffer?.Release();
-                        shellBuffer = new ComputeBuffer(Mathf.NextPowerOfTwo(shellWork.Count), 16);
+                        shellBuffers[uploading]?.Release();
+                        shellBuffers[uploading] = new ComputeBuffer(Mathf.NextPowerOfTwo(shellWork.Count), 16);
                     }
-                    shellBuffer.SetData(shellWork, 0, 0, shellWork.Count);
-                    shellCount = shellWork.Count;
                 }
                 shellTask = null;
+            }
+            if (uploading >= 0)
+            {
+                int n = Mathf.Min(UploadChunk, shellWork.Count - uploadedSoFar);
+                if (n > 0) shellBuffers[uploading].SetData(shellWork, uploadedSoFar, uploadedSoFar, n);
+                uploadedSoFar += n;
+                if (uploadedSoFar < shellWork.Count) return;
+                shellCounts[uploading] = shellWork.Count;
+                shellFront = uploading;
+                uploading = -1;
+                return;
             }
             var at = new Vector2(follow.position.x, follow.position.z);
             if (shellStarted && (at - shellAt).sqrMagnitude < shellMove * shellMove) return;
@@ -189,7 +235,7 @@ namespace AntGarden
         void OnDestroy()
         {
             buffer?.Release();
-            shellBuffer?.Release();
+            foreach (ComputeBuffer b in shellBuffers) b?.Release();
             Shader.SetGlobalFloat("_PlantDim", 0f);
             Shader.SetGlobalFloat("_GroundDim", 0f);
         }
@@ -199,6 +245,7 @@ namespace AntGarden
             Vector3 c = follow.position;
             gatheredAt = c;
             points.Clear();
+            plants.Clear();
             bool replace = mode == Mode.Replace;
             if (replace && focusD2 == null) BuildFocus();
             float r2 = replace ? float.MaxValue : radius * radius;
@@ -213,7 +260,7 @@ namespace AntGarden
                 float dx = p0.x - c.x, dz = p0.z - c.z;
                 if (dx * dx + dz * dz > r2) continue;
                 float h = pi.t.lossyScale.y;
-                int n = replace ? Mathf.Clamp(Mathf.RoundToInt(perArea * h * h * Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z))), 200, pi.far ? 12000 : pi.plant.points.Length)
+                int n = replace ? Mathf.Clamp(Mathf.RoundToInt(perArea * h * h * Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z))), 150, pi.far ? 12000 : pi.plant.points.Length)
                                 : Mathf.Clamp(Mathf.RoundToInt(perUnit * Mathf.Pow(h, 1.6f)), 40, pi.plant.points.Length);
                 picks.Add((pi, n));
                 wanted += n;
@@ -223,8 +270,18 @@ namespace AntGarden
             {
                 int n = Mathf.Max(60, Mathf.RoundToInt(n0 * share));
                 uint[] cols = Colours(pi);
+                float[] keep = replace ? Keep(pi.plant) : null;
                 Matrix4x4 m = pi.t.localToWorldMatrix;
-                for (int k = 0; k < n && k < cols.Length; k++) points.Add(new Point { pos = m.MultiplyPoint3x4(pi.plant.points[k]), col = cols[k] });
+                Vector3[] src = pi.plant.points;
+                int taken = 0, k = 0;
+                for (; k < src.Length && k < cols.Length && taken < n; k++)
+                {
+                    if (keep != null && PointHash(k) > keep[k]) continue;   // the texture's darker parts get fewer points
+                    points.Add(new Point { pos = m.MultiplyPoint3x4(src[k]), col = cols[k] });
+                    taken++;
+                }
+                if (replace && !pi.far)
+                    plants.Add(new PlantSlot { pts = src, cols = cols, keep = keep, m = m, pos = pi.t.position, height = pi.t.lossyScale.y, baseEnd = k, baseCount = taken });
             }
             int plantPoints = points.Count;
             var rng = new System.Random(7);
@@ -265,9 +322,45 @@ namespace AntGarden
             buffer.SetData(uploaded, 0, 0, count);
         }
 
+        /// <summary>A stored point's own random number (0..1), the same for every plant of a kind.</summary>
+        static float PointHash(int k)
+        {
+            uint h = (uint)k * 2654435761u;
+            h ^= h >> 15;
+            h *= 2246822519u;
+            h ^= h >> 13;
+            return (h & 0xFFFFFF) / 16777216f;
+        }
+
+        /// <summary>
+        /// Replace: how likely each of a plant's points is kept, from its texture's light and dark (against the
+        /// plant's own mean), so the lighter parts of the texture are drawn with more points, like a halftone.
+        /// Glowing points are always kept.
+        /// </summary>
+        float[] Keep(PlantRef plant)
+        {
+            if (keeps.TryGetValue(plant, out float[] cached)) return cached;
+            Color32[] src = plant.pointColors;
+            var lum = new float[src.Length];
+            double sum = 0;
+            int n = 0;
+            for (int k = 0; k < src.Length; k++)
+            {
+                lum[k] = Linear[src[k].r] * 0.299f + Linear[src[k].g] * 0.587f + Linear[src[k].b] * 0.114f;
+                if (src[k].a <= 127) { sum += lum[k]; n++; }
+            }
+            float mean = n > 0 ? Mathf.Max(1e-3f, (float)(sum / n)) : 0.2f;
+            var keep = new float[src.Length];
+            for (int k = 0; k < src.Length; k++)
+                keep[k] = src[k].a > 127 ? 1f : Mathf.Lerp(1f, Mathf.Clamp(0.2f + 0.8f * Mathf.Pow(lum[k] / mean, 1.2f), 0.2f, 1f), grain);
+            keeps[plant] = keep;
+            return keep;
+        }
+
         /// <summary>
         /// Replace: the terrain's triangles in world space, the ones inside the hexagon listed with their area and
-        /// what they are (their vertex colours say floor, bank, plateau and how open), binned on a coarse grid.
+        /// what they are (their vertex colours say floor, bank, plateau and how open), binned on a coarse grid; and
+        /// each terrain material's textures read back from the GPU.
         /// </summary>
         void PrepareGround()
         {
@@ -278,13 +371,15 @@ namespace AntGarden
             {
                 Mesh mesh = mf != null ? mf.sharedMesh : null;
                 if (mesh == null || !mesh.isReadable) continue;
+                var mr = mf.GetComponent<MeshRenderer>();
+                GroundLook look = groundTexMix > 0 || grain > 0 ? Look(mr != null ? mr.sharedMaterial : null) : null;
                 Matrix4x4 m = mf.transform.localToWorldMatrix;
                 Vector3[] v = mesh.vertices, n = mesh.normals;
                 for (int i = 0; i < v.Length; i++) { v[i] = m.MultiplyPoint3x4(v[i]); n[i] = m.MultiplyVector(n[i]).normalized; }
                 Color[] c = mesh.colors;
                 if (c.Length != v.Length) { c = new Color[v.Length]; for (int i = 0; i < c.Length; i++) c[i] = new Color(0, 1, 0, 1); }
                 int[] t = mesh.triangles;
-                meshes.Add((v, n, c, t));
+                meshes.Add((v, n, c, t, look));
                 int mi = meshes.Count - 1;
                 for (int k = 0; k < t.Length; k += 3)
                 {
@@ -304,9 +399,81 @@ namespace AntGarden
                 bin.Add(i);
             }
             groundTint = (groundColour.a > 0 ? groundColour : scanOverride.a > 0 ? scanOverride : new Color(0.7f, 0.8f, 1f)).linear;
+            // each look's mean brightness, so its light and dark are read against it
+            var rng = new Rng(99);
+            foreach (GroundLook look in looks.Values)
+            {
+                double sum = 0;
+                int n = 0;
+                for (int s = 0; s < 4000 && tris.Length > 0; s++)
+                {
+                    GroundTri g = tris[(int)(rng.Next() * (tris.Length - 1))];
+                    var (v, nr, c, t, l) = meshes[g.mesh];
+                    if (l != look) continue;
+                    int ia = t[g.k];
+                    sum += Lum(Albedo(look, v[ia], nr[ia], c[ia]));
+                    n++;
+                }
+                if (n > 0) look.meanLum = Mathf.Max(1e-3f, (float)(sum / n));
+            }
         }
 
         static long CellKey(int x, int z) => ((long)x << 32) | (uint)z;
+
+        /// <summary>A terrain material's textures, read back from the GPU (the assets are not readable on the CPU).</summary>
+        GroundLook Look(Material m)
+        {
+            if (m == null) return null;
+            if (looks.TryGetValue(m, out GroundLook look)) return look;
+            look = new GroundLook
+            {
+                floor = Readback(m.GetTexture("_FloorTex"), out int fw0, out int fh0),
+                bank = Readback(m.GetTexture("_BankTex"), out int bw0, out int bh0),
+                plateau = Readback(m.GetTexture("_PlateauTex"), out int pw0, out int ph0),
+                floorScale = m.HasProperty("_FloorScale") ? m.GetFloat("_FloorScale") : 0.3f,
+                bankScale = m.HasProperty("_BankScale") ? m.GetFloat("_BankScale") : 0.3f,
+                plateauScale = m.HasProperty("_PlateauScale") ? m.GetFloat("_PlateauScale") : 0.3f,
+                floorTint = m.HasProperty("_FloorTint") ? m.GetColor("_FloorTint").linear : Color.white,
+                bankTint = m.HasProperty("_BankTint") ? m.GetColor("_BankTint").linear : Color.white,
+                plateauTint = m.HasProperty("_PlateauTint") ? m.GetColor("_PlateauTint").linear : Color.white,
+                hue = m.HasProperty("_HueShift") ? m.GetFloat("_HueShift") : 0,
+                sat = m.HasProperty("_Saturation") ? m.GetFloat("_Saturation") : 1,
+            };
+            look.fw = fw0; look.fh = fh0; look.bw = bw0; look.bh = bh0; look.pw = pw0; look.ph = ph0;
+            looks[m] = look;
+            return look;
+        }
+
+        /// <summary>A texture's pixels (gamma bytes, at most max wide), halved on the GPU step by step (each halving
+        /// averages four texels), then read back.</summary>
+        static Color32[] Readback(Texture tex, out int w, out int h, int max = 512)
+        {
+            w = h = 0;
+            if (tex == null) return null;
+            int sw = tex.width, sh = tex.height;
+            RenderTexture prev = RenderTexture.active, rt = null;
+            Texture src = tex;
+            do
+            {
+                if (sw > max || sh > max) { sw = Mathf.Max(1, sw / 2); sh = Mathf.Max(1, sh / 2); }
+                var next = RenderTexture.GetTemporary(sw, sh, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+                Graphics.Blit(src, next);
+                if (rt != null) RenderTexture.ReleaseTemporary(rt);
+                rt = next;
+                src = next;
+            } while (sw > max || sh > max);
+            RenderTexture.active = rt;
+            var t2 = new Texture2D(sw, sh, TextureFormat.RGBA32, false, false);
+            t2.ReadPixels(new Rect(0, 0, sw, sh), 0, 0, false);
+            t2.Apply(false);
+            RenderTexture.active = prev;
+            RenderTexture.ReleaseTemporary(rt);
+            Color32[] px = t2.GetPixels32();
+            Destroy(t2);
+            w = sw;
+            h = sh;
+            return px;
+        }
 
         /// <summary>
         /// Replace: the walls and floor as points over the whole nest, sparse, densest along the ways (focus), lifted a
@@ -328,36 +495,57 @@ namespace AntGarden
             }
         }
 
-        /// <summary>The shell's points round (x, z) (on a worker thread: plain arithmetic on arrays only).</summary>
+        /// <summary>The shell's points round (x, z): the ground's and the plants' (on a worker thread: plain
+        /// arithmetic on arrays only).</summary>
         void MakeShell(Vector2 at)
         {
             shellWork.Clear();
-            int r = Mathf.CeilToInt(shellReach / CellSize);
-            int cx = Mathf.FloorToInt(at.x / CellSize), cz = Mathf.FloorToInt(at.y / CellSize);
             float reach2 = shellReach * shellReach;
-            for (int z = cz - r; z <= cz + r; z++)
-            for (int x = cx - r; x <= cx + r; x++)
+            if (shellDensity > 0)
             {
-                if (!cells.TryGetValue(CellKey(x, z), out var bin)) continue;
-                foreach (int i in bin)
+                int r = Mathf.CeilToInt(shellReach / CellSize);
+                int cx = Mathf.FloorToInt(at.x / CellSize), cz = Mathf.FloorToInt(at.y / CellSize);
+                for (int z = cz - r; z <= cz + r; z++)
+                for (int x = cx - r; x <= cx + r; x++)
                 {
-                    GroundTri g = tris[i];
-                    float dx = g.x - at.x, dz = g.z - at.y;
-                    if (dx * dx + dz * dz > reach2) continue;
-                    var rng = new Rng((uint)i * 2246822519u ^ 0x27d4eb2fu);
-                    Emit(g, g.area * g.kind * shellDensity, ref rng, groundBrightness * shellBrightness, 0f, shellWork);
+                    if (!cells.TryGetValue(CellKey(x, z), out var bin)) continue;
+                    foreach (int i in bin)
+                    {
+                        GroundTri g = tris[i];
+                        float dx = g.x - at.x, dz = g.z - at.y;
+                        if (dx * dx + dz * dz > reach2) continue;
+                        var rng = new Rng((uint)i * 2246822519u ^ 0x27d4eb2fu);
+                        Emit(g, g.area * g.kind * shellDensity, ref rng, groundBrightness * shellBrightness, 0f, shellWork);
+                    }
                 }
             }
+            if (shellPlantArea > 0)
+                foreach (PlantSlot p in plants)
+                {
+                    float dx = p.pos.x - at.x, dz = p.pos.z - at.y, reach = shellReach + p.height;
+                    if (dx * dx + dz * dz > reach * reach) continue;
+                    int want = Mathf.RoundToInt(shellPlantArea * p.height * p.height) - p.baseCount;
+                    for (int k = p.baseEnd, taken = 0; k < p.pts.Length && k < p.cols.Length && taken < want; k++)
+                    {
+                        if (p.keep != null && PointHash(k) > p.keep[k]) continue;
+                        shellWork.Add(new Point { pos = p.m.MultiplyPoint3x4(p.pts[k]), col = p.cols[k] });
+                        taken++;
+                    }
+                }
         }
 
         /// <summary>A triangle's ground points (want of them, on average), coloured like the surface they sit on: the
-        /// floor darker than the walls (the glowing way on it must stand out), the plateau dimmer, the bank's top edge (where it meets the plateau)
-        /// brightest, the outline of the passage; creases darker; lighter and darker patches, and on the walls the
-        /// soil's layers. Plain arithmetic only, so a worker thread can run it.</summary>
+        /// floor darker than the walls (the glowing way on it must stand out), the plateau dimmer, the bank's top
+        /// edge (where it meets the plateau) brightest, the outline of the passage; creases darker. With the terrain's
+        /// textures read back, its light and dark set how bright the points are and how many (like a halftone), and
+        /// some of its own colour shows through; else smooth noise stands in. Plain arithmetic only, so a worker
+        /// thread can run it.</summary>
         void Emit(GroundTri g, float want, ref Rng rng, float bright, float splats, List<Point> into)
         {
-            var (v, nr, c, t) = meshes[g.mesh];
+            var (v, nr, c, t, look) = meshes[g.mesh];
             int ia = t[g.k], ib = t[g.k + 1], ic = t[g.k + 2];
+            bool textured = look != null && look.floor != null;
+            if (textured) want *= 1 + 0.45f * grain;   // the halftone thins them: start with more
             int many = (int)want;
             if (rng.Next() < want - many) many++;
             for (int j = 0; j < many; j++)
@@ -366,17 +554,91 @@ namespace AntGarden
                 if (u + w > 1) { u = 1 - u; w = 1 - w; }
                 float s = 1 - u - w;
                 Vector3 n = (nr[ia] * s + nr[ib] * u + nr[ic] * w).normalized;
-                Vector3 p = v[ia] * s + v[ib] * u + v[ic] * w + n * 0.035f;
+                Vector3 p = v[ia] * s + v[ib] * u + v[ic] * w;
                 Color lw = c[ia] * s + c[ib] * u + c[ic] * w;   // floor, bank, plateau, open
                 float lum = 0.3f * lw.r + 0.75f * lw.g + 0.32f * lw.b + 1.4f * lw.g * lw.b;
-                lum *= (0.55f + 0.45f * lw.a) * (0.4f + 1.2f * rng.Next());
-                float patch = Noise(p.x * 0.31f + 17.3f, p.z * 0.31f + p.y * 0.45f + 5.1f);
-                float layers = 0.68f + 0.32f * (float)System.Math.Sin(p.y * 6.5f + Noise(p.x * 0.12f, p.z * 0.12f) * 6f);
-                lum *= (0.3f + 1.2f * patch) * (1 + (layers - 1) * lw.g);
-                bool splat = rng.Next() < splats;
-                Color col = groundTint * (lum * bright * (splat ? 0.16f : 1f));
-                into.Add(new Point { pos = p, col = PackLinear(col, Ground, splat ? 40u : 10u) });
+                lum *= 0.55f + 0.45f * lw.a;
+                float jitter = rng.Next(), roll = rng.Next(), splatRoll = rng.Next();
+                Color col;
+                if (textured)
+                {
+                    Color albedo = Albedo(look, p, n, lw);
+                    float al = Lum(albedo), rel = al / look.meanLum;
+                    if (roll > Mathf.Lerp(1f, Mathf.Clamp(0.25f + 0.75f * Mathf.Pow(rel, 1.2f), 0.25f, 1f), grain)) continue;
+                    lum *= (0.75f + 0.5f * jitter) * Mathf.Lerp(1f, Mathf.Clamp(0.12f + 0.88f * Mathf.Pow(rel, 1.4f), 0.05f, 3f), grain);
+                    Color own = albedo * (lum / Mathf.Max(1e-4f, al));   // its own colour, as bright as the pale one
+                    col = Color.Lerp(groundTint * lum, own, groundTexMix);
+                }
+                else
+                {
+                    float patch = Noise(p.x * 0.31f + 17.3f, p.z * 0.31f + p.y * 0.45f + 5.1f);
+                    float layers = 0.68f + 0.32f * (float)System.Math.Sin(p.y * 6.5f + Noise(p.x * 0.12f, p.z * 0.12f) * 6f);
+                    lum *= (0.4f + 1.2f * jitter) * (0.3f + 1.2f * patch) * (1 + (layers - 1) * lw.g);
+                    col = groundTint * lum;
+                }
+                bool splat = splatRoll < splats;
+                into.Add(new Point { pos = p + n * 0.035f, col = PackLinear(col * (bright * (splat ? 0.16f : 1f)), Ground, splat ? 40u : 10u) });
             }
+        }
+
+        /// <summary>The terrain's colour at p as its shader paints it: the floor, bank and plateau textures projected
+        /// three ways (by the normal), tinted, blended by the vertex weights, then turned by the region's hue (linear).</summary>
+        static Color Albedo(GroundLook l, Vector3 p, Vector3 n, Color lw)
+        {
+            float ax = n.x * n.x, ay = n.y * n.y, az = n.z * n.z;
+            ax *= ax; ay *= ay; az *= az;
+            float sw = Mathf.Max(1e-5f, ax + ay + az);
+            ax /= sw; ay /= sw; az /= sw;
+            float total = Mathf.Max(1e-3f, lw.r + lw.g + lw.b);
+            float wf = lw.r / total, wb = lw.g / total, wp = lw.b / total;
+            Color a = Color.black;
+            if (wf > 0.02f) a += Tri(l.floor, l.fw, l.fh, p, l.floorScale, ax, ay, az) * l.floorTint * wf;
+            if (wb > 0.02f) a += Tri(l.bank ?? l.floor, l.bank != null ? l.bw : l.fw, l.bank != null ? l.bh : l.fh, p, l.bankScale, ax, ay, az) * l.bankTint * wb;
+            if (wp > 0.02f) a += Tri(l.plateau ?? l.floor, l.plateau != null ? l.pw : l.fw, l.plateau != null ? l.ph : l.fh, p, l.plateauScale, ax, ay, az) * l.plateauTint * wp;
+            return HueShift(a, l.hue, l.sat);
+        }
+
+        static Color Tri(Color32[] px, int w, int h, Vector3 p, float scale, float ax, float ay, float az)
+        {
+            Color c = Color.black;
+            if (ax > 0.02f) c += Texel(px, w, h, p.z * scale, p.y * scale) * ax;
+            if (ay > 0.02f) c += Texel(px, w, h, p.x * scale, p.z * scale) * ay;
+            if (az > 0.02f) c += Texel(px, w, h, p.x * scale, p.y * scale) * az;
+            return c;
+        }
+
+        static Color Texel(Color32[] px, int w, int h, float u, float v)
+        {
+            int x = (int)((u - System.Math.Floor(u)) * w), y = (int)((v - System.Math.Floor(v)) * h);
+            if (x >= w) x = w - 1;
+            if (y >= h) y = h - 1;
+            Color32 c = px[y * w + x];
+            return new Color(Linear[c.r], Linear[c.g], Linear[c.b], 1);
+        }
+
+        static float Lum(Color c) => c.r * 0.299f + c.g * 0.587f + c.b * 0.114f;
+
+        /// <summary>The hue rotation in YIQ, as AG_HueShift (degrees).</summary>
+        static Color HueShift(Color c, float deg, float sat)
+        {
+            if (deg == 0 && sat == 1) return c;
+            float a = deg * Mathf.Deg2Rad, cs = (float)System.Math.Cos(a), sn = (float)System.Math.Sin(a);
+            float y = c.r * 0.299f + c.g * 0.587f + c.b * 0.114f;
+            float i = c.r * 0.596f - c.g * 0.274f - c.b * 0.322f;
+            float q = c.r * 0.211f - c.g * 0.523f + c.b * 0.312f;
+            float i2 = (i * cs - q * sn) * sat, q2 = (i * sn + q * cs) * sat;
+            return new Color(System.Math.Max(0, y + 0.956f * i2 + 0.621f * q2), System.Math.Max(0, y - 0.272f * i2 - 0.647f * q2), System.Math.Max(0, y - 1.106f * i2 + 1.703f * q2));
+        }
+
+        static float[] MakeLinear()
+        {
+            var t = new float[256];
+            for (int i = 0; i < 256; i++)
+            {
+                float x = i / 255f;
+                t[i] = x <= 0.04045f ? x / 12.92f : (float)System.Math.Pow((x + 0.055) / 1.055, 2.4);
+            }
+            return t;
         }
 
         /// <summary>Smooth value noise, 0..1 (managed: safe on a worker thread).</summary>
@@ -464,7 +726,9 @@ namespace AntGarden
             return d2 == float.MaxValue ? 0f : Mathf.Exp(-d2 / (focusReach * focusReach));
         }
 
-        /// <summary>A plant's point colours as its region shows it (the Plant shader's hue rotation), packed.</summary>
+        /// <summary>A plant's point colours as its region shows it (the Plant shader's hue rotation), packed. Like a
+        /// scan: pale, but its texture's light and dark kept (against the plant's own mean, a little exaggerated), and
+        /// some of its own colour.</summary>
         uint[] Colours(PlantInstance pi)
         {
             Color scanColour = scanOverride.a > 0 ? scanOverride * (pi.far ? 0.6f : 1f) : pi.scan;
@@ -473,6 +737,12 @@ namespace AntGarden
             Color32[] src = pi.plant.pointColors;
             var cols = new uint[src.Length];
             float a = pi.hue * Mathf.Deg2Rad, cs = Mathf.Cos(a), sn = Mathf.Sin(a);
+            // the plant's mean brightness (its glowing parts aside)
+            double sum = 0;
+            int count0 = 0;
+            for (int k = 0; k < src.Length; k++)
+                if (src[k].a <= 127) { sum += Linear[src[k].r] * 0.3f + Linear[src[k].g] * 0.55f + Linear[src[k].b] * 0.15f; count0++; }
+            float mean = count0 > 0 ? Mathf.Max(1e-3f, (float)(sum / count0)) : 0.2f;
             for (int k = 0; k < src.Length; k++)
             {
                 Color lin = ((Color)src[k]).linear;
@@ -483,9 +753,12 @@ namespace AntGarden
                 float i2 = (i * cs - q * sn) * pi.sat, q2 = (i * sn + q * cs) * pi.sat;
                 var shifted = new Color(Mathf.Max(0, y + 0.956f * i2 + 0.621f * q2), Mathf.Max(0, y - 0.272f * i2 - 0.647f * q2), Mathf.Max(0, y - 1.106f * i2 + 1.703f * q2));
                 bool glows = src[k].a > 127;
-                // like a scan: pale points, brighter where the surface is lighter, a little of its own colour left
                 float lum = shifted.r * 0.3f + shifted.g * 0.55f + shifted.b * 0.15f;
-                Color scan = scanColour.linear * (0.18f + 1.3f * Mathf.Sqrt(lum));
+                // flat scan (grain 0): brighter where the surface is lighter, compressed; with grain, the texture's
+                // light and dark against the plant's mean, a little exaggerated
+                float flat = 0.18f + 1.3f * Mathf.Sqrt(lum);
+                float rel = Mathf.Clamp(0.1f + 0.9f * Mathf.Pow(lum / mean, 1.3f), 0.04f, 2.8f);
+                Color scan = scanColour.linear * Mathf.Lerp(flat, rel, grain);
                 Color c = glows ? Color.Lerp(Color.Lerp(shifted, pi.glow.linear, 0.7f), scanColour.linear, mode == Mode.Replace ? 0.5f : 0f)
                                 : Color.Lerp(shifted * 1.6f, scan, scanMix);
                 cols[k] = Pack(c.gamma, glows ? Glow : Plant);

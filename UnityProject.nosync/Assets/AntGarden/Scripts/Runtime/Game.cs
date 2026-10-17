@@ -386,6 +386,7 @@ namespace AntGarden
             yield return null;
             SpawnPlayer();
             SpawnNpcs();
+            if (Lab) gameObject.AddComponent<ParticleAnts>().Init(npcs, refs);   // the NPC ants as points too
             burst = MakeBurst();
 
             // 6 · UI
@@ -528,23 +529,31 @@ namespace AntGarden
             if (Arg("-particlelook") == "soft") { particleLook.plantDim = 0.45f; particleLook.groundDim = 0.15f; particleLook.scanMix = 0.45f; }
             if (Lab)
             {
-                // the particle nest: no meshes, only dense pale points, as in Dream
+                // the particle nest: no meshes, only dense pale points, as in Dream, keeping their textures' grain
                 particleLook.mode = ParticleLook.Mode.Replace;
                 particleLook.pointSize = 0.011f;
                 particleLook.brightness = 0.42f;
                 particleLook.glowBrightness = 1.4f;
                 particleLook.shimmer = 0.006f;
+                particleLook.scanOverride = new Color(0.8f, 0.88f, 1f, 1f);
+                particleLook.scanMix = 0.6f;
+                particleLook.grain = 0.85f;
+                // plants: fewer points for each over the whole nest, many more round the ant (the shell)
+                particleLook.perArea = 450f;
+                particleLook.farShare = 0.2f;
+                particleLook.budget = 2200000;
+                particleLook.shellPlantArea = 2400f;
+                particleLook.nearPlantGain = 0.3f;
+                // the ground: the terrain sinks dark; sparse points over the nest, dense round the ant
                 particleLook.groundDim = 0.96f;
                 particleLook.groundBrightness = 3.2f;
-                particleLook.scanMix = 0.92f;
-                particleLook.scanOverride = new Color(0.8f, 0.88f, 1f, 1f);
                 particleLook.groundColour = new Color(0.6f, 0.7f, 1f, 1f);
-                particleLook.budget = 3200000;
-                particleLook.dust = 10f;
-                // sparse over the whole nest, dense round the ant (the shell, made again as it walks)
+                particleLook.groundTexMix = 0.3f;
                 particleLook.groundNear = 160f;
                 particleLook.groundBudget = 1000000;
-                particleLook.shellDensity = 700f;
+                particleLook.shellDensity = 1000f;
+                particleLook.shellFade = new Vector2(5f, 12f);
+                particleLook.dust = 10f;
                 // the walls and floor become points too, densest along the glowing ways
                 if (lab != null) particleLook.focus = lab.Tracks;
                 foreach (Transform t in worldRoot)
@@ -597,7 +606,7 @@ namespace AntGarden
                 // the first two regions (the archipelago's heart) keep full colonies; further nests smaller ones
                 int perNest = r.index < (r.cell ? 4 : 2) ? cfg.npcs.countPerNest : cfg.npcs.extraCountPerNest;
                 if (!string.IsNullOrEmpty(r.scene)) perNest = cfg.npcs.extraCountPerNest / 2;   // a narrow tunnel holds fewer
-                if (Lab) perNest = 30;
+                if (Lab) perNest = 12;   // the particle nest: fewer ants, each drawn as points
                 int count = Mathf.Min(Mathf.RoundToInt(perNest * r.ids.Length * qualityFactor), cfg.npcs.maxCount - n);
                 var kinds = SpeciesMix(pool, dominant.s, count, rng);
                 var census = new Dictionary<string, int>();

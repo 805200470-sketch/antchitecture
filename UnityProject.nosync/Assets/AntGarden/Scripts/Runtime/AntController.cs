@@ -33,6 +33,26 @@ namespace AntGarden
         public int animInterval = 1;        // crowd LOD: evaluate the animation every n frames
         public float Radius => cfg.radius;
         public Vector3 Position => transform.position;
+        public AntRef Ref { get; private set; }
+        public Transform Model => model;
+        public float Hue { get; private set; }
+        public float Saturation { get; private set; } = 1;
+        /// <summary>Shown (not far off, not in the camera's way): drawn as its meshes, or as points.</summary>
+        public bool Visible { get; private set; } = true;
+        bool pointsOnly;
+        /// <summary>The particle nest: the meshes are not drawn (ParticleAnts draws the ant as points), but the
+        /// skeleton keeps moving.</summary>
+        public bool PointsOnly
+        {
+            get => pointsOnly;
+            set
+            {
+                pointsOnly = value;
+                if (renderers != null) foreach (var r in renderers) r.enabled = !value && Visible;
+                var animator = model != null ? model.GetComponentInChildren<Animator>() : null;
+                if (value && animator != null) animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            }
+        }
 
         Transform lean;
         Transform model;
@@ -68,6 +88,9 @@ namespace AntGarden
         {
             world = w;
             cfg = settings;
+            Ref = ant;
+            Hue = hue;
+            Saturation = saturation;
             animPhase = Random.Range(0, 64);
             lean = new GameObject("Lean").transform;
             lean.SetParent(transform, false);
@@ -519,8 +542,9 @@ namespace AntGarden
         /// <summary>Show or hide the model (far NPCs) without stopping the logic.</summary>
         public void SetVisible(bool v)
         {
+            Visible = v;
             if (renderers == null) return;
-            foreach (var r in renderers) r.enabled = v;
+            foreach (var r in renderers) r.enabled = v && !pointsOnly;
         }
 
         static float Smooth(float a, float b, float v)

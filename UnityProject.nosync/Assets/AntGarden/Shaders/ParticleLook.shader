@@ -9,6 +9,8 @@
 // second draw of dense ground points round the ant: each is drawn only within its own distance of the ant,
 // between _ShellFade.x and .y, so they thin out toward the edge and fade in and out one by one as it walks.
 // A point's random values come from its position, so they stay the same when the shell is made again.
+// Where the shell makes the plants many times denser (round the ant), each of their points is dimmer
+// (_NearDim: from .x to .y units away the gain goes from .z to 1), so the detail grows, not the glare.
 Shader "AntGarden/ParticleLook"
 {
     Properties
@@ -38,7 +40,7 @@ Shader "AntGarden/ParticleLook"
             struct Point { float3 pos; uint col; };
             StructuredBuffer<Point> _Points;
             float _Size, _Gain, _GlowGain, _MinPixels, _Shimmer, _Shell;
-            float4 _ShellFade;
+            float4 _ShellFade, _NearDim;
             float4 _TrailPlayer;   // global (GuideTrail): points near the ant brighten a little
 
             struct v2f
@@ -99,6 +101,8 @@ Shader "AntGarden/ParticleLook"
                 // round the ant the world lights up a little; the ground most, as if its antennae felt it
                 float da = length(pos.xz - _TrailPlayer.xz);
                 float near = 1 + (0.6 + 1.0 * ground) * (1 - smoothstep(0.5, 3.5 + 1.5 * ground, da));
+                // plants are many times denser round the ant: each point dimmer there
+                near *= lerp(lerp(_NearDim.z, 1, smoothstep(_NearDim.x, _NearDim.y, da)), 1, ground + dust);
                 o.col = rgb * (_Gain + glow * _GlowGain) * (1 - ground * 0.55) * breathe * lerp(0.3, 1, spread) * near;
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;

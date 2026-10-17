@@ -24,6 +24,7 @@ namespace AntGarden
         public Material guideTrail;     // small glowing particles: the way through a ruin, the motes along the seams
         public Material terrainSeam;    // ground interleaving across a seam between honeycomb cells
         public Material particleLook;   // the particle look: plants and ground drawn as glowing points (P)
+        public Material particleAnt;    // the particle nest's NPC ants: points skinned with their skeletons
         public List<PlantRef> plants = new List<PlantRef>();
         public List<AntRef> ants = new List<AntRef>();
         public List<GroundSet> groundSets = new List<GroundSet>();
@@ -69,13 +70,31 @@ namespace AntGarden
             int n;
             using (var r = new System.IO.BinaryReader(new System.IO.MemoryStream(asset.bytes)))
             {
-                n = r.ReadInt32();
-                points = new Vector3[n];
-                pointColors = new Color32[n];
-                for (int i = 0; i < n; i++)
+                int head = r.ReadInt32();
+                if (head == 0x32504741)
                 {
-                    points[i] = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
-                    pointColors[i] = new Color32(r.ReadByte(), r.ReadByte(), r.ReadByte(), r.ReadByte());
+                    // "AGP2": 16-bit fractions of the bounds
+                    n = r.ReadInt32();
+                    var min = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                    var size = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle()) / 65535f;
+                    points = new Vector3[n];
+                    pointColors = new Color32[n];
+                    for (int i = 0; i < n; i++)
+                    {
+                        points[i] = new Vector3(min.x + r.ReadUInt16() * size.x, min.y + r.ReadUInt16() * size.y, min.z + r.ReadUInt16() * size.z);
+                        pointColors[i] = new Color32(r.ReadByte(), r.ReadByte(), r.ReadByte(), r.ReadByte());
+                    }
+                }
+                else
+                {
+                    n = head;
+                    points = new Vector3[n];
+                    pointColors = new Color32[n];
+                    for (int i = 0; i < n; i++)
+                    {
+                        points[i] = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                        pointColors[i] = new Color32(r.ReadByte(), r.ReadByte(), r.ReadByte(), r.ReadByte());
+                    }
                 }
             }
             return n > 0;

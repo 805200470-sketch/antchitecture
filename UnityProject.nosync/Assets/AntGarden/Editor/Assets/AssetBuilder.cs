@@ -51,6 +51,7 @@ namespace AntGarden.EditorTools
             refs.guideTrail = SimpleMaterial("GuideTrail", "AntGarden/GuideTrail");
             refs.terrainSeam = SimpleMaterial("TerrainSeam", "AntGarden/TerrainSeam");
             refs.particleLook = SimpleMaterial("ParticleLook", "AntGarden/ParticleLook");
+            refs.particleAnt = SimpleMaterial("ParticleAnt", "AntGarden/ParticleAnt");
             refs.groundSets = BuildGroundSets();
             EditorUtility.SetDirty(refs);
             AssetDatabase.SaveAssets();
@@ -339,7 +340,7 @@ namespace AntGarden.EditorTools
                 TuneLods(go, new[] { 0.2f, 0.06f, 0.01f }); // full detail until a plant is small on screen
                 string prefabPath = $"{Gen}/Plants/{name}.prefab";
                 var prefab = PrefabUtility.SaveAsPrefabAsset(go, prefabPath);
-                SurfacePoints(go, baseColor, mat, 40000, name.GetHashCode(), out Vector3[] points, out Color32[] pointColors);
+                SurfacePoints(go, baseColor, mat, 100000, name.GetHashCode(), out Vector3[] points, out Color32[] pointColors);
                 SavePoints(name, points, pointColors);
                 Object.DestroyImmediate(go);
 
@@ -428,21 +429,147 @@ namespace AntGarden.EditorTools
             if (tex != null) Object.DestroyImmediate(tex);
         }
 
-        /// <summary>A plant's surface points as Resources/AntGarden/Points/&lt;name&gt;.bytes: per point x, y, z (floats) and rgba bytes.</summary>
+        /// <summary>
+        /// A plant's surface points as Resources/AntGarden/Points/&lt;name&gt;.bytes, compact: "AGP2", the count, the
+        /// bounds (min, size), then per point x, y, z as 16-bit fractions of the bounds and rgba bytes (10 bytes).
+        /// </summary>
         static void SavePoints(string name, Vector3[] points, Color32[] colors)
         {
             string dir = $"{Root}/Resources/AntGarden/Points";
             Directory.CreateDirectory(dir);
+            Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
+            foreach (Vector3 p in points) { min = Vector3.Min(min, p); max = Vector3.Max(max, p); }
+            Vector3 size = Vector3.Max(max - min, Vector3.one * 1e-5f);
             using (var w = new BinaryWriter(File.Create($"{dir}/{name}.bytes")))
             {
+                w.Write(0x32504741);   // "AGP2"
                 w.Write(points.Length);
+                w.Write(min.x); w.Write(min.y); w.Write(min.z);
+                w.Write(size.x); w.Write(size.y); w.Write(size.z);
                 for (int i = 0; i < points.Length; i++)
                 {
-                    w.Write(points[i].x); w.Write(points[i].y); w.Write(points[i].z);
+                    Vector3 q = points[i] - min;
+                    w.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(q.x / size.x * 65535), 0, 65535));
+                    w.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(q.y / size.y * 65535), 0, 65535));
+                    w.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(q.z / size.z * 65535), 0, 65535));
                     w.Write(colors[i].r); w.Write(colors[i].g); w.Write(colors[i].b); w.Write(colors[i].a);
                 }
             }
             AssetDatabase.ImportAsset($"{dir}/{name}.bytes");
+        }
+
+        /// <summary>
+        /// An ant drawn as points (the particle nest): points spread evenly over its most detailed LOD, each in its
+        /// mesh's bind space with the two bones that move it most (and the first one's weight), so they can be
+        /// skinned on the GPU with the ant's own skeleton. Bones are kept as "slots": the bone's path under the
+        /// prefab root and the bindpose of the mesh that uses it. Colours from the base colour texture (eyes dark,
+        /// wings dimmer). Resources/AntGarden/Points/ant_&lt;id&gt;.bytes: "AGA1", slots (path, 16 floats), points (x, y, z,
+        /// rgba, slot 0, slot 1 as ushorts, weight 0).
+        /// </summary>
+        static void SaveAntPoints(GameObject go, string id, string texPath, int count)
+        {
+            var group = go.GetComponentInChildren<LODGroup>();
+            var smrs = (group != null && group.GetLODs().Length > 0 ? group.GetLODs()[0].renderers : go.GetComponentsInChildren<Renderer>())
+                .OfType<SkinnedMeshRenderer>().Where(r => r != null && r.sharedMesh != null).ToList();
+            if (smrs.Count == 0) { Debug.LogWarning($"[AntGarden] ant points: {id} has no skinned mesh"); return; }
+            var slotIndex = new Dictionary<(string, int), int>();   // (renderer path, bone) -> slot
+            var slotPaths = new List<string>();
+            var slotPoses = new List<Matrix4x4>();
+            var tris = new List<(Vector3 a, Vector3 b, Vector3 c, Vector2 ua, Vector2 ub, Vector2 uc, int[] sa, int[] sb, int[] sc, float[] wa, float[] wb, float[] wc, int kind)>();
+            foreach (SkinnedMeshRenderer r in smrs)
+            {
+                Mesh mesh = r.sharedMesh;
+                Vector3[] v = mesh.vertices;
+                Vector2[] uv = mesh.uv;
+                BoneWeight[] bw = mesh.boneWeights;
+                Matrix4x4[] bind = mesh.bindposes;
+                Transform[] bones = r.bones;
+                string rpath = AnimationUtility.CalculateTransformPath(r.transform, go.transform);
+                int Slot(int bone)
+                {
+                    // a mesh without bones follows its renderer
+                    bool none = bones == null || bones.Length == 0 || bone < 0 || bone >= bones.Length || bones[bone] == null;
+                    var key = (rpath, none ? -1 : bone);
+                    if (slotIndex.TryGetValue(key, out int si)) return si;
+                    si = slotPaths.Count;
+                    slotIndex[key] = si;
+                    slotPaths.Add(none ? rpath : AnimationUtility.CalculateTransformPath(bones[bone], go.transform));
+                    slotPoses.Add(none ? Matrix4x4.identity : bind[bone]);
+                    return si;
+                }
+                (int[] s, float[] w) Weights(int vi)
+                {
+                    if (bw == null || bw.Length != v.Length) return (new[] { Slot(-1) }, new[] { 1f });
+                    BoneWeight b = bw[vi];
+                    return (new[] { Slot(b.boneIndex0), Slot(b.boneIndex1), Slot(b.boneIndex2), Slot(b.boneIndex3) },
+                            new[] { b.weight0, b.weight1, b.weight2, b.weight3 });
+                }
+                Material[] mats = r.sharedMaterials;
+                for (int sm = 0; sm < mesh.subMeshCount; sm++)
+                {
+                    if (mesh.GetTopology(sm) != MeshTopology.Triangles) continue;
+                    string mn = sm < mats.Length && mats[sm] != null ? mats[sm].name.ToLowerInvariant() : "";
+                    int kind = mn.Contains("eye") ? 1 : (mn.Contains("wing") || mn.Contains("vein")) ? 2 : 0;
+                    int[] idx = mesh.GetTriangles(sm);
+                    for (int i = 0; i + 2 < idx.Length; i += 3)
+                    {
+                        int a = idx[i], b = idx[i + 1], c = idx[i + 2];
+                        var (sa, wa) = Weights(a);
+                        var (sb, wb) = Weights(b);
+                        var (sc, wc) = Weights(c);
+                        tris.Add((v[a], v[b], v[c], uv.Length == v.Length ? uv[a] : Vector2.zero, uv.Length == v.Length ? uv[b] : Vector2.zero,
+                            uv.Length == v.Length ? uv[c] : Vector2.zero, sa, sb, sc, wa, wb, wc, kind));
+                    }
+                }
+            }
+            if (tris.Count == 0) return;
+            var cdf = new double[tris.Count];
+            double total = 0;
+            for (int i = 0; i < tris.Count; i++) { total += Vector3.Cross(tris[i].b - tris[i].a, tris[i].c - tris[i].a).magnitude * 0.5; cdf[i] = total; }
+            Texture2D tex = null;
+            if (File.Exists(texPath)) { tex = new Texture2D(2, 2, TextureFormat.RGBA32, false); tex.LoadImage(File.ReadAllBytes(texPath)); }
+            var rng = new System.Random(id.GetHashCode());
+            string dir = $"{Root}/Resources/AntGarden/Points";
+            Directory.CreateDirectory(dir);
+            using (var w = new BinaryWriter(File.Create($"{dir}/ant_{id}.bytes")))
+            {
+                w.Write(0x31414741);   // "AGA1"
+                w.Write(slotPaths.Count);
+                for (int i = 0; i < slotPaths.Count; i++)
+                {
+                    w.Write(slotPaths[i]);
+                    for (int k = 0; k < 16; k++) w.Write(slotPoses[i][k]);
+                }
+                w.Write(count);
+                var acc = new Dictionary<int, float>();
+                for (int k = 0; k < count; k++)
+                {
+                    double pick = rng.NextDouble() * total;
+                    int lo = 0, hi = cdf.Length - 1;
+                    while (lo < hi) { int mid = (lo + hi) / 2; if (cdf[mid] < pick) lo = mid + 1; else hi = mid; }
+                    var t = tris[lo];
+                    float r1 = Mathf.Sqrt((float)rng.NextDouble()), r2 = (float)rng.NextDouble();
+                    float fa = 1 - r1, fb = r1 * (1 - r2), fc = r1 * r2;
+                    Vector3 p = t.a * fa + t.b * fb + t.c * fc;
+                    Vector2 u = t.ua * fa + t.ub * fb + t.uc * fc;
+                    // the two bones that move it most
+                    acc.Clear();
+                    void Add(int[] ss, float[] ww, float f) { for (int j = 0; j < ss.Length; j++) if (ww[j] > 0) acc[ss[j]] = (acc.TryGetValue(ss[j], out float x) ? x : 0) + ww[j] * f; }
+                    Add(t.sa, t.wa, fa); Add(t.sb, t.wb, fb); Add(t.sc, t.wc, fc);
+                    var top = acc.OrderByDescending(kv => kv.Value).Take(2).ToList();
+                    int s0 = top.Count > 0 ? top[0].Key : t.sa[0], s1 = top.Count > 1 ? top[1].Key : s0;
+                    float w0 = top.Count > 1 ? top[0].Value / Mathf.Max(1e-5f, top[0].Value + top[1].Value) : 1f;
+                    Color col = tex != null ? tex.GetPixelBilinear(u.x, u.y) : new Color(0.6f, 0.8f, 0.8f);
+                    if (t.kind == 1) col = new Color(0.05f, 0.08f, 0.14f);
+                    else if (t.kind == 2) col *= 0.5f;
+                    w.Write(p.x); w.Write(p.y); w.Write(p.z);
+                    w.Write((byte)(Mathf.Clamp01(col.r) * 255)); w.Write((byte)(Mathf.Clamp01(col.g) * 255)); w.Write((byte)(Mathf.Clamp01(col.b) * 255));
+                    w.Write((byte)(t.kind == 1 ? 1 : t.kind == 2 ? 2 : 0));
+                    w.Write((ushort)s0); w.Write((ushort)s1); w.Write(w0);
+                }
+            }
+            if (tex != null) Object.DestroyImmediate(tex);
+            AssetDatabase.ImportAsset($"{dir}/ant_{id}.bytes");
         }
 
         static double FirstNum(object e, double def, params string[] keys)
@@ -578,6 +705,7 @@ namespace AntGarden.EditorTools
                 var animator = go.GetComponentInChildren<Animator>();
                 if (animator != null) animator.runtimeAnimatorController = null;
                 var prefab = PrefabUtility.SaveAsPrefabAsset(go, $"{Gen}/Ants/{id}.prefab");
+                SaveAntPoints(go, id, $"{dir}/{id}/{id}_BaseColor.png", 9000);
                 Object.DestroyImmediate(go);
 
                 var all = AssetDatabase.LoadAllAssetsAtPath(fbx).OfType<AnimationClip>().Where(c => !c.name.StartsWith("__preview__")).ToList();
