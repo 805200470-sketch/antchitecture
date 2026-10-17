@@ -5,7 +5,10 @@
 // plant's glowing part: brighter, breathing) and the low six how big it is (× size/8; 0: its own size).
 // Every point stays at least about a pixel wide, so the far forest thins into dust instead of vanishing, and
 // each one trembles a little (_Shimmer), so the forms look alive. Dust wanders slowly and now and then
-// twinkles; the ground lights up round the ant as it passes.
+// twinkles; the ground lights up round the ant as it passes. The shell (_Shell = 1, ParticleLook.MakeShell) is a
+// second draw of dense ground points round the ant: each is drawn only within its own distance of the ant,
+// between _ShellFade.x and .y, so they thin out toward the edge and fade in and out one by one as it walks.
+// A point's random values come from its position, so they stay the same when the shell is made again.
 Shader "AntGarden/ParticleLook"
 {
     Properties
@@ -34,7 +37,8 @@ Shader "AntGarden/ParticleLook"
 
             struct Point { float3 pos; uint col; };
             StructuredBuffer<Point> _Points;
-            float _Size, _Gain, _GlowGain, _MinPixels, _Shimmer;
+            float _Size, _Gain, _GlowGain, _MinPixels, _Shimmer, _Shell;
+            float4 _ShellFade;
             float4 _TrailPlayer;   // global (GuideTrail): points near the ant brighten a little
 
             struct v2f
@@ -48,17 +52,31 @@ Shader "AntGarden/ParticleLook"
             // a triangle round the unit circle
             static const float2 corners[3] = { float2(0, 2), float2(-1.7320508, -1), float2(1.7320508, -1) };
 
+            uint Hash(uint3 v)
+            {
+                uint x = v.x * 73856093u ^ v.y * 19349663u ^ v.z * 83492791u;
+                x ^= x >> 16; x *= 0x7feb352du; x ^= x >> 15; x *= 0x846ca68bu; x ^= x >> 16;
+                return x;
+            }
+
             v2f vert(uint id : SV_VertexID)
             {
                 v2f o;
+                UNITY_INITIALIZE_OUTPUT(v2f, o);
                 uint i = id / 3;
                 Point p = _Points[i];
+                float h = (Hash(asuint(p.pos)) & 0xFFFFFF) / 16777216.0;
+                if (_Shell > 0.5)
+                {
+                    // the shell: only within this point's own distance of the ant
+                    float reach = lerp(_ShellFade.x, _ShellFade.y, frac(h * 7.31 + 0.17));
+                    if (length(p.pos.xz - _TrailPlayer.xz) > reach) { o.pos = float4(0, 0, 0, 1); return o; }
+                }
                 float2 c = corners[id % 3];
                 float3 rgb = GammaToLinearSpace(float3(p.col & 255, (p.col >> 8) & 255, (p.col >> 16) & 255) / 255.0);
                 uint b = (p.col >> 24) & 255, kind = b >> 6, sz = b & 63;
                 float glow = kind == 3 ? 1 : 0, ground = kind == 2 ? 1 : 0, dust = kind == 1 ? 1 : 0;
                 float scale = sz == 0 ? 1 : sz * 0.125;
-                float h = frac(sin(i * 12.9898 + 0.5) * 43758.5453);
                 float t = _Time.y;
                 float3 pos = p.pos + _Shimmer * (1 - ground) * float3(sin(t * (0.9 + h * 1.3) + h * 17.0), sin(t * (0.7 + h * 1.1) + h * 29.0), sin(t * (0.8 + h * 1.7) + h * 41.0));
                 // dust wanders slowly through the air

@@ -541,6 +541,10 @@ namespace AntGarden
                 particleLook.groundColour = new Color(0.6f, 0.7f, 1f, 1f);
                 particleLook.budget = 3200000;
                 particleLook.dust = 10f;
+                // sparse over the whole nest, dense round the ant (the shell, made again as it walks)
+                particleLook.groundNear = 160f;
+                particleLook.groundBudget = 1000000;
+                particleLook.shellDensity = 700f;
                 // the walls and floor become points too, densest along the glowing ways
                 if (lab != null) particleLook.focus = lab.Tracks;
                 foreach (Transform t in worldRoot)

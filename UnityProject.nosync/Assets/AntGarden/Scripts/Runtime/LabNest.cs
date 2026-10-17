@@ -115,7 +115,7 @@ namespace AntGarden
         public void Build(Transform parent, float gain, float density)
         {
             if (route == null || refs.guideTrail == null) return;
-            trail = GuideTrail.Build(world, region, route, refs.guideTrail, new Color(1f, 0.8f, 0.48f), gain * 1.1f, density, parent, 77);
+            trail = GuideTrail.Build(world, region, route, refs.guideTrail, new Color(1f, 0.8f, 0.48f), gain * 1.7f, density, parent, 77);
         }
 
         /// <summary>A plant lit on the way: the goal moves on.</summary>
