@@ -292,7 +292,7 @@ namespace AntGarden
             field.Apply(false, true);
             Shader.SetGlobalTexture("_TrackField", field);
             Shader.SetGlobalVector("_TrackRect", new Vector4(x0, z0, w * cell, h * cell));
-            Shader.SetGlobalFloat("_ChevronOn", 1f);
+            Shader.SetGlobalFloat("_ChevronOn", 0f);   // the floor's pulses: off (the pheromones lead instead)
             Shader.SetGlobalFloat("_ChevronSpeed", PulseSpeed);
             Shader.SetGlobalFloat("_ChevronPeriod", PulsePeriod);
             Shader.SetGlobalFloat("_ChevronDebug", Game.Arg("-chevdebug") is string dbg ? (dbg == "2" ? 2f : 1f) : 0f);

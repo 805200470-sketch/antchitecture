@@ -5,27 +5,26 @@ using UnityEngine.Rendering;
 namespace AntGarden
 {
     /// <summary>
-    /// The particle nest's pheromones: a little swarm of arrows of light that leads the ant like a sprite
-    /// (Shaders/Pheromone.shader). Its heart hovers a few units ahead of the ant along the glowing way, a soft glow
-    /// with arrows circling it; more arrows stream out from beside the ant past it and on along the way, weaving,
-    /// each pointing where it flies, fading in and out. When the ant stops the swarm waits ahead and keeps
-    /// circling; off the way, it waits on the way nearest the ant; at the heart of the nest it settles there.
+    /// The particle nest's pheromones: a sprite of little arrows of light that leads the ant (Shaders/Pheromone.shader).
+    /// It hovers in the air a few units ahead along the way, never at the ant: its arrows dance round it on their own
+    /// tilted, slowly turning loops, now and then one or two sweeping out ahead along the way and curving back, each
+    /// arrow pointing where it flies, brightening and fading as it goes. As the ant comes near, the sprite drifts on
+    /// ahead; when the ant stops it waits, dancing; off the way it waits over the way nearest the ant; at the heart of
+    /// the nest it settles and circles there.
     /// </summary>
     public class Pheromones : MonoBehaviour
     {
-        public int orbiters = 10;           // arrows circling the swarm's heart
-        public int streamers = 40;          // arrows streaming on ahead along the way
-        public float lead = 2.6f;           // how far ahead of the ant the swarm's heart hovers (units)
-        public float reach = 12f;           // how far ahead the streaming arrows fly before they fade
-        public float arrowLength = 0.085f, arrowWidth = 0.065f;
-        public float gain = 2.1f;           // their brightness (HDR)
-        public Color colour = new Color(0.55f, 0.9f, 1f), accent = new Color(0.78f, 0.72f, 1f);
+        public int arrows = 34;
+        public float lead = 5.5f;           // how far ahead of the ant along the way the sprite hovers (units)
+        public float height = 1.5f;         // and how high above the floor
+        public float arrowLength = 0.075f, arrowWidth = 0.058f;
+        public float gain = 2.2f;           // their brightness (HDR)
+        public Color colour = new Color(0.55f, 0.9f, 1f), accent = new Color(0.8f, 0.72f, 1f);
 
         class Arrow
         {
-            public bool orbit;
-            public float phase, speed, radius, s, wobble, height, size, hue;
-            public Vector3 axis, pos, dir;
+            public float phase, speed, radius, tilt, turn, size, hue, sweep, sweepAt;
+            public Vector3 pos, dir;
             public bool started;
         }
 
@@ -33,13 +32,13 @@ namespace AntGarden
         Transform ant;
         Material mat;
         Mesh mesh;
-        readonly List<Arrow> arrows = new List<Arrow>();
+        readonly List<Arrow> list = new List<Arrow>();
         Vector3[] verts, normals;
         Color[] colours;
         Vector2[] uvs, uv2s, uv3s;
-        Vector3 core;
-        bool coreSet;
-        System.Random rng = new System.Random(808);
+        Vector3 centre, velocity;
+        bool centreSet;
+        readonly System.Random rng = new System.Random(808);
 
         public void Init(LabNest nest, Transform player, Material material)
         {
@@ -48,24 +47,20 @@ namespace AntGarden
             mat = material;
             if (mat == null || lab == null || lab.Route == null) { enabled = false; return; }
             mat.SetFloat("_Gain", gain);
-            for (int i = 0; i < orbiters + streamers; i++)
-            {
-                var a = new Arrow
+            for (int i = 0; i < arrows; i++)
+                list.Add(new Arrow
                 {
-                    orbit = i < orbiters,
                     phase = R() * 6.283f,
-                    speed = i < orbiters ? (1.6f + 1.6f * R()) * (R() < 0.5f ? 1 : -1) : 2.2f + 1.4f * R(),
-                    radius = 0.25f + 0.45f * R(),
-                    s = R() * reach,
-                    wobble = 0.25f + 0.45f * R(),
-                    height = 0.22f + 0.4f * R(),
+                    speed = (0.9f + 1.4f * R()) * (R() < 0.5f ? 1 : -1),
+                    radius = 0.35f + 0.85f * R(),
+                    tilt = (R() - 0.5f) * 1.6f,
+                    turn = R() * 6.283f,
                     size = 0.75f + 0.5f * R(),
                     hue = R(),
-                    axis = new Vector3(R() - 0.5f, 1.6f, R() - 0.5f).normalized,
-                };
-                arrows.Add(a);
-            }
-            int n = arrows.Count + 1;   // and the glow at the swarm's heart
+                    sweep = -1,
+                    sweepAt = 2f + 10f * R(),
+                });
+            int n = list.Count + 1;   // and the faint glow at the sprite's heart
             verts = new Vector3[n * 4];
             normals = new Vector3[n * 4];
             colours = new Color[n * 4];
@@ -92,11 +87,11 @@ namespace AntGarden
         {
             if (mesh == null || ant == null) return;
             float dt = Mathf.Min(Time.deltaTime, 0.1f), t = Time.time;
-            // the way ahead: the nearest glowing way to the ant, followed toward the heart
+            // the way: the nearest glowing way to the ant, followed toward the heart
             List<Vector2> pts = null;
             int at = 0;
             float best = float.MaxValue;
-            Vector2 a2 = new Vector2(ant.position.x, ant.position.z);
+            var a2 = new Vector2(ant.position.x, ant.position.z);
             foreach (var (tp, _, _) in lab.Route.tracks)
                 for (int k = 0; k < tp.Count; k++)
                 {
@@ -105,62 +100,62 @@ namespace AntGarden
                 }
             if (pts == null) return;
             bool done = lab.Done;
-            // the swarm's heart: ahead of the ant on the way (waiting on the way if the ant has wandered off it), or at
-            // the nest's heart once it is reached
-            Vector3 coreWant = done ? Ground(lab.Heart, 0.9f) : Along(pts, at, Mathf.Sqrt(best) > 2.5f ? 0.6f : lead, 0.55f + 0.08f * Mathf.Sin(t * 1.3f));
-            if (!coreSet) { core = coreWant; coreSet = true; }
-            core = Vector3.Lerp(core, coreWant, 1 - Mathf.Exp(-dt * 2.2f));
+            // where the sprite wants to be: ahead along the way, in the air; over the heart once it is reached
+            float sway = Mathf.Sin(t * 0.37f) * 0.6f;
+            Vector3 want = done ? Ground(lab.Heart, height + 0.6f)
+                : Along(pts, at, (Mathf.Sqrt(best) > 3f ? 2.5f : lead) + sway, height + 0.25f * Mathf.Sin(t * 0.7f));
+            if (!centreSet) { centre = want; centreSet = true; }
+            // it drifts there smoothly (a spring, critically damped), never darting
+            const float k0 = 2.2f;
+            Vector3 acc = (want - centre) * (k0 * k0) - velocity * (2f * k0);
+            velocity += acc * dt;
+            centre += velocity * dt;
+            Vector3 fwdWay = Along(pts, at, lead + 1.5f, 0) - Along(pts, at, lead, 0);
+            fwdWay.y = 0;
+            fwdWay = fwdWay.sqrMagnitude > 1e-6f ? fwdWay.normalized : Vector3.forward;
             int v = 0;
-            foreach (Arrow a in arrows)
+            foreach (Arrow a in list)
             {
-                Vector3 p;
-                float alpha = 1f;
-                if (a.orbit || done)
+                // its own loop round the sprite's heart: a tilted ring that slowly turns, breathing in and out
+                a.phase += a.speed * dt;
+                float spin = a.turn + t * 0.23f * (a.hue - 0.5f);
+                Vector3 ax = new Vector3(Mathf.Sin(a.tilt) * Mathf.Cos(spin), Mathf.Cos(a.tilt), Mathf.Sin(a.tilt) * Mathf.Sin(spin));
+                Vector3 u = Vector3.Cross(ax, Vector3.right).normalized, w = Vector3.Cross(ax, u);
+                float r = a.radius * (done ? 1.8f : 1f) * (0.8f + 0.2f * Mathf.Sin(t * 0.9f + a.hue * 6f));
+                Vector3 p = centre + (u * Mathf.Cos(a.phase) + w * Mathf.Sin(a.phase)) * r;
+                // now and then it sweeps out ahead along the way and curves back into the dance
+                a.sweepAt -= dt;
+                if (a.sweep < 0 && a.sweepAt <= 0 && !done) { a.sweep = 0; a.sweepAt = 6f + 10f * R(); }
+                if (a.sweep >= 0)
                 {
-                    // circling the swarm's heart, each on its own tilted ring, breathing in and out
-                    a.phase += a.speed * dt;
-                    Vector3 ax = a.axis, u = Vector3.Cross(ax, Vector3.right).normalized, w = Vector3.Cross(ax, u);
-                    float r = a.radius * (done ? 2.2f : 1f) * (0.85f + 0.15f * Mathf.Sin(t * 0.9f + a.hue * 6f));
-                    p = core + (u * Mathf.Cos(a.phase) + w * Mathf.Sin(a.phase)) * r;
-                }
-                else
-                {
-                    // streaming on ahead along the way from beside the ant, weaving, fading in and out
-                    a.s += a.speed * dt;
-                    if (a.s > reach) { a.s = 0; a.started = false; }
-                    float sway = Mathf.Sin(t * (1.1f + a.hue) + a.phase) * a.wobble, bob = Mathf.Sin(t * (0.8f + a.hue * 0.7f) + a.phase * 1.7f) * 0.12f;
-                    Vector3 on = Along(pts, at, a.s, a.height + bob);
-                    Vector3 ahead = Along(pts, at, a.s + 0.4f, a.height + bob);
-                    Vector3 fwd = ahead - on;
-                    fwd.y = 0;
-                    Vector3 side = fwd.sqrMagnitude > 1e-6f ? Vector3.Cross(Vector3.up, fwd.normalized) : Vector3.right;
-                    // out of the ant's side at first, then onto the way
-                    Vector3 from = ant.position + Vector3.up * (a.height * 0.6f) + side * (a.phase > 3.14f ? 0.25f : -0.25f);
-                    p = Vector3.Lerp(from, on + side * sway, Mathf.SmoothStep(0, 1, a.s / 1.4f));
-                    alpha = Mathf.SmoothStep(0, 1, a.s / 0.8f) * (1 - Mathf.SmoothStep(0, 1, (a.s - reach * 0.6f) / (reach * 0.4f)));
+                    a.sweep += dt / 2.6f;
+                    float s = Mathf.Sin(Mathf.Clamp01(a.sweep) * Mathf.PI);
+                    Vector3 side = Vector3.Cross(Vector3.up, fwdWay);
+                    p += fwdWay * (s * 3.2f) + side * (Mathf.Sin(a.sweep * 6.283f) * 0.6f * s) + Vector3.up * (0.3f * s);
+                    if (a.sweep >= 1) a.sweep = -1;
                 }
                 // pointing where it flies
                 if (a.started)
                 {
                     Vector3 vel = (p - a.pos) / Mathf.Max(dt, 1e-4f);
-                    if (vel.sqrMagnitude > 1e-4f) a.dir = Vector3.Slerp(a.dir.sqrMagnitude > 0 ? a.dir : vel.normalized, vel.normalized, 1 - Mathf.Exp(-dt * 12f));
+                    if (vel.sqrMagnitude > 1e-4f) a.dir = Vector3.Slerp(a.dir, vel.normalized, 1 - Mathf.Exp(-dt * 10f));
                 }
-                else { a.dir = Vector3.forward; a.started = true; }
+                else { a.dir = fwdWay; a.started = true; }
                 a.pos = p;
-                Color c = Color.Lerp(colour, accent, a.hue > 0.85f ? 1f : 0f);
-                c.a = alpha * (0.6f + 0.3f * Mathf.Sin(t * 3f + a.phase)) * (a.orbit && !done ? 0.75f : 1f);
+                Color c = Color.Lerp(colour, accent, a.hue > 0.82f ? 1f : 0f);
+                c.a = 0.55f + 0.35f * Mathf.Sin(t * (1.6f + a.hue) + a.phase * 2f);
                 Quad(ref v, p, a.dir, arrowLength * a.size, arrowWidth * a.size, c, false);
             }
-            // the glow at the swarm's heart
-            Color g = colour * 0.3f;
-            g.a = 0.28f + 0.08f * Mathf.Sin(t * 2.1f);
-            Quad(ref v, core, Vector3.forward, 0.32f, 0.32f, g, true);
+            // a faint glow at the sprite's heart
+            Color g = colour * 0.25f;
+            g.a = 0.3f + 0.1f * Mathf.Sin(t * 2.1f);
+            Quad(ref v, centre, Vector3.forward, 0.45f, 0.45f, g, true);
             mesh.vertices = verts;
             mesh.normals = normals;
             mesh.colors = colours;
             mesh.SetUVs(1, uv2s);
             mesh.SetUVs(2, uv3s);
-            mesh.bounds = new Bounds(ant.position, Vector3.one * (reach * 2 + 6));
+            mesh.bounds = new Bounds(centre, Vector3.one * 12f);
             Graphics.DrawMesh(mesh, Matrix4x4.identity, mat, 0, null, 0, null, ShadowCastingMode.Off, false);
         }
 
@@ -178,21 +173,21 @@ namespace AntGarden
         }
 
         /// <summary>The point on the way s units on from point at (toward the nest's heart), height above the floor.</summary>
-        Vector3 Along(List<Vector2> pts, int at, float s, float height)
+        Vector3 Along(List<Vector2> pts, int at, float s, float h)
         {
             int k = at;
             Vector2 p = pts[k];
             while (s > 0 && k + 1 < pts.Count)
             {
                 float seg = (pts[k + 1] - pts[k]).magnitude;
-                if (seg >= s) { p = Vector2.Lerp(pts[k], pts[k + 1], s / Mathf.Max(seg, 1e-5f)); s = 0; break; }
+                if (seg >= s) { p = Vector2.Lerp(pts[k], pts[k + 1], s / Mathf.Max(seg, 1e-5f)); break; }
                 s -= seg;
                 k++;
                 p = pts[k];
             }
-            return Ground(p, height);
+            return Ground(p, h);
         }
 
-        Vector3 Ground(Vector2 p, float height) => new Vector3(p.x, lab.WalkHeight(p) + height, p.y);
+        Vector3 Ground(Vector2 p, float h) => new Vector3(p.x, lab.WalkHeight(p) + h, p.y);
     }
 }

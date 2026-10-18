@@ -543,7 +543,7 @@ namespace AntGarden
                 particleLook.mode = ParticleLook.Mode.Replace;
                 particleLook.pointSize = 0.011f;
                 particleLook.brightness = 0.34f;   // a fifth darker than before: the guides and lit plants stand out
-                particleLook.glowBrightness = 1.05f;
+                particleLook.glowBrightness = 0.55f;   // and breathing: dim most of the time, bright when touched
                 particleLook.shimmer = 0.006f;
                 particleLook.scanOverride = new Color(0.94f, 0.96f, 1f, 1f);
                 particleLook.scanMix = 0.4f;
@@ -579,14 +579,10 @@ namespace AntGarden
                 particleLook.shellDensity = 1000f;
                 particleLook.shellFade = new Vector2(5f, 12f);
                 particleLook.carpet = refs.particleCarpet;
-                particleLook.carpetGain = 0.075f;   // opaque splats now: the floor's own colour, dark
+                particleLook.carpetGain = 0.06f;   // opaque splats: the floor's own colour, dark (the things on it stand out)
                 particleLook.bodyAccent = 0.04f;
                 particleLook.dust = 18f;
-                particleLook.vines = 520;
-                particleLook.threads = 700;   // fungal threads
-                particleLook.cover = 7f;       // the ground cover: small things on the floor, many more round the ant
-                particleLook.coverBrightness = 2.4f;
-                particleLook.coverNear = 70f;   // (thinned into drifts)
+                // the floor's things are solid now (SolidThings): leaves, twigs, moss, mushrooms... at ant scale
                 particleLook.splatShare = 0.24f;   // like a splat capture: soft larger splats under the fine points   // vines and roots creeping over the floor, between the ways
                 // the walls and floor become points too, densest along the glowing ways
                 if (lab != null) particleLook.focus = lab.Tracks;
@@ -596,7 +592,9 @@ namespace AntGarden
                             if (mf.name != "SoilWalls") particleLook.ground.Add(mf);
             }
             if (Lab || cfg.particleLook || Arg("-particlelook") != null) particleLook.SetOn(true);
-            // the particle nest: pheromones, arrows of light leading the ant along the way
+            // the particle nest: the things on the floor, solid, at ant scale; and the pheromones, a sprite of arrows
+            // of light leading the ant
+            if (Lab && particleLook.On) gameObject.AddComponent<SolidThings>().Init(world, particleLook, refs.particleSolid);
             if (Lab && lab != null) gameObject.AddComponent<Pheromones>().Init(lab, player.transform, refs.pheromone);
         }
 

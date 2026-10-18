@@ -29,6 +29,7 @@ MonoBehaviour:
   particleCarpet: {fileID: 2100000, guid: acadc4d26ef0e42beb9272bc815b9ac3, type: 2}
   antOccluder: {fileID: 2100000, guid: 56c599d55f7b8410d9407df083d7a806, type: 2}
   pheromone: {fileID: 2100000, guid: 6d7069d6ad09d42308612e484777cd5a, type: 2}
+  particleSolid: {fileID: 2100000, guid: 2c0f5c1b8101143c49638b33edcd30da, type: 2}
   plants:
   - name: amber_resin
     prefab: {fileID: 8144775433280480473, guid: 4a215baa7601b464fb9a6b8c0e9a947e, type: 3}

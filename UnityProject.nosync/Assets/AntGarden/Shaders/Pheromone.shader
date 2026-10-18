@@ -83,8 +83,8 @@ Shader "AntGarden/Pheromone"
                     float2 ab = a1 - a0;
                     float t = saturate(dot(q - a0, ab) / dot(ab, ab));
                     float d = length(q - (a0 + ab * t));
-                    float stroke = 1 - smoothstep(0.07, 0.2, d);
-                    float halo = exp(-d * d * 20.0) * 0.2;
+                    float stroke = 1 - smoothstep(0.04, 0.13, d);
+                    float halo = exp(-d * d * 9.0) * 0.32;
                     // a faint tail behind it
                     float tail = (p.x < -0.2 ? exp(-p.y * p.y * 40.0) * saturate((p.x + 1.0) / 0.8) * 0.3 : 0);
                     a = stroke + halo + tail;

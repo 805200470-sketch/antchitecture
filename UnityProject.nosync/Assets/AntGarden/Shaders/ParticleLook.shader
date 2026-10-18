@@ -4,7 +4,8 @@
 // in the fourth, the top two bits say what the point is (0 plant, 1 dust floating in the air, 2 ground, 3 a
 // plant's glowing part: brighter, breathing) and the low six how big it is (× size/8; 0: its own size).
 // Every point stays at least about a pixel wide, so the far forest thins into dust instead of vanishing, and
-// each one trembles a little (_Shimmer), so the forms look alive. Dust wanders slowly and now and then
+// each one trembles a little (_Shimmer), so the forms look alive. Plants breathe slowly, each at its own pace and
+// to its own brightness, their glowing parts dim most of the time; one an antenna has lit flares far brighter. Dust wanders slowly and now and then
 // twinkles; the ground lights up round the ant as it passes. The shell (_Shell = 1, ParticleLook.MakeShell) is a
 // second draw of dense ground points round the ant: each is drawn only within its own distance of the ant,
 // between _ShellFade.x and .y, so they thin out toward the edge and fade in and out one by one as it walks.
@@ -110,13 +111,21 @@ Shader "AntGarden/ParticleLook"
                 pos.y += 0.05 * chev;
                 float dist = distance(pos, _WorldSpaceCameraPos);
                 float pixel = 2 * dist / (unity_CameraProjection._m11 * _ScreenParams.y);
-                float want = _Size * scale * (0.6 + 0.8 * h) * (1 + glow * 0.8) * (1 - ground * 0.35) * (1 + 0.8 * chev);
+                // plants' points vary in size as a capture's do: most near the middle, some smaller, a few much
+                // larger and fainter (their light spread wider)
+                float gN = (h + frac(h * 7.13) + frac(h * 13.7) - 1.5) * 1.6;
+                float vary = ground + dust > 0.5 ? 0.6 + 0.8 * h : clamp(exp(gN * 0.42), 0.4, 2.6);
+                float want = _Size * scale * vary * (1 + glow * 0.8) * (1 - ground * 0.35) * (1 + 0.8 * chev);
                 float size = max(want, pixel * _MinPixels);
                 float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
                 float3 w = pos + (right * c.x + up * c.y) * size;
                 o.pos = mul(UNITY_MATRIX_VP, float4(w, 1));
                 o.uv = c;
-                float breathe = glow > 0.5 ? 0.7 + 0.3 * sin(t * (0.8 + h * 1.6) + h * 40) : 0.85 + 0.15 * sin(t * (0.5 + h) + h * 23);
+                // plants breathe, each at its own slow pace and to its own brightness (by the patch of ground it
+                // stands on, so a plant breathes as one); their glowing parts most, spending more of the time dim
+                float cellH = (Hash(uint3(asuint(floor(p.pos.x * 0.55)), asuint(floor(p.pos.z * 0.55)), 7u)) & 0xFFFFFF) / 16777216.0;
+                float pulseB = 0.5 + 0.5 * sin(t * (0.22 + 0.3 * cellH) + cellH * 40 + h * 0.6);
+                float breathe = glow > 0.5 ? (0.18 + 0.82 * pulseB * pulseB) * (0.4 + 0.6 * frac(cellH * 7.31)) : 0.78 + 0.22 * pulseB;
                 // dust twinkles now and then
                 float tw = 0.5 + 0.5 * sin(t * (0.5 + 1.2 * h) + h * 61);
                 breathe = lerp(breathe, 0.2 + 1.6 * tw * tw * tw * tw, dust);
@@ -127,7 +136,7 @@ Shader "AntGarden/ParticleLook"
                 float near = 1 + (0.6 + 1.0 * ground) * (1 - smoothstep(0.5, 3.5 + 1.5 * ground, da));
                 // plants are many times denser round the ant: each point dimmer there
                 near *= lerp(lerp(_NearDim.z, 1, smoothstep(_NearDim.x, _NearDim.y, da)), 1, ground + dust);
-                o.col = rgb * (_Gain + glow * _GlowGain) * (1 - ground * 0.55) * breathe * lerp(0.3, 1, spread) * near * soft;
+                o.col = rgb * (_Gain + glow * _GlowGain) * (1 - ground * 0.55) * breathe * lerp(0.3, 1, spread) * near * soft / pow(max(vary, 1), 0.8);
                 if (kind == 2 && sz > 0 && sz < 10) o.col *= _CoverGain;   // (packed below 1, to keep their colour)
                 // a plant an antenna has lit: much brighter, and warmer, while its flare lasts
                 if (ground + dust < 0.5 && _FlareCount > 0)
@@ -140,7 +149,7 @@ Shader "AntGarden/ParticleLook"
                         float inside = (1 - smoothstep(I.x * 0.75, I.x * 1.2, length(pos.xz - F.xz))) * step(F.y - 0.5, pos.y) * step(pos.y, F.y + I.y + 0.5);
                         lit = max(lit, inside * I.z);
                     }
-                    o.col = o.col * (1 + 2.6 * lit) + lit * soft * float3(0.09, 0.075, 0.05) * (0.5 + glow);
+                    o.col = o.col * (1 + 4.5 * lit) + lit * soft * float3(0.1, 0.085, 0.055) * (0.5 + 1.5 * glow);
                 }
                 // and lights up, warm
                 o.col = lerp(o.col, _ChevronColor.rgb * (_ChevronColor.a * 0.3 * soft), saturate(chev));

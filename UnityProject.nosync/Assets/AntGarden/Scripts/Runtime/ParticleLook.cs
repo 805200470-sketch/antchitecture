@@ -186,6 +186,8 @@ namespace AntGarden
 
         public bool On => on;
         public int Count => count;
+        /// <summary>Replace: the carpet's maps are baked (HeightAt and LayerAt can be read).</summary>
+        public bool HasMaps => heightArr != null;
 
         public void Init(World w, Transform ant, Material m)
         {
@@ -1279,13 +1281,15 @@ namespace AntGarden
             }
         }
 
-        Color LayerAt(float x, float z)
+        /// <summary>The terrain's layer weights at (x, z): floor, bank, plateau, open (from the carpet's map).</summary>
+        public Color LayerAt(float x, float z)
         {
             int i = Mathf.Clamp(Mathf.FloorToInt((x - mapX0) / MapCell), 0, mapW - 1), j = Mathf.Clamp(Mathf.FloorToInt((z - mapZ0) / MapCell), 0, mapH - 1);
             return layerArr[j * mapW + i];
         }
 
-        float HeightAt(float x, float z)
+        /// <summary>The terrain's top surface height at (x, z) (from the carpet's map; bilinear).</summary>
+        public float HeightAt(float x, float z)
         {
             float fx = (x - mapX0) / MapCell - 0.5f, fz = (z - mapZ0) / MapCell - 0.5f;
             int i = Mathf.Clamp(Mathf.FloorToInt(fx), 0, mapW - 2), j = Mathf.Clamp(Mathf.FloorToInt(fz), 0, mapH - 2);
@@ -1295,7 +1299,7 @@ namespace AntGarden
         }
 
         /// <summary>How far (x, z) is from the nearest glowing way (units; far: large).</summary>
-        float WayDistance(float x, float z)
+        public float WayDistance(float x, float z)
         {
             if (focus == null || focus.Count == 0 || focusD2 == null) return 99f;
             int i = Mathf.Clamp(Mathf.RoundToInt((x - fx0) / FocusCell), 0, fw - 1);
@@ -1339,7 +1343,7 @@ namespace AntGarden
         }
 
         /// <summary>1 on the ways the ant is led, falling toward 0 away from them (1 everywhere if there are none).</summary>
-        float Focus(float x, float z)
+        public float Focus(float x, float z)
         {
             if (focus == null || focus.Count == 0 || focusD2 == null) return 1f;
             int i = Mathf.Clamp(Mathf.RoundToInt((x - fx0) / FocusCell), 0, fw - 1);
