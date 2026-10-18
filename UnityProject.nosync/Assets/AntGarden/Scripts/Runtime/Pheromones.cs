@@ -15,8 +15,8 @@ namespace AntGarden
     public class Pheromones : MonoBehaviour
     {
         public int arrows = 34;
-        public float lead = 5.5f;           // how far ahead of the ant along the way the sprite hovers (units)
-        public float height = 1.5f;         // and how high above the floor
+        public float lead = 4.2f;           // how far ahead of the ant along the way the sprite hovers (units)
+        public float height = 1.25f;        // and how high above the floor
         public float arrowLength = 0.075f, arrowWidth = 0.058f;
         public float gain = 2.2f;           // their brightness (HDR)
         public Color colour = new Color(0.55f, 0.9f, 1f), accent = new Color(0.8f, 0.72f, 1f);
