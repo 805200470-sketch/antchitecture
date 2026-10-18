@@ -12,7 +12,9 @@ namespace AntGarden
     /// stony; and roots creeping out from the foot of the walls. At ant scale they are big: a leaf is several ants
     /// long, a twig a log. They gather along the ways the ant is led, never on them (the glowing way stays clear),
     /// each kind in its own patches; flat things drape over the floor; tall ones block the ants. Made once, when the
-    /// nest is built; far away the shader thins them out.
+    /// nest is built; far away the shader thins them out. Every thing takes one of the nest's tints over its own
+    /// colours, so the floor is of a piece with the plants. When the particle look draws its plants solid, their
+    /// coarse splats join these in the same buffer, and round the ant a fine set of them is drawn instead (the shell).
     /// </summary>
     public class SolidThings : MonoBehaviour
     {
@@ -26,6 +28,22 @@ namespace AntGarden
 
         enum Kind { Leaf, Twig, Petal, Seed, Fern, Feather, Blossom, Moss, Clover, Mushrooms, Seedling, Lichen, Pebbles, Crystals, Shell }
 
+        // the fine splats of the plants round the ant (ParticleLook.SolidShell), made again on a worker thread as it
+        // walks, uploaded a chunk a frame into the buffer not being drawn, then swapped in (they are the same splats
+        // where the old and new overlap, so nothing changes but at the far edge, where the coarse set takes over)
+        public float shellReach = 12f, shellMove = 2.5f;
+        public Vector2 nearFade = new Vector2(6f, 10f);   // fine splats out to y round the ant, giving way to coarse from x
+        Transform ant;
+        readonly ComputeBuffer[] shellBuffers = new ComputeBuffer[2];
+        readonly int[] shellCounts = new int[2];
+        int shellFront, uploading = -1, uploadedSoFar;
+        bool shellPending;
+        Vector2 shellAt;
+        System.Threading.Tasks.Task shellTask;
+        readonly List<SolidPoint> shellWork = new List<SolidPoint>(1 << 21);
+        readonly MaterialPropertyBlock shellBlock = new MaterialPropertyBlock();
+        const int UploadChunk = 262144;
+
         World world;
         ParticleLook look;
         Material mat;
@@ -36,21 +54,25 @@ namespace AntGarden
 
         public int Count => count;
 
-        public void Init(World w, ParticleLook particles, Material material)
+        public void Init(World w, ParticleLook particles, Material material, Transform player)
         {
             world = w;
+            ant = player;
             look = particles;
             mat = material;
             if (mat == null || world == null || look == null || !look.HasMaps) { enabled = false; return; }
-            var splats = new List<SolidPoint>(1 << 20);
-            var pen = new ThingPen(splats) { PerArea = perArea };
+            var splats = new List<SolidPoint>(1 << 21);
+            var pen = new ThingPen(splats) { PerArea = perArea, Keep = 0.18f };   // the one palette over each thing's own colours
             float t0 = Time.realtimeSinceStartup;
-            int things = Place(pen), rootsMade = Roots(pen);
+            int things = Place(pen), rootsMade = Roots(pen), thingSplats = splats.Count;
+            // the plants too, as solid splats, when the particle look draws them so
+            if (look.solidPlants) look.BuildSolidPlants(splats);
             count = splats.Count;
             if (count == 0) { enabled = false; return; }
             buffer = new ComputeBuffer(count, 24);
             buffer.SetData(splats);
-            Debug.Log($"[AntGarden] solid things: {things} things and {rootsMade} roots, {count} splats ({Time.realtimeSinceStartup - t0:F2}s)");
+            if (look.solidPlants && ant != null) ShellNow();
+            Debug.Log($"[AntGarden] solid things: {things} things and {rootsMade} roots, {thingSplats} splats; {count} with the plants ({Time.realtimeSinceStartup - t0:F2}s)");
         }
 
         float R()
@@ -168,8 +190,37 @@ namespace AntGarden
             if (r > 0) world.colliders.Add(new Circle(x, z, r, h));
         }
 
+        /// <summary>The nest's tints (ParticleLook.bodyPalette) each kind of thing takes; a few things take a warm one.</summary>
+        static readonly int[][] Tints =
+        {
+            new[] { 2, 4, 5, 1 },   // leaf: periwinkle, lilac, sky, blue
+            new[] { 5, 1, 2 },      // twig
+            new[] { 7, 6, 4 },      // petal: blush, sand, lilac
+            new[] { 6, 5 },         // seed
+            new[] { 3, 0, 2 },      // fern: mint, cyan, periwinkle
+            new[] { 0, 5 },         // feather
+            new[] { 7, 4 },         // blossom
+            new[] { 3, 0 },         // moss
+            new[] { 3, 0 },         // clover
+            new[] { 4, 7, 2 },      // mushrooms
+            new[] { 3, 0 },         // seedling
+            new[] { 0, 3, 4 },      // lichen
+            new[] { 1, 5, 2 },      // pebbles
+            new[] { 0, 5 },         // crystals
+            new[] { 6, 4, 5 },      // shell
+        };
+
+        Color TintFor(int[] choices)
+        {
+            Color[] pal = look.bodyPalette;
+            if (pal == null || pal.Length < 8) return Color.clear;
+            int i = choices[(int)(R() * choices.Length) % choices.Length];
+            return pal[i].linear;
+        }
+
         void Make(ThingPen pen, Kind k, float x, float z, float size, uint seed)
         {
+            pen.Tint = TintFor(Tints[(int)k]);
             Vector3 n = world.Normal(x, z), ta = Vector3.Cross(n, Vector3.forward).normalized;
             if (ta.sqrMagnitude < 0.5f) ta = Vector3.Cross(n, Vector3.right).normalized;
             Vector3 tb = Vector3.Cross(ta, n);
@@ -222,6 +273,7 @@ namespace AntGarden
                 if (lw.g < 0.45f || lw.r < 0.15f) continue;   // at the foot of a wall
                 if (R() > 0.15f + 0.85f * look.Focus(x, z) || look.WayDistance(x, z) < 1.2f) continue;
                 pen.Begin((uint)made * 2246822519u ^ 0x27d4eb2fu);
+                pen.Tint = TintFor(RootTints);
                 // into the canyon: down the slope of the distance field
                 float e = 0.3f, gx = world.Dist(x + e, z) - world.Dist(x - e, z), gz = world.Dist(x, z + e) - world.Dist(x, z - e);
                 float dir = Mathf.Atan2(-gz, -gx) + (pen.R() - 0.5f) * 1.4f;
@@ -230,6 +282,8 @@ namespace AntGarden
             }
             return made;
         }
+
+        static readonly int[] RootTints = { 5, 2, 1 };
 
         void Root(ThingPen pen, float x, float z, float dir, float length, float radius, int depth)
         {
@@ -265,21 +319,107 @@ namespace AntGarden
             }
         }
 
+        readonly Vector4[] flarePos = new Vector4[16], flareInfo = new Vector4[16];
+
+        /// <summary>The fine shell made at once round the ant (at the start, and when it has jumped far).</summary>
+        void ShellNow()
+        {
+            shellAt = new Vector2(ant.position.x, ant.position.z);
+            look.SolidShell(shellAt, shellReach, shellWork);
+            int back = 1 - shellFront;
+            Ensure(back, shellWork.Count);
+            if (shellWork.Count > 0) shellBuffers[back].SetData(shellWork, 0, 0, shellWork.Count);
+            shellCounts[back] = shellWork.Count;
+            shellFront = back;
+            Debug.Log($"[AntGarden] solid shell: {shellWork.Count} fine plant splats round ({shellAt.x:F0}, {shellAt.y:F0})");
+        }
+
+        void Ensure(int which, int n)
+        {
+            if (shellBuffers[which] != null && shellBuffers[which].count >= n) return;
+            shellBuffers[which]?.Release();
+            shellBuffers[which] = new ComputeBuffer(Mathf.Max(1024, Mathf.NextPowerOfTwo(n)), 24);
+        }
+
+        /// <summary>Once the ant has walked shellMove from where the shell was made, it is made again on a worker thread,
+        /// then uploaded a chunk a frame into the buffer not being drawn and swapped in. A jump (a cut) makes it at once.</summary>
+        void UpdateShell()
+        {
+            var at = new Vector2(ant.position.x, ant.position.z);
+            if (shellTask == null && !shellPending && uploading < 0 && (at - shellAt).sqrMagnitude > 64f) { ShellNow(); return; }
+            if (shellTask != null && shellTask.IsCompleted)
+            {
+                if (shellTask.IsFaulted) Debug.LogException(shellTask.Exception);
+                else shellPending = true;
+                shellTask = null;
+            }
+            if (shellPending && uploading < 0)
+            {
+                shellPending = false;
+                uploading = 1 - shellFront;
+                uploadedSoFar = 0;
+                Ensure(uploading, shellWork.Count);
+            }
+            if (uploading >= 0)
+            {
+                int n = Mathf.Min(UploadChunk, shellWork.Count - uploadedSoFar);
+                if (n > 0) shellBuffers[uploading].SetData(shellWork, uploadedSoFar, uploadedSoFar, n);
+                uploadedSoFar += n;
+                if (uploadedSoFar < shellWork.Count) return;
+                shellCounts[uploading] = shellWork.Count;
+                shellFront = uploading;
+                uploading = -1;
+                return;
+            }
+            if (shellTask != null || (at - shellAt).sqrMagnitude < shellMove * shellMove) return;
+            shellAt = at;
+            shellTask = System.Threading.Tasks.Task.Run(() => look.SolidShell(at, shellReach, shellWork));
+        }
+
         void Update()
         {
             if (count == 0 || buffer == null) return;
+            if (look.solidPlants && ant != null) UpdateShell();
+            // the plants an antenna has lit flare among the splats
+            int nf = world.glow != null ? world.glow.Flares(flarePos, flareInfo) : 0;
+            block.SetFloat("_FlareCount", nf);
+            block.SetVectorArray("_Flares", flarePos);
+            block.SetVectorArray("_FlareInfo", flareInfo);
             block.SetBuffer("_Solid", buffer);
             block.SetFloat("_Gain", gain);
+            block.SetFloat("_GlowGain", 0.9f);
             block.SetVector("_Lod", lod);
             block.SetVector("_MoonDir", new Vector4(0.32f, 0.9f, 0.28f, 0).normalized);
             block.SetVector("_MoonColor", new Color(0.5f, 0.62f, 0.9f));
             block.SetVector("_FillColor", new Color(0.09f, 0.12f, 0.19f));
+            block.SetVector("_NearFade", look.solidPlants ? (Vector4)nearFade : Vector4.zero);
+            block.SetFloat("_Shell", 0f);
             var bounds = new Bounds(new Vector3((world.minX + world.maxX) / 2, 0, (world.minZ + world.maxZ) / 2),
                 new Vector3(world.maxX - world.minX + 40, 200, world.maxZ - world.minZ + 40));
             Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, count * 3, 1, null, block, ShadowCastingMode.Off, false, 0);
+            if (shellCounts[shellFront] > 0)
+            {
+                shellBlock.SetFloat("_FlareCount", nf);
+                shellBlock.SetVectorArray("_Flares", flarePos);
+                shellBlock.SetVectorArray("_FlareInfo", flareInfo);
+                shellBlock.SetBuffer("_Solid", shellBuffers[shellFront]);
+                shellBlock.SetFloat("_Gain", gain);
+                shellBlock.SetFloat("_GlowGain", 0.9f);
+                shellBlock.SetVector("_Lod", lod);
+                shellBlock.SetVector("_MoonDir", new Vector4(0.32f, 0.9f, 0.28f, 0).normalized);
+                shellBlock.SetVector("_MoonColor", new Color(0.5f, 0.62f, 0.9f));
+                shellBlock.SetVector("_FillColor", new Color(0.09f, 0.12f, 0.19f));
+                shellBlock.SetVector("_NearFade", nearFade);
+                shellBlock.SetFloat("_Shell", 1f);
+                Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, shellCounts[shellFront] * 3, 1, null, shellBlock, ShadowCastingMode.Off, false, 0);
+            }
         }
 
-        void OnDestroy() => buffer?.Release();
+        void OnDestroy()
+        {
+            buffer?.Release();
+            foreach (ComputeBuffer b in shellBuffers) b?.Release();
+        }
 
         static float Noise(float x, float y)
         {

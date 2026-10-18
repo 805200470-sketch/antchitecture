@@ -118,7 +118,7 @@ Shader "AntGarden/ParticleCarpet"
                 // patches across the floor, some leaning teal-green, some blue-violet, lighter and darker; and a
                 // little drift from splat to splat, as in a capture
                 float pa = Patch(xz, 2.8, 17.3), pb = Patch(xz, 1.1, 41.9);
-                rgb = AG_HueShift(rgb, (pa - 0.5) * 70 + (Hash(cell + 2741) - 0.5) * 30, 0.9 + 0.5 * pb);
+                rgb = AG_HueShift(rgb, (pa - 0.5) * 22 + (Hash(cell + 2741) - 0.5) * 12, 0.85 + 0.3 * pb);
                 rgb *= 0.55 + 0.9 * pb * pa;
                 // dimmer toward the banks: the floor's edge fades into the walls' points
                 rgb *= smoothstep(0.25, 0.75, lw.r);

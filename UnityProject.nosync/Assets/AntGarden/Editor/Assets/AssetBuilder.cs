@@ -344,8 +344,8 @@ namespace AntGarden.EditorTools
                 TuneLods(go, new[] { 0.2f, 0.06f, 0.01f }); // full detail until a plant is small on screen
                 string prefabPath = $"{Gen}/Plants/{name}.prefab";
                 var prefab = PrefabUtility.SaveAsPrefabAsset(go, prefabPath);
-                SurfacePoints(go, baseColor, mat, 100000, name.GetHashCode(), out Vector3[] points, out Color32[] pointColors);
-                SavePoints(name, points, pointColors);
+                SurfacePoints(go, baseColor, mat, 100000, name.GetHashCode(), out Vector3[] points, out Color32[] pointColors, out Vector3[] pointNormals, out float area);
+                SavePoints(name, points, pointColors, pointNormals, area);
                 Object.DestroyImmediate(go);
 
                 var pr = new PlantRef { name = name, prefab = prefab };
@@ -366,13 +366,15 @@ namespace AntGarden.EditorTools
         /// order, with their colours from the base colour texture; alpha 255 marks points in the glowing part (the
         /// material's glow bands, bright enough in the texture). For the particle look.
         /// </summary>
-        static void SurfacePoints(GameObject go, string texPath, Material mat, int count, int seed, out Vector3[] points, out Color32[] colors)
+        static void SurfacePoints(GameObject go, string texPath, Material mat, int count, int seed, out Vector3[] points, out Color32[] colors, out Vector3[] normals, out float area)
         {
             points = new Vector3[0];
             colors = new Color32[0];
+            normals = new Vector3[0];
+            area = 0;
             var group = go.GetComponentInChildren<LODGroup>();
             Renderer[] renderers = group != null && group.GetLODs().Length > 0 ? group.GetLODs()[0].renderers : go.GetComponentsInChildren<MeshRenderer>();
-            var tris = new List<(Vector3 a, Vector3 b, Vector3 c, Vector2 ua, Vector2 ub, Vector2 uc)>();
+            var tris = new List<(Vector3 a, Vector3 b, Vector3 c, Vector2 ua, Vector2 ub, Vector2 uc, Vector3 na, Vector3 nb, Vector3 nc)>();
             Matrix4x4 toRoot = go.transform.worldToLocalMatrix;
             foreach (Renderer r in renderers)
             {
@@ -384,9 +386,12 @@ namespace AntGarden.EditorTools
                     var data = arr[0];
                     var pos = new Unity.Collections.NativeArray<Vector3>(data.vertexCount, Unity.Collections.Allocator.Temp);
                     var uv = new Unity.Collections.NativeArray<Vector2>(data.vertexCount, Unity.Collections.Allocator.Temp);
+                    var nrm = new Unity.Collections.NativeArray<Vector3>(data.vertexCount, Unity.Collections.Allocator.Temp);
                     data.GetVertices(pos);
                     bool hasUv = data.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.TexCoord0);
                     if (hasUv) data.GetUVs(0, uv);
+                    bool hasN = data.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.Normal);
+                    if (hasN) data.GetNormals(nrm);
                     for (int sm = 0; sm < data.subMeshCount; sm++)
                     {
                         var desc = data.GetSubMesh(sm);
@@ -394,12 +399,19 @@ namespace AntGarden.EditorTools
                         var idx = new Unity.Collections.NativeArray<int>(desc.indexCount, Unity.Collections.Allocator.Temp);
                         data.GetIndices(idx, sm);
                         for (int i = 0; i + 2 < idx.Length; i += 3)
-                            tris.Add((m.MultiplyPoint3x4(pos[idx[i]]), m.MultiplyPoint3x4(pos[idx[i + 1]]), m.MultiplyPoint3x4(pos[idx[i + 2]]),
-                                      hasUv ? uv[idx[i]] : Vector2.zero, hasUv ? uv[idx[i + 1]] : Vector2.zero, hasUv ? uv[idx[i + 2]] : Vector2.zero));
+                        {
+                            Vector3 a = m.MultiplyPoint3x4(pos[idx[i]]), b = m.MultiplyPoint3x4(pos[idx[i + 1]]), c = m.MultiplyPoint3x4(pos[idx[i + 2]]);
+                            Vector3 face = Vector3.Cross(b - a, c - a).normalized;
+                            tris.Add((a, b, c,
+                                      hasUv ? uv[idx[i]] : Vector2.zero, hasUv ? uv[idx[i + 1]] : Vector2.zero, hasUv ? uv[idx[i + 2]] : Vector2.zero,
+                                      hasN ? m.MultiplyVector(nrm[idx[i]]).normalized : face, hasN ? m.MultiplyVector(nrm[idx[i + 1]]).normalized : face,
+                                      hasN ? m.MultiplyVector(nrm[idx[i + 2]]).normalized : face));
+                        }
                         idx.Dispose();
                     }
                     pos.Dispose();
                     uv.Dispose();
+                    nrm.Dispose();
                 }
             }
             if (tris.Count == 0) return;
@@ -407,6 +419,7 @@ namespace AntGarden.EditorTools
             var cdf = new double[tris.Count];
             double total = 0;
             for (int i = 0; i < tris.Count; i++) { total += Vector3.Cross(tris[i].b - tris[i].a, tris[i].c - tris[i].a).magnitude * 0.5; cdf[i] = total; }
+            area = (float)total;
             Texture2D tex = null;
             if (File.Exists(texPath)) { tex = new Texture2D(2, 2, TextureFormat.RGBA32, false); tex.LoadImage(File.ReadAllBytes(texPath)); }
             float g1 = mat.GetFloat("_GlowMinY"), g2 = mat.GetFloat("_GlowMaxY"), h1 = mat.GetFloat("_Glow2MinY"), h2 = mat.GetFloat("_Glow2MaxY");
@@ -414,6 +427,7 @@ namespace AntGarden.EditorTools
             var rng = new System.Random(seed);
             points = new Vector3[count];
             colors = new Color32[count];
+            normals = new Vector3[count];
             for (int k = 0; k < count; k++)
             {
                 double pick = rng.NextDouble() * total;
@@ -428,16 +442,18 @@ namespace AntGarden.EditorTools
                 float lum = c.r * 0.3f + c.g * 0.55f + c.b * 0.15f;
                 bool glows = strength > 0 && ((p.y >= g1 && p.y <= g2) || (p.y >= h1 && p.y <= h2)) && (lumMin <= 0 || lum >= lumMin);
                 points[k] = p;
+                normals[k] = (t.na * wa + t.nb * wb + t.nc * wc).normalized;
                 colors[k] = new Color32((byte)(c.r * 255), (byte)(c.g * 255), (byte)(c.b * 255), (byte)(glows ? 255 : 0));
             }
             if (tex != null) Object.DestroyImmediate(tex);
         }
 
         /// <summary>
-        /// A plant's surface points as Resources/AntGarden/Points/&lt;name&gt;.bytes, compact: "AGP2", the count, the
-        /// bounds (min, size), then per point x, y, z as 16-bit fractions of the bounds and rgba bytes (10 bytes).
+        /// A plant's surface points as Resources/AntGarden/Points/&lt;name&gt;.bytes, compact: "AGP3", the count, the
+        /// surface's area (model units²), the bounds (min, size), then per point x, y, z as 16-bit fractions of the
+        /// bounds, its normal as two 16-bit octahedral halves and rgba bytes (14 bytes).
         /// </summary>
-        static void SavePoints(string name, Vector3[] points, Color32[] colors)
+        static void SavePoints(string name, Vector3[] points, Color32[] colors, Vector3[] normals, float area)
         {
             string dir = $"{Root}/Resources/AntGarden/Points";
             Directory.CreateDirectory(dir);
@@ -446,8 +462,9 @@ namespace AntGarden.EditorTools
             Vector3 size = Vector3.Max(max - min, Vector3.one * 1e-5f);
             using (var w = new BinaryWriter(File.Create($"{dir}/{name}.bytes")))
             {
-                w.Write(0x32504741);   // "AGP2"
+                w.Write(0x33504741);   // "AGP3"
                 w.Write(points.Length);
+                w.Write(area);
                 w.Write(min.x); w.Write(min.y); w.Write(min.z);
                 w.Write(size.x); w.Write(size.y); w.Write(size.z);
                 for (int i = 0; i < points.Length; i++)
@@ -456,6 +473,7 @@ namespace AntGarden.EditorTools
                     w.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(q.x / size.x * 65535), 0, 65535));
                     w.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(q.y / size.y * 65535), 0, 65535));
                     w.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(q.z / size.z * 65535), 0, 65535));
+                    w.Write(ThingPen.EncodeNormal(normals[i]));
                     w.Write(colors[i].r); w.Write(colors[i].g); w.Write(colors[i].b); w.Write(colors[i].a);
                 }
             }

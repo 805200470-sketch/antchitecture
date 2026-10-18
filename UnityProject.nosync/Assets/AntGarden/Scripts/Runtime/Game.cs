@@ -374,10 +374,10 @@ namespace AntGarden
             spores = Atmosphere.Apply(cam, refs, cfg.atmosphere, Preset);
             if (Lab && spores != null)
             {
-                // its motes are golden, like fireflies
+                // its motes in the nest's own colour
                 var sr = spores.GetComponent<ParticleSystemRenderer>();
                 sr.material = new Material(sr.sharedMaterial);
-                sr.material.SetColor("_Color", new Color(2.2f, 1.45f, 0.55f));
+                sr.material.SetColor("_Color", new Color(1.1f, 1.7f, 2.1f));   // pale aqua, of a piece with the nest
             }
             // plants beyond the haze are not drawn at all (a honeycomb puts many nests in view at once)
             var cull = new float[32];
@@ -546,44 +546,45 @@ namespace AntGarden
                 particleLook.glowBrightness = 0.55f;   // and breathing: dim most of the time, bright when touched
                 particleLook.shimmer = 0.006f;
                 particleLook.scanOverride = new Color(0.94f, 0.96f, 1f, 1f);
-                particleLook.scanMix = 0.4f;
+                particleLook.scanMix = 0.75f;   // the plants' own colours mostly under the one palette
                 particleLook.grain = 1f;
+                // one family of colours for everything: aqua, sky, periwinkle, mint, pale blue; the glows the same family
                 particleLook.bodyPalette = new[]
                 {
-                    new Color(0.70f, 0.95f, 1.00f), new Color(0.72f, 0.84f, 1.00f), new Color(0.80f, 0.76f, 1.00f), new Color(0.66f, 1.00f, 0.88f),
-                    new Color(0.88f, 0.76f, 1.00f), new Color(0.60f, 0.80f, 1.00f), new Color(1.00f, 0.86f, 0.66f), new Color(1.00f, 0.74f, 0.82f),
+                    new Color(0.66f, 0.92f, 0.98f), new Color(0.62f, 0.84f, 1.00f), new Color(0.70f, 0.84f, 1.00f), new Color(0.62f, 0.95f, 0.90f),
+                    new Color(0.72f, 0.84f, 1.00f), new Color(0.58f, 0.82f, 0.95f), new Color(0.80f, 0.92f, 1.00f), new Color(0.70f, 0.82f, 0.98f),
                 };
                 particleLook.glowPalette = new[]
                 {
-                    new Color(0.70f, 1.00f, 1.00f), new Color(0.50f, 1.00f, 0.85f), new Color(0.80f, 0.65f, 1.00f), new Color(1.00f, 0.70f, 0.35f),
-                    new Color(1.00f, 0.55f, 0.55f), new Color(1.00f, 0.55f, 0.85f), new Color(0.75f, 0.88f, 1.00f), new Color(1.00f, 0.85f, 0.45f),
+                    new Color(0.60f, 1.00f, 1.00f), new Color(0.50f, 1.00f, 0.92f), new Color(0.66f, 0.86f, 1.00f), new Color(0.70f, 0.95f, 1.00f),
+                    new Color(0.55f, 0.90f, 1.00f), new Color(0.74f, 0.86f, 1.00f), new Color(0.80f, 0.95f, 1.00f), new Color(0.60f, 0.92f, 0.96f),
                 };
-                // plants: fewer points for each over the whole nest, many more round the ant (the shell)
-                particleLook.perArea = 450f;
+                particleLook.bodyAccent = 0f;
+                particleLook.glowAccent = 0f;
+                // plants: dense along the ways, fewer away from them
                 particleLook.farShare = 0.2f;
-                particleLook.budget = 2200000;
-                particleLook.shellPlantArea = 2400f;
-                particleLook.nearPlantGain = 0.3f;
                 // the ground: the terrain sinks dark; sparse points over the nest, dense round the ant, and underfoot
                 // the carpet, made on the GPU; by layer a teal floor, blue-violet walls, a lilac edge along their tops
                 particleLook.groundDim = 0.985f;
                 particleLook.groundBrightness = 2.6f;
                 particleLook.groundColour = new Color(0.6f, 0.7f, 1f, 1f);
                 particleLook.floorColour = new Color(0.55f, 0.85f, 1f, 1f);
-                particleLook.bankColour = new Color(0.62f, 0.66f, 1f, 1f);
-                particleLook.plateauColour = new Color(0.5f, 0.58f, 0.95f, 1f);
-                particleLook.edgeColour = new Color(0.9f, 0.72f, 1f, 1f);
-                particleLook.groundTexMix = 0.55f;
+                particleLook.bankColour = new Color(0.58f, 0.78f, 1f, 1f);
+                particleLook.plateauColour = new Color(0.5f, 0.66f, 0.92f, 1f);
+                particleLook.edgeColour = new Color(0.72f, 0.92f, 1f, 1f);
+                particleLook.groundTexMix = 0.3f;
                 particleLook.groundNear = 160f;
                 particleLook.groundBudget = 1000000;
                 particleLook.shellDensity = 1000f;
                 particleLook.shellFade = new Vector2(5f, 12f);
                 particleLook.carpet = refs.particleCarpet;
                 particleLook.carpetGain = 0.06f;   // opaque splats: the floor's own colour, dark (the things on it stand out)
-                particleLook.bodyAccent = 0.04f;
                 particleLook.dust = 18f;
-                // the floor's things are solid now (SolidThings): leaves, twigs, moss, mushrooms... at ant scale
-                particleLook.splatShare = 0.24f;   // like a splat capture: soft larger splats under the fine points   // vines and roots creeping over the floor, between the ways
+                // the floor's things are solid (SolidThings): leaves, twigs, moss, mushrooms... at ant scale; and the
+                // plants, drawn the same way, with the same grain
+                particleLook.solidPlants = true;
+                particleLook.shellPlantArea = 0f;
+                particleLook.splatShare = 0.24f;   // like a splat capture: soft larger splats under the fine points
                 // the walls and floor become points too, densest along the glowing ways
                 if (lab != null) particleLook.focus = lab.Tracks;
                 foreach (Transform t in worldRoot)
@@ -594,7 +595,7 @@ namespace AntGarden
             if (Lab || cfg.particleLook || Arg("-particlelook") != null) particleLook.SetOn(true);
             // the particle nest: the things on the floor, solid, at ant scale; and the pheromones, a sprite of arrows
             // of light leading the ant
-            if (Lab && particleLook.On) gameObject.AddComponent<SolidThings>().Init(world, particleLook, refs.particleSolid);
+            if (Lab && particleLook.On) gameObject.AddComponent<SolidThings>().Init(world, particleLook, refs.particleSolid, player.transform);
             if (Lab && lab != null) gameObject.AddComponent<Pheromones>().Init(lab, player.transform, refs.pheromone);
         }
 
@@ -640,7 +641,7 @@ namespace AntGarden
                 // the first two regions (the archipelago's heart) keep full colonies; further nests smaller ones
                 int perNest = r.index < (r.cell ? 4 : 2) ? cfg.npcs.countPerNest : cfg.npcs.extraCountPerNest;
                 if (!string.IsNullOrEmpty(r.scene)) perNest = cfg.npcs.extraCountPerNest / 2;   // a narrow tunnel holds fewer
-                if (Lab) perNest = 12;   // the particle nest: fewer ants, each drawn as points
+                if (Lab) perNest = 6;    // the particle nest: few ants, each drawn as points
                 int count = Mathf.Min(Mathf.RoundToInt(perNest * r.ids.Length * qualityFactor), cfg.npcs.maxCount - n);
                 var kinds = SpeciesMix(pool, dominant.s, count, rng);
                 var census = new Dictionary<string, int>();

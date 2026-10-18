@@ -2,7 +2,7 @@
 // the soft glow at the heart of the swarm. Each is a quad whose four vertices sit at its centre: uv = corner
 // (-1..1), normal = its direction of flight (world), uv2 = (length, width) of the arrow, uv3.x = 1 for the glow.
 // The quad faces the camera with its length along the flight direction as the camera sees it. An arrow is a
-// soft chevron pointing the way it flies, with a faint tail behind; drawn additively in HDR, for the bloom.
+// slim dart pointing the way it flies, with a faint tail behind; drawn additively in HDR, for the bloom.
 Shader "AntGarden/Pheromone"
 {
     Properties
@@ -59,7 +59,9 @@ Shader "AntGarden/Pheromone"
                 float3 w = c + f * (v.uv.x * len * (v.uv.x < 0 ? 1.8 : 1.0)) + side * (v.uv.y * wid);
                 o.pos = mul(UNITY_MATRIX_VP, float4(w, 1));
                 o.uv = v.uv;
+                // far from the camera they fade (crowded there by perspective, they would add up to a blur of light)
                 o.color = v.color;
+                o.color.a *= 1 - smoothstep(5.5, 10.5, distance(c, _WorldSpaceCameraPos));
                 o.glow = v.uv3.x;
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;
@@ -76,18 +78,15 @@ Shader "AntGarden/Pheromone"
                 }
                 else
                 {
-                    // a chevron pointing along +x: two strokes from the tip back to either side
+                    // a dart pointing along +x: a slim triangle from its tip back to its base, a bright line down its
+                    // middle, and a faint tail behind it
                     float2 p = i.uv;
-                    float2 q = float2(p.x, abs(p.y));
-                    float2 a0 = float2(0.75, 0), a1 = float2(-0.35, 0.8);
-                    float2 ab = a1 - a0;
-                    float t = saturate(dot(q - a0, ab) / dot(ab, ab));
-                    float d = length(q - (a0 + ab * t));
-                    float stroke = 1 - smoothstep(0.04, 0.13, d);
-                    float halo = exp(-d * d * 9.0) * 0.32;
-                    // a faint tail behind it
-                    float tail = (p.x < -0.2 ? exp(-p.y * p.y * 40.0) * saturate((p.x + 1.0) / 0.8) * 0.3 : 0);
-                    a = stroke + halo + tail;
+                    float y = abs(p.y);
+                    float halfW = 0.5 * saturate((0.95 - p.x) / 1.4);
+                    float body = smoothstep(-0.06, 0.05, halfW - y) * smoothstep(-0.62, -0.38, p.x) * step(p.x, 0.97);
+                    float core = exp(-y * y * 40.0) * smoothstep(-0.45, 0.6, p.x) * step(p.x, 0.95);
+                    float tail = p.x < -0.42 ? exp(-y * y * 70.0) * saturate((p.x + 1.0) / 0.58) * 0.3 : 0;
+                    a = body * 0.8 + core * 0.45 + tail;
                 }
                 fixed4 col = fixed4(i.color.rgb * i.color.a * a * _Gain, 0);
                 UNITY_APPLY_FOG_COLOR(i.fogCoord, col, fixed4(0, 0, 0, 0));

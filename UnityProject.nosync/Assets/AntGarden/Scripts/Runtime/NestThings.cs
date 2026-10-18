@@ -30,6 +30,12 @@ namespace AntGarden
         public float PerArea = 1400f;
         uint s = 1;
 
+        /// <summary>When set (alpha > 0), every splat's colour is drawn toward this one, its own light and dark kept:
+        /// the nest's palette over each thing's own colours, so the floor is of a piece with the rest.</summary>
+        public Color Tint = Color.clear;
+        /// <summary>How much of a splat's own hue is kept under the tint (0..1).</summary>
+        public float Keep = 0.2f;
+
         public ThingPen(List<SolidPoint> into) { this.into = into; }
 
         /// <summary>Starts a thing: its own random sequence from this seed.</summary>
@@ -64,8 +70,31 @@ namespace AntGarden
         /// sparingly).</summary>
         public void Put(Vector3 pos, Vector3 normal, Color albedo, float radius, float glow = 0f)
         {
+            if (Tint.a > 0)
+            {
+                float lum = albedo.r * 0.3f + albedo.g * 0.55f + albedo.b * 0.15f;
+                albedo = Color.Lerp(Tint * (lum * 2.1f), albedo, Keep);
+            }
             into.Add(new SolidPoint { pos = pos, nrm = EncodeNormal(normal), col = Pack(albedo, glow), radius = radius });
         }
+
+        /// <summary>A normal from its two 16-bit halves (EncodeNormal's inverse).</summary>
+        public static Vector3 DecodeNormal(uint e)
+        {
+            float x = (e & 0xFFFF) / 65535f * 2 - 1, z = (e >> 16) / 65535f * 2 - 1;
+            var n = new Vector3(x, 1 - Mathf.Abs(x) - Mathf.Abs(z), z);
+            if (n.y < 0)
+            {
+                float ox = (1 - Mathf.Abs(n.z)) * (n.x >= 0 ? 1 : -1), oz = (1 - Mathf.Abs(n.x)) * (n.z >= 0 ? 1 : -1);
+                n.x = ox;
+                n.z = oz;
+            }
+            return n.normalized;
+        }
+
+        /// <summary>A splat as the solid shader takes it, from parts already worked out (packed colour and normal).</summary>
+        public static SolidPoint Splat(Vector3 pos, Vector3 normal, Color albedo, float radius, float glow) =>
+            new SolidPoint { pos = pos, nrm = EncodeNormal(normal), col = Pack(albedo, glow), radius = radius };
 
         /// <summary>A normal as two 16-bit halves (octahedral).</summary>
         public static uint EncodeNormal(Vector3 n)

@@ -63,6 +63,8 @@ namespace AntGarden
         // first use from Resources/AntGarden/Points/<name>.bytes (written by AssetBuilder)
         [NonSerialized] public Vector3[] points;
         [NonSerialized] public Color32[] pointColors;
+        [NonSerialized] public uint[] pointNormals;   // octahedral (ThingPen.EncodeNormal); null in older files
+        [NonSerialized] public float pointArea;       // the surface the points cover (model units²; 0: not known)
         [NonSerialized] bool pointsTried;
 
         public bool LoadPoints()
@@ -75,7 +77,24 @@ namespace AntGarden
             using (var r = new System.IO.BinaryReader(new System.IO.MemoryStream(asset.bytes)))
             {
                 int head = r.ReadInt32();
-                if (head == 0x32504741)
+                if (head == 0x33504741)
+                {
+                    // "AGP3": 16-bit fractions of the bounds, normals, and the surface's area
+                    n = r.ReadInt32();
+                    pointArea = r.ReadSingle();
+                    var min = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                    var size = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle()) / 65535f;
+                    points = new Vector3[n];
+                    pointColors = new Color32[n];
+                    pointNormals = new uint[n];
+                    for (int i = 0; i < n; i++)
+                    {
+                        points[i] = new Vector3(min.x + r.ReadUInt16() * size.x, min.y + r.ReadUInt16() * size.y, min.z + r.ReadUInt16() * size.z);
+                        pointNormals[i] = r.ReadUInt32();
+                        pointColors[i] = new Color32(r.ReadByte(), r.ReadByte(), r.ReadByte(), r.ReadByte());
+                    }
+                }
+                else if (head == 0x32504741)
                 {
                     // "AGP2": 16-bit fractions of the bounds
                     n = r.ReadInt32();

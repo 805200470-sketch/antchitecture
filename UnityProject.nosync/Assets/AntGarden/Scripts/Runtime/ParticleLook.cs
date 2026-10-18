@@ -39,6 +39,27 @@ namespace AntGarden
         public Color scanOverride = Color.clear;   // replace: one pale colour for every plant (alpha 0: each region's own)
         public float grain = 0f;            // replace: how much a texture's light and dark thin and dim its points (0..1)
 
+        // replace: plants as solid lit splats (drawn by SolidThings with the floor's things) instead of glowing dots: a
+        // coarse set for every plant, and a fine one for the plants round the ant (the solid shell)
+        public bool solidPlants;
+        public float solidCoarse = 240f;    // splats per unit² of a plant's surface in the coarse set (along the ways)
+        public int solidCoarseBudget = 1100000;
+        public float solidFine = 1200f;     // and in the fine one, round the ant
+        public int solidFineCap = 36000;    // at most this many for one plant
+        public float solidAlbedo = 0.26f;   // how bright a plant's splats are lit (its dots' colours were for glowing)
+
+        /// <summary>A plant as the solid shell sees it (copied on the main thread: workers cannot touch transforms).</summary>
+        public sealed class SolidSlot
+        {
+            public Vector3[] pts;
+            public uint[] cols, nrms;
+            public Matrix4x4 m;
+            public Vector3 pos;
+            public float reach, area;
+            public Color body, glow;
+        }
+        readonly List<SolidSlot> solidSlots = new List<SolidSlot>();
+
         // replace: the ground as points
         public readonly List<MeshFilter> ground = new List<MeshFilter>();   // the terrain's meshes
         public float groundNear = 260f;     // ground points per unit² along the ways (walls a little more, floor less)
@@ -362,6 +383,7 @@ namespace AntGarden
             long wanted = 0;
             foreach (PlantInstance pi in world.plantInstances)
             {
+                if (replace && solidPlants) break;   // the plants are drawn solid (BuildSolidPlants)
                 if (pi.t == null || pi.plant == null || !pi.plant.LoadPoints()) continue;
                 if (!replace && pi.far) continue;
                 Vector3 p0 = pi.t.position;
@@ -434,6 +456,83 @@ namespace AntGarden
             points.CopyTo(uploaded);
             buffer.SetData(uploaded, 0, 0, count);
             if (replace) FirstShell();
+        }
+
+        /// <summary>
+        /// Replace, solid plants: every plant's stored points as opaque lit splats (Shaders/ParticleSolid.shader, drawn by
+        /// SolidThings with the floor's things), so the plants have the same grain as everything else: here the coarse
+        /// set, a few splats per unit² of surface (more along the ways), each as big as needed to close the surface,
+        /// flagged (negative radius) so the shader leaves them out round the ant, where the fine set (SolidShell) is
+        /// drawn instead. Coloured as the dots were (the texture's light and dark, pale), times the plant's tint; its
+        /// glowing parts glow. Returns how many it added.
+        /// </summary>
+        public int BuildSolidPlants(List<SolidPoint> into)
+        {
+            if (focusD2 == null) BuildFocus();
+            solidSlots.Clear();
+            int start = into.Count;
+            var picks = new List<(PlantInstance pi, float area, int n)>();
+            long wanted = 0;
+            foreach (PlantInstance pi in world.plantInstances)
+            {
+                if (pi.t == null || pi.plant == null || !pi.plant.LoadPoints()) continue;
+                float sc = pi.t.lossyScale.y;
+                float area = (pi.plant.pointArea > 0 ? pi.plant.pointArea : 2.5f) * sc * sc;
+                Vector3 p0 = pi.t.position;
+                float density = solidCoarse * (pi.relic ? 2f : Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z)));
+                int n = Mathf.Clamp(Mathf.RoundToInt(area * density), 120, pi.far ? 8000 : pi.plant.points.Length);
+                picks.Add((pi, area, n));
+                wanted += n;
+            }
+            float share = wanted > solidCoarseBudget ? (float)solidCoarseBudget / wanted : 1f;
+            int ord = 0;
+            foreach (var (pi, area, n0) in picks)
+            {
+                int n = Mathf.Max(100, Mathf.RoundToInt(n0 * share));
+                uint pal = pi.relic ? 63u : Palette(pi, ord++);
+                var slot = new SolidSlot
+                {
+                    pts = pi.plant.points, cols = Colours(pi), nrms = pi.plant.pointNormals, m = pi.t.localToWorldMatrix, pos = pi.t.position,
+                    reach = pi.t.lossyScale.y * 0.8f, area = area,
+                    body = bodyPalette != null && pal != 63 ? bodyPalette[pal & 7].linear : Color.white,
+                    glow = glowPalette != null && pal != 63 ? glowPalette[(pal >> 3) & 7].linear : Color.white,
+                };
+                float radius = Mathf.Min(pi.far ? 0.6f : 0.08f, 0.62f * Mathf.Sqrt(area / n));
+                for (int k = 0; k < n && k < slot.pts.Length && k < slot.cols.Length; k++)
+                    into.Add(SolidSplat(slot, k, -radius));   // negative: coarse (left out round the ant)
+                if (!pi.far) solidSlots.Add(slot);
+            }
+            Debug.Log($"[AntGarden] solid plants: {into.Count - start} coarse splats from {picks.Count} plants" + (share < 1 ? $" (each at {share:P0})" : ""));
+            return into.Count - start;
+        }
+
+        /// <summary>
+        /// Replace, solid plants: the fine set for the plants round (x, z) (as far as reach and their own size), many
+        /// splats per unit², small; into is cleared first. Plain arithmetic on arrays only: a worker thread may run it.
+        /// </summary>
+        public void SolidShell(Vector2 at, float reach, List<SolidPoint> into)
+        {
+            into.Clear();
+            foreach (SolidSlot slot in solidSlots)
+            {
+                float dx = slot.pos.x - at.x, dz = slot.pos.z - at.y, r = reach + slot.reach;
+                if (dx * dx + dz * dz > r * r) continue;
+                int n = Mathf.Min(Mathf.Min(solidFineCap, slot.pts.Length), Mathf.RoundToInt(slot.area * solidFine));
+                float radius = Mathf.Max(0.0045f, 0.62f * Mathf.Sqrt(slot.area / Mathf.Max(1, n)));
+                for (int k = 0; k < n && k < slot.cols.Length; k++) into.Add(SolidSplat(slot, k, radius));
+            }
+        }
+
+        /// <summary>Splat k of a plant: where its point is, which way it faces, its colour and its radius (a little varied).</summary>
+        SolidPoint SolidSplat(SolidSlot s, int k, float radius)
+        {
+            uint c = s.cols[k];
+            bool glows = ((c >> 30) & 3u) == Glow;
+            var lin = new Color(Linear[c & 255], Linear[(c >> 8) & 255], Linear[(c >> 16) & 255]);
+            Color albedo = glows ? s.glow * (0.16f + 0.3f * Lum(lin)) : lin * s.body * solidAlbedo;
+            Vector3 nrm = s.nrms != null ? s.m.MultiplyVector(ThingPen.DecodeNormal(s.nrms[k])) : Vector3.up;
+            float vary = 0.7f + 0.6f * PointHash(k);
+            return ThingPen.Splat(s.m.MultiplyPoint3x4(s.pts[k]), nrm, albedo, radius * vary, glows ? 0.9f : 0f);
         }
 
         /// <summary>A stored point's own random number (0..1), the same for every plant of a kind.</summary>
@@ -930,7 +1029,7 @@ namespace AntGarden
             if (dust <= 0) return;
             float area = (world.maxX - world.minX) * (world.maxZ - world.minZ);
             int tries = Mathf.RoundToInt(area * dustHeight * dust);
-            Color pale = new Color(0.62f, 0.75f, 1f).linear, gold = new Color(1f, 0.74f, 0.4f).linear, rose = new Color(0.95f, 0.66f, 1f).linear;
+            Color pale = new Color(0.62f, 0.75f, 1f).linear, gold = new Color(0.82f, 0.98f, 1f).linear, rose = new Color(0.62f, 0.92f, 0.96f).linear;   // all of the one family
             for (int i = 0; i < tries; i++)
             {
                 float x = Mathf.Lerp(world.minX, world.maxX, (float)rng.NextDouble());

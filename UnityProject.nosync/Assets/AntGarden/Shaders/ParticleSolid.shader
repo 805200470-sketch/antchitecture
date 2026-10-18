@@ -4,14 +4,15 @@
 // triangle per splat, holding a dab whose outline is a little irregular and a little longer one way than the other,
 // lying tilted between its surface and the camera, so surfaces foreshorten without breaking into gaps. Each splat is
 // lit from its normal: a cool moonlight from above, a soft fill, a thin rim, and the ant's own nearness (as if its
-// antennae felt the things round it). Glowing parts (mushroom gills) breathe slowly, each thing at its own pace.
+// antennae felt the things round it). Glowing parts (mushroom gills, plants' glowing parts) breathe slowly, each
+// thing at its own pace; a plant an antenna has lit flares far brighter while its flare lasts.
 // Far away the things thin out splat by splat (the rest a little larger), so the count stays bounded.
 Shader "AntGarden/ParticleSolid"
 {
     Properties
     {
         _Gain ("Brightness", Float) = 1
-        _GlowGain ("Glow brightness (HDR)", Float) = 1.5
+        _GlowGain ("Glow brightness (HDR)", Float) = 0.9
         _MinPixels ("Smallest splat (pixels)", Float) = 0.75
     }
     SubShader
@@ -35,6 +36,10 @@ Shader "AntGarden/ParticleSolid"
             float4 _TrailPlayer;            // global: the player's ant
             float4 _Lod;                    // x: all splats within, y: thinned to z of them by (units from the camera)
             float4 _MoonDir, _MoonColor, _FillColor;   // the light (direction toward it, world), its colour and the fill's
+            float _Shell;                               // 1: the fine splats of the plants round the ant
+            float4 _NearFade;                           // round the ant the fine splats are drawn out to y, the coarse from x
+            float _FlareCount;                          // plants an antenna has lit: where, and how far / high / bright
+            float4 _Flares[16], _FlareInfo[16];
 
             struct v2f
             {
@@ -71,6 +76,14 @@ Shader "AntGarden/ParticleSolid"
                 uint i = id / 3;
                 SolidPoint p = _Solid[i];
                 float h = Hash(i), h2 = Hash(i + 7919u);
+                // round the ant, the plants' coarse splats (negative radius) give way to the fine ones (the shell): each
+                // at its own distance, so the change is dithered over a few units, never a line
+                float rad = abs(p.radius);
+                if (_NearFade.y > 0)
+                {
+                    float da = length(p.pos.xz - _TrailPlayer.xz), edge = lerp(_NearFade.x, _NearFade.y, Hash(i + 31337u));
+                    if ((_Shell > 0.5 && da > edge) || (_Shell < 0.5 && p.radius < 0 && da < edge)) return o;
+                }
                 // far away: fewer splats, the rest a little larger
                 float dist = distance(p.pos, _WorldSpaceCameraPos);
                 float keep = lerp(1, _Lod.z, saturate((dist - _Lod.x) / max(1e-3, _Lod.y - _Lod.x)));
@@ -86,7 +99,7 @@ Shader "AntGarden/ParticleSolid"
                 float3 A1 = T * cs + B * sn, A2 = -T * sn + B * cs;
                 float stretch = 1 + 0.6 * Hash(i + 104729u);
                 float pixel = 2 * dist / (unity_CameraProjection._m11 * _ScreenParams.y);
-                float size = max(p.radius / sqrt(max(keep, 0.05)), pixel * _MinPixels);
+                float size = max(rad / sqrt(max(keep, 0.05)), pixel * _MinPixels);
                 float2 c = corners[id % 3];
                 o.pos = mul(UNITY_MATRIX_VP, float4(p.pos + (A1 * (c.x * stretch) + A2 * (c.y / stretch)) * size, 1));
                 o.uv = c;
@@ -105,6 +118,16 @@ Shader "AntGarden/ParticleSolid"
                     float breathe = 0.35 + 0.65 * (0.5 + 0.5 * sin(_Time.y * (0.45 + 0.6 * cell) + cell * 40));
                     lit += albedo * glow * _GlowGain * breathe;
                 }
+                // a plant an antenna has lit: much brighter, and warmer, while its flare lasts
+                float flare = 0;
+                for (int f = 0; f < 16; f++)
+                {
+                    if (f >= (int)_FlareCount) break;
+                    float4 F = _Flares[f], I = _FlareInfo[f];
+                    float inside = (1 - smoothstep(I.x * 0.75, I.x * 1.2, length(p.pos.xz - F.xz))) * step(F.y - 0.5, p.pos.y) * step(p.pos.y, F.y + I.y + 0.5);
+                    flare = max(flare, inside * I.z);
+                }
+                lit = lit * (1 + 3 * flare) + flare * albedo * (0.6 + 2.5 * glow) * float3(0.95, 1.0, 1.05);
                 o.col = lit * _Gain;
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;

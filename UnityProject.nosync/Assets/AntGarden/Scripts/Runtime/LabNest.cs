@@ -232,8 +232,8 @@ namespace AntGarden
         public void Build(Transform parent, float gain, float density)
         {
             if (route == null || refs.guideTrail == null) return;
-            trail = GuideTrail.Build(world, region, route, refs.guideTrail, new Color(1f, 0.8f, 0.48f), gain * 2.1f, density, parent, 77);
-            // the warm specks' pulses keep step with the chevrons on the floor
+            trail = GuideTrail.Build(world, region, route, refs.guideTrail, new Color(0.62f, 0.95f, 1f), gain * 2.1f, density, parent, 77);
+            // the specks' pulses keep step with the chevrons on the floor
             trail.GetPropertyBlock(block);
             block.SetFloat("_PulseSpeed", PulseSpeed);
             block.SetFloat("_PulseEvery", PulsePeriod / PulseSpeed);

@@ -141,7 +141,7 @@ namespace AntGarden
                 s.block.SetBuffer("_AntPoints", s.kind.points);
                 s.block.SetBuffer("_Skin", skin);
                 s.block.SetFloat("_SkinBase", s.skinBase);
-                s.block.SetFloat("_Hue", s.ant.Hue);
+                s.block.SetFloat("_Hue", 0f);   // every kind in the nest's own colours (their own textures, no hue turn)
                 s.block.SetFloat("_Sat", s.ant.Saturation);
                 s.block.SetFloat("_Size", size);
                 s.block.SetFloat("_Gain", gain);
