@@ -1,25 +1,28 @@
-// The particle nest's floor round the ant (ParticleLook.cs, "the carpet"): a dense grid of points made here on
-// the GPU, so the ground underfoot is a field of points as fine as the plants', not a few scattered stars. Point
-// i of an N × N grid sits in a cell fixed to the world (the grid moves with the ant by whole cells, each point
+// The particle nest's floor round the ant (ParticleLook.cs, "the carpet"): a dense grid of splats made here on the
+// GPU, so the ground underfoot reads as a surface made of points, the way a Gaussian-splat capture covers its
+// surfaces: opaque splats of different sizes, most fine, some middling, a few large, the large ones carrying the
+// floor's broad colour (a coarser look at its texture) and the fine ones its detail, set a little above them.
+// Splat i of an N × N grid sits in a cell fixed to the world (the grid moves with the ant by whole cells, each splat
 // jittered in its cell by a hash of the cell), on the terrain's height (_HeightMap, read with manual bilinear) and
-// only where the terrain is floor (_LayerMap: floor, bank, plateau, open; the walls are the shell's). Its colour is
-// the floor texture as the terrain shader paints it (top projection, tint, hue), its light and dark deciding how
-// bright the point is and whether it is drawn at all, like a halftone (_Grain), and a share of its own colour
-// (_TexMix) over the pale floor tint. Each point is drawn only within its own distance of the ant, between
-// _Fade.x and _Fade.y, so the carpet thins out at its edge; round the ant itself the ground brightens a little.
+// only where the terrain is floor (_LayerMap: floor, bank, plateau, open). Each lies tilted halfway between the
+// ground and the camera, so the floor foreshortens like a surface without turning to slivers. Its colour is the
+// floor texture as the terrain shader paints it (top projection, tint, hue), its light and dark exaggerated
+// (_Grain; the darkest parts left as gaps) and a share of its own colour (_TexMix) over the floor's tint. Each is
+// drawn only within its own distance of the ant, between _Fade.x and _Fade.y, shrinking and darkening into the
+// night over its last stretch, so the carpet dissolves at its edge; round the ant the ground brightens a little,
+// and the guiding pulses running ahead swell and light the splats they pass.
 Shader "AntGarden/ParticleCarpet"
 {
     Properties
     {
-        _Size ("Point radius (units)", Float) = 0.0055
-        _Gain ("Brightness", Float) = 0.1
-        _MinPixels ("Smallest point (pixels)", Float) = 0.8
+        _Size ("Splat radius (units)", Float) = 0.0075
+        _Gain ("Brightness", Float) = 0.22
+        _MinPixels ("Smallest splat (pixels)", Float) = 0.8
     }
     SubShader
     {
-        Tags { "Queue" = "Transparent" "RenderType" = "Transparent" "IgnoreProjector" = "True" }
-        Blend One One
-        ZWrite Off
+        Tags { "Queue" = "Geometry+20" "RenderType" = "Opaque" "IgnoreProjector" = "True" }
+        ZWrite On
         Cull Off
 
         Pass
@@ -38,7 +41,7 @@ Shader "AntGarden/ParticleCarpet"
             float4 _HeightRect;     // the height map's corner (x, z) and size (x, z)
             float4 _TrailPlayer;    // global: the player's ant
             float4 _Fade;           // x: thinning out from, y: gone by (units from the ant)
-            float4 _FloorTint, _TintFloor, _TintBank;   // the floor texture's tint; the pale point tints (linear)
+            float4 _FloorTint, _TintFloor, _TintBank;   // the floor texture's tint; the floor's own tints (linear)
             float _Step, _N, _Size, _Gain, _MinPixels, _FloorScale, _HueShift, _Saturation, _MeanLum, _Grain, _TexMix;
 
             struct v2f
@@ -57,6 +60,14 @@ Shader "AntGarden/ParticleCarpet"
                 uint h = q.x * 73856093u ^ q.y * 19349663u;
                 h ^= h >> 16; h *= 0x7feb352du; h ^= h >> 15; h *= 0x846ca68bu; h ^= h >> 16;
                 return (h & 0xFFFFFF) / 16777216.0;
+            }
+
+            // smooth value noise (0..1) on a grid of the given size, for patches across the floor
+            float Patch(float2 xz, float scale, float seed)
+            {
+                float2 g = xz / scale + seed, f = frac(g), b = floor(g);
+                f = f * f * (3 - 2 * f);
+                return lerp(lerp(Hash(b), Hash(b + float2(1, 0)), f.x), lerp(Hash(b + float2(0, 1)), Hash(b + float2(1, 1)), f.x), f.y);
             }
 
             float Height(float2 uv)
@@ -81,37 +92,51 @@ Shader "AntGarden/ParticleCarpet"
                 float d = length(xz - _TrailPlayer.xz);
                 float reach = lerp(_Fade.x, _Fade.y, Hash(cell + 104729));
                 if (d > reach) return o;
-                float soft = saturate((reach - d) / 0.8);   // each point fades in over its last stretch, never pops
+                float soft = saturate((reach - d) / 0.9);   // over its last stretch it shrinks and darkens away
                 float2 uv = (xz - _HeightRect.xy) / _HeightRect.zw;
                 if (any(uv < 0) || any(uv > 1)) return o;
                 float4 lw = tex2Dlod(_LayerMap, float4(uv, 0, 0));   // floor, bank, plateau, open
                 if (lw.r < 0.25) return o;
-                // the floor texture, as the terrain paints it, and its light and dark
-                float mip = log2(max(1, _Step * _FloorScale * _FloorTex_TexelSize.z));
+                // its size: most fine, some middling, a few large (the large ones carry the broad colour)
+                float hs = Hash(cell + 911);
+                float tier = hs < 0.07 ? 2 : hs < 0.27 ? 1 : 0;
+                float grow = tier == 2 ? 2.6 : tier == 1 ? 1.6 : 0.65 + 0.5 * Hash(cell + 7);
+                // the floor texture, as the terrain paints it (the large splats see it blurred), and its light and dark
+                float mip = log2(max(1, _Step * _FloorScale * _FloorTex_TexelSize.z)) + tier * 1.3;
                 float3 albedo = AG_HueShift(tex2Dlod(_FloorTex, float4(xz * _FloorScale, 0, mip)).rgb * _FloorTint.rgb, _HueShift, _Saturation);
                 float al = max(1e-4, dot(albedo, float3(0.299, 0.587, 0.114)));
                 float rel = al / _MeanLum;
-                if (Hash(cell + 15485863) > lerp(1, saturate(0.05 + 0.95 * pow(rel, 2)), _Grain)) return o;
+                // the darkest parts of the texture are left as gaps (the fine splats only)
+                if (tier == 0 && Hash(cell + 15485863) > lerp(1, saturate(0.3 + 0.7 * pow(rel, 1.5)), _Grain)) return o;
                 float lum = (0.3 * lw.r + 0.75 * lw.g) / max(1e-3, lw.r + lw.g) * (0.55 + 0.45 * lw.a);
-                lum *= lerp(1, clamp(0.06 + 0.94 * pow(rel, 2.4), 0.03, 3.5), _Grain) * (0.9 + 0.2 * Hash(cell + 3571));
+                lum *= lerp(1, clamp(0.08 + 0.92 * pow(rel, 2.0), 0.04, 3.2), _Grain) * (0.85 + 0.3 * Hash(cell + 3571));
                 float3 tint = (_TintFloor.rgb * lw.r + _TintBank.rgb * lw.g) / max(1e-3, lw.r + lw.g);
                 float3 rgb = lerp(tint * lum, albedo * (lum / al), _TexMix) * _Gain;
-                rgb *= 1 + 1.4 * (1 - smoothstep(0.5, 3.0, d));   // round the ant, as if its antennae felt the ground
-                float3 pos = float3(xz.x, Height(uv) + 0.04, xz.y);
-                float chev = Chevron(pos, Hash(cell + 7));   // a guiding pulse passing: the points swell, lift and light up
-                pos.y += 0.05 * chev;
+                // patches across the floor, some leaning teal-green, some blue-violet, lighter and darker; and a
+                // little drift from splat to splat, as in a capture
+                float pa = Patch(xz, 2.8, 17.3), pb = Patch(xz, 1.1, 41.9);
+                rgb = AG_HueShift(rgb, (pa - 0.5) * 70 + (Hash(cell + 2741) - 0.5) * 30, 0.9 + 0.5 * pb);
+                rgb *= 0.55 + 0.9 * pb * pa;
+                // dimmer toward the banks: the floor's edge fades into the walls' points
+                rgb *= smoothstep(0.25, 0.75, lw.r);
+                rgb *= 1 + 0.8 * (1 - smoothstep(0.5, 3.0, d));   // round the ant, as if its antennae felt the ground
+                float3 pos = float3(xz.x, Height(uv) + (tier == 2 ? 0.002 : tier == 1 ? 0.004 : 0.007), xz.y);
+                float chev = Chevron(pos, Hash(cell + 7));       // a guiding pulse passing: the splats swell, lift and light up
+                pos.y += 0.04 * chev;
                 float dist = distance(pos, _WorldSpaceCameraPos);
                 float pixel = 2 * dist / (unity_CameraProjection._m11 * _ScreenParams.y);
-                float h = Hash(cell + 7);
-                float want = _Size * (0.6 + 0.8 * h) * (1 + 0.8 * chev);
+                float want = _Size * grow * (1 + 0.6 * chev) * lerp(0.35, 1, soft);
                 float size = max(want, pixel * _MinPixels);
+                // tilted halfway between lying on the ground and facing the camera
+                float3 V = normalize(_WorldSpaceCameraPos - pos);
+                float3 N = normalize(float3(0, 1, 0) * 0.55 + V * 0.45);
+                float3 R = UNITY_MATRIX_V[0].xyz;
+                float3 B = normalize(cross(N, R)), T = cross(B, N);
                 float2 c = corners[id % 3];
-                float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
-                o.pos = mul(UNITY_MATRIX_VP, float4(pos + (right * c.x + up * c.y) * size, 1));
+                o.pos = mul(UNITY_MATRIX_VP, float4(pos + (T * c.x - B * c.y) * size, 1));
                 o.uv = c;
-                o.col = rgb * lerp(0.3, 1, saturate(want / size)) * (0.85 + 0.15 * sin(_Time.y * (0.5 + h) + h * 23)) * soft;
-                // the guiding pulses running ahead over the floor
-                o.col = lerp(o.col, _ChevronColor.rgb * (_ChevronColor.a * 0.09 * soft), saturate(chev));
+                o.col = rgb * soft;
+                o.col = lerp(o.col, _ChevronColor.rgb * (_ChevronColor.a * 0.16), saturate(chev));
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;
             }
@@ -119,9 +144,10 @@ Shader "AntGarden/ParticleCarpet"
             fixed4 frag(v2f i) : SV_Target
             {
                 float r2 = dot(i.uv, i.uv);
-                float g = exp(-r2 * 4.0) * (1 - smoothstep(0.8, 1.0, r2));
-                fixed4 col = fixed4(i.col * g, 0);
-                UNITY_APPLY_FOG_COLOR(i.fogCoord, col, fixed4(0, 0, 0, 0));
+                clip(1 - r2);
+                // a splat: a little lighter at its middle
+                fixed4 col = fixed4(i.col * (1.12 - 0.3 * r2), 1);
+                UNITY_APPLY_FOG(i.fogCoord, col);
                 return col;
             }
             ENDCG

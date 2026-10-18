@@ -40,6 +40,8 @@ namespace AntGarden
             }
         }
         public bool Done => beat >= 2;
+        public GuideTrail.Route Route => route;
+        public float WalkHeight(Vector2 p) => world.WalkHeight(p.x, p.y);
         /// <summary>The things left beside the way (id, where on the floor, and the point of the way beside it).</summary>
         public readonly List<(string id, Vector2 at, Vector2 from)> Objects = new List<(string, Vector2, Vector2)>();
 
@@ -294,7 +296,7 @@ namespace AntGarden
             Shader.SetGlobalFloat("_ChevronSpeed", PulseSpeed);
             Shader.SetGlobalFloat("_ChevronPeriod", PulsePeriod);
             Shader.SetGlobalFloat("_ChevronDebug", Game.Arg("-chevdebug") is string dbg ? (dbg == "2" ? 2f : 1f) : 0f);
-            Shader.SetGlobalVector("_ChevronColor", new Vector4(1f, 0.5f, 0.12f, 2f));   // amber, like the specks
+            Shader.SetGlobalVector("_ChevronColor", new Vector4(0.6f, 0.95f, 1f, 1.5f));   // pale cyan, of a piece with the nest
         }
 
         /// <summary>A plant lit on the way: the goal moves on.</summary>

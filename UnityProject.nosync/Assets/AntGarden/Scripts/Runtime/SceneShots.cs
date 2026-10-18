@@ -16,6 +16,7 @@ namespace AntGarden
     {
         public static IEnumerator Run(Game game, string dir)
         {
+            if (game.LabNest != null) { Directory.CreateDirectory(dir); LabMap.Write(game, dir); }   // the particle nest's measured plan
             Directory.CreateDirectory(dir);
             game.demo = true;
             game.hud.SetStatsVisible(false);

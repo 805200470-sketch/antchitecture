@@ -63,10 +63,17 @@ namespace AntGarden
         // replace: the carpet, the floor round the ant as a dense grid of points made on the GPU
         // (Shaders/ParticleCarpet.shader) from a height map and a layer map of the terrain baked here
         public Material carpet;             // its material (null: no carpet)
-        public float carpetStep = 0.013f;   // spacing of its points (units)
+        public float carpetStep = 0.013f;   // spacing of its splats (units)
         public Vector2 carpetFade = new Vector2(3.5f, 6f);   // drawn out to y round the ant, thinning out from x
-        public float carpetGain = 0.1f;
-        public float carpetSize = 0.0055f;
+        public float carpetGain = 0.22f;
+        public float carpetSize = 0.0075f;
+
+        // replace: ground cover, the small things on the floor at ant scale (moss tufts, lichen rosettes, fallen
+        // leaves, trefoils, grit and pebbles, now and then a sprout with a bead), in patches; the trodden way clearer
+        public float cover = 0f;            // things per unit² of floor over the whole nest (along the ways; fewer away)
+        public float coverNear = 0f;        // and round the ant (the shell): many more
+        public float coverBrightness = 1f;
+        public int threads = 0;             // fungal threads, fine and pale, lying over the floor
 
         // replace: vines and roots creeping over the floor, as points (between the ways, not on them)
         public int vines = 0;
@@ -199,6 +206,8 @@ namespace AntGarden
                 mat.SetFloat("_Shimmer", shimmer);
                 mat.SetFloat("_MinPixels", mode == Mode.Replace ? 0.9f : 1.2f);
                 mat.SetVector("_NearDim", new Vector4(shellFade.x, shellFade.y, mode == Mode.Replace && shellPlantArea > 0 ? nearPlantGain : 1f, 0));
+                mat.SetVector("_CarpetFade", mode == Mode.Replace && carpet != null ? new Vector4(carpetFade.x, carpetFade.y, 0, 0) : Vector4.zero);
+                mat.SetFloat("_CoverGain", coverBrightness);
                 bool pal = mode == Mode.Replace && bodyPalette != null && glowPalette != null && bodyPalette.Length >= 8 && glowPalette.Length >= 8;
                 mat.SetFloat("_UsePalette", pal ? 1f : 0f);
                 if (pal)
@@ -708,6 +717,9 @@ namespace AntGarden
                 Emit(tris[i], tris[i].area * tris[i].kind * Mathf.Lerp(groundFar, groundNear, Focus(tris[i].x, tris[i].z)) * scale,
                     ref rng, groundBrightness, splatShare, points);
             }
+            if (cover > 0)
+                for (int i = 0; i < tris.Length; i++)
+                    Cover(tris[i], i, 0, CoverCount(tris[i], i, cover * Mathf.Lerp(0.15f, 1f, Focus(tris[i].x, tris[i].z))), points);
         }
 
         /// <summary>The shell's points round (x, z): the ground's and the plants' (on a worker thread: plain
@@ -730,7 +742,26 @@ namespace AntGarden
                         float dx = g.x - at.x, dz = g.z - at.y;
                         if (dx * dx + dz * dz > reach2) continue;
                         var rng = new Rng((uint)i * 2246822519u ^ 0x27d4eb2fu);
-                        Emit(g, g.area * g.kind * shellDensity, ref rng, groundBrightness * shellBrightness, 0f, shellWork);
+                        Emit(g, g.area * g.kind * shellDensity, ref rng, groundBrightness * shellBrightness, 0.12f, shellWork);
+                    }
+                }
+            }
+            if (coverNear > 0)
+            {
+                int r = Mathf.CeilToInt(shellReach / CellSize);
+                int cx = Mathf.FloorToInt(at.x / CellSize), cz = Mathf.FloorToInt(at.y / CellSize);
+                for (int z = cz - r; z <= cz + r; z++)
+                for (int x = cx - r; x <= cx + r; x++)
+                {
+                    if (!cells.TryGetValue(CellKey(x, z), out var bin)) continue;
+                    foreach (int i in bin)
+                    {
+                        GroundTri g = tris[i];
+                        float dx = g.x - at.x, dz = g.z - at.y;
+                        if (dx * dx + dz * dz > reach2) continue;
+                        // the same things as far away, then many more: the near field is a superset
+                        int from = CoverCount(g, i, cover * Mathf.Lerp(0.15f, 1f, Focus(g.x, g.z)));
+                        Cover(g, i, from, Mathf.Max(from, CoverCount(g, i, coverNear)), shellWork);
                     }
                 }
             }
@@ -791,8 +822,9 @@ namespace AntGarden
                     lum *= (0.4f + 1.2f * jitter) * (0.3f + 1.2f * patch) * (1 + (layers - 1) * lw.g);
                     col = LayerTint(lw) * lum;
                 }
-                bool splat = splatRoll < splats;
-                into.Add(new Point { pos = p + n * 0.035f, col = PackLinear(col * (bright * (splat ? 0.16f : 1f)), Ground, splat ? 40u : 10u) });
+                // like a splat capture: most points fine, some soft middling splats, a few large faint ones under them
+                bool large = splatRoll < splats * 0.2f, middling = !large && splatRoll < splats;
+                into.Add(new Point { pos = p + n * 0.035f, col = PackLinear(col * (bright * (large ? 0.14f : middling ? 0.4f : 1f)), Ground, large ? 40u : middling ? 20u : 10u) });
             }
         }
 
@@ -911,6 +943,200 @@ namespace AntGarden
             }
         }
 
+        /// <summary>How many of the ground cover's things a triangle holds at this density (its area, mostly floor).</summary>
+        int CoverCount(GroundTri g, int i, float density)
+        {
+            float want = g.area * density * Mathf.Clamp01(g.kind);
+            int n = (int)want;
+            var rng = new Rng((uint)i * 1597334677u ^ 0x68e31da4u);
+            if (rng.Next() < want - n) n++;
+            return n;
+        }
+
+        /// <summary>
+        /// The ground cover's things from..to of a triangle, each from its own random sequence (so the far field's are
+        /// the first of the near field's, and a thing is the same every time it is made). In patches (smooth noise
+        /// picks what grows where): moss tufts, lichen rosettes, trefoils, fallen leaves, grit and pebbles, now and
+        /// then a sprout with a bead; on the trodden way mostly grit. Plain arithmetic only (a worker thread runs it).
+        /// </summary>
+        void Cover(GroundTri g, int ti, int from, int to, List<Point> into)
+        {
+            if (to <= from) return;
+            var (v, nr, c, t, _) = meshes[g.mesh];
+            int ia = t[g.k], ib = t[g.k + 1], ic = t[g.k + 2];
+            for (int e = from; e < to; e++)
+            {
+                var rng = new Rng((uint)ti * 2246822519u ^ (uint)e * 3266489917u ^ 0x165667b1u);
+                float u = rng.Next(), w = rng.Next();
+                if (u + w > 1) { u = 1 - u; w = 1 - w; }
+                float s = 1 - u - w;
+                Vector3 n = (nr[ia] * s + nr[ib] * u + nr[ic] * w).normalized;
+                Vector3 p = v[ia] * s + v[ib] * u + v[ic] * w;
+                Color lw = c[ia] * s + c[ib] * u + c[ic] * w;   // floor, bank, plateau, open
+                if (lw.r + 0.35f * lw.g < rng.Next() * 0.9f) continue;   // mostly on the floor, a few up the walls
+                // in drifts: some ground thick with them, some nearly bare
+                float drift = Noise(p.x * 0.33f + 5.7f, p.z * 0.33f - 9.1f);
+                if (rng.Next() > 0.12f + 1.3f * drift * drift) continue;
+                Vector3 ta = Vector3.Cross(n, Mathf.Abs(n.z) < 0.9f ? Vector3.forward : Vector3.right).normalized, tb = Vector3.Cross(n, ta);
+                float dark = 0.55f + 0.45f * lw.a;   // creases darker
+                float way = WayDistance(p.x, p.z);
+                float roll = rng.Next();
+                if (way < 0.45f)
+                {
+                    // the trodden way: grit, a pebble now and then, a leaf blown onto it
+                    if (roll < 0.7f) Grit(p, ta, tb, 0.03f + 0.05f * rng.Next(), dark, ref rng, into);
+                    else if (roll < 0.9f) Pebble(p, n, ta, tb, 0.018f + 0.03f * rng.Next(), dark, ref rng, into);
+                    else LeafOn(p, n, ta, tb, rng.Next() * 6.283f, 0.05f + 0.07f * rng.Next(), LitterColour(ref rng), dark, ref rng, into);
+                    continue;
+                }
+                // what grows here: patches of moss, of lichen, of trefoils, with leaves, grit and a rare sprout among them
+                float moss = Noise(p.x * 0.55f + 3.1f, p.z * 0.55f - 1.7f), lichen = Noise(p.x * 0.4f - 7.3f, p.z * 0.4f + 2.2f), clover = Noise(p.x * 0.7f + 11.9f, p.z * 0.7f + 5.3f);
+                float wMoss = moss * moss * 2.2f, wLichen = lichen * lichen * 1.6f, wClover = clover * clover * clover * 1.6f, wLeaf = 0.35f, wGrit = 0.22f, wSprout = 0.07f;
+                float sum = wMoss + wLichen + wClover + wLeaf + wGrit + wSprout, r = roll * sum;
+                if ((r -= wMoss) < 0) Moss(p, n, ta, tb, 0.04f + 0.14f * rng.Next() * rng.Next() + 0.1f * moss, dark, ref rng, into);
+                else if ((r -= wLichen) < 0) Lichen(p, n, ta, tb, 0.05f + 0.16f * rng.Next() * rng.Next() + 0.06f * lichen, dark, ref rng, into);
+                else if ((r -= wClover) < 0) Trefoil(p, n, ta, tb, 0.04f + 0.05f * rng.Next(), rng.Next() * 6.283f, dark, ref rng, into);
+                else if ((r -= wLeaf) < 0) LeafOn(p, n, ta, tb, rng.Next() * 6.283f, 0.05f + 0.09f * rng.Next(), LitterColour(ref rng), dark, ref rng, into);
+                else if ((r -= wGrit) < 0) Grit(p, ta, tb, 0.03f + 0.06f * rng.Next(), dark, ref rng, into);
+                else Sprout(p, n, ta, tb, 0.04f + 0.08f * rng.Next(), dark, ref rng, into);
+            }
+        }
+
+        /// <summary>One of the ground cover's points. Its size must not be 10, 20 or 40: those mark the plain ground
+        /// points that give way to the carpet round the ant (the shader), and the cover must stay on it.</summary>
+        void Add(List<Point> into, Vector3 p, Color linear, uint size)
+        {
+            if (size == 10 || size == 20 || size == 40) size--;
+            into.Add(new Point { pos = p, col = PackLinear(linear, Ground, size) });   // brightened in the shader (_CoverGain)
+        }
+
+        /// <summary>A moss tuft: a soft dome of fine points, its tips lighter.</summary>
+        void Moss(Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size, float dark, ref Rng rng, List<Point> into)
+        {
+            int count = 14 + (int)(size * 520);
+            Color baseC = rng.Next() < 0.8f ? new Color(0.16f, 0.42f, 0.32f) : new Color(0.2f, 0.36f, 0.42f), tip = new Color(0.42f, 0.78f, 0.6f);
+            for (int k = 0; k < count; k++)
+            {
+                float a = rng.Next() * 6.283f, up = Mathf.Sqrt(rng.Next()), side = Mathf.Sqrt(1 - up * up) * (0.6f + 0.4f * rng.Next());
+                Vector3 q = p + (ta * Mathf.Cos(a) + tb * Mathf.Sin(a)) * (side * size) + n * (up * size * 0.55f + 0.02f);
+                Add(into, q, Color.Lerp(baseC, tip, up * up) * (dark * (0.7f + 0.6f * rng.Next())), 6u + (uint)(rng.Next() * 3));
+            }
+        }
+
+        /// <summary>A lichen rosette lying flat: lobed, its rim lighter than its middle; mostly pale mint, some
+        /// blue-grey, a few ochre.</summary>
+        void Lichen(Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size, float dark, ref Rng rng, List<Point> into)
+        {
+            float pick = rng.Next();
+            Color col = pick < 0.6f ? new Color(0.5f, 0.78f, 0.72f) : pick < 0.85f ? new Color(0.45f, 0.55f, 0.75f) : new Color(0.8f, 0.66f, 0.32f);
+            int lobes = 5 + (int)(rng.Next() * 3), count = 12 + (int)(size * 260);
+            float turn = rng.Next() * 6.283f;
+            for (int k = 0; k < count; k++)
+            {
+                float a = rng.Next() * 6.283f, rr = Mathf.Sqrt(rng.Next());
+                float edge = 0.72f + 0.28f * Mathf.Cos(lobes * a + turn);
+                Vector3 q = p + (ta * Mathf.Cos(a) + tb * Mathf.Sin(a)) * (rr * edge * size) + n * 0.014f;
+                Add(into, q, col * (dark * (0.45f + 0.75f * rr) * (0.75f + 0.5f * rng.Next())), 6u + (uint)(rng.Next() * 2));
+            }
+        }
+
+        /// <summary>A trefoil: three round lobes lying flat on a short stalk, green-teal.</summary>
+        void Trefoil(Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size, float turn, float dark, ref Rng rng, List<Point> into)
+        {
+            Color col = rng.Next() < 0.75f ? new Color(0.25f, 0.6f, 0.45f) : new Color(0.3f, 0.5f, 0.62f);
+            Vector3 top = p + n * (0.02f + size * 0.25f);
+            for (int lobe = 0; lobe < 3; lobe++)
+            {
+                float a = turn + lobe * 2.094f;
+                Vector3 centre = top + (ta * Mathf.Cos(a) + tb * Mathf.Sin(a)) * (size * 0.42f);
+                int count = 6 + (int)(size * 160);
+                for (int k = 0; k < count; k++)
+                {
+                    float b = rng.Next() * 6.283f, rr = Mathf.Sqrt(rng.Next()) * size * 0.38f;
+                    Add(into, centre + (ta * Mathf.Cos(b) + tb * Mathf.Sin(b)) * rr, col * (dark * (0.65f + 0.6f * rng.Next())), 6u);
+                }
+            }
+        }
+
+        /// <summary>A fallen leaf lying flat: almond-shaped, its midrib lighter.</summary>
+        void LeafOn(Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float dir, float size, Color col, float dark, ref Rng rng, List<Point> into)
+        {
+            Vector3 along = ta * Mathf.Cos(dir) + tb * Mathf.Sin(dir), across = Vector3.Cross(n, along);
+            int count = 12 + (int)(size * 300);
+            for (int k = 0; k < count; k++)
+            {
+                float t = rng.Next(), wv = (rng.Next() - 0.5f) * 2f * Mathf.Sin(t * Mathf.PI) * 0.42f;
+                float rib = 1 + 0.7f * Mathf.Exp(-wv * wv * 70f);
+                Vector3 q = p + along * ((t - 0.5f) * size) + across * (wv * size) + n * (0.012f + 0.01f * Mathf.Sin(t * Mathf.PI));
+                Add(into, q, col * (dark * rib * (0.6f + 0.5f * rng.Next())), 6u + (uint)(rng.Next() * 2));
+            }
+        }
+
+        Color LitterColour(ref Rng rng)
+        {
+            float pick = rng.Next();
+            return pick < 0.3f ? new Color(0.62f, 0.32f, 0.22f)    // rust
+                 : pick < 0.5f ? new Color(0.7f, 0.5f, 0.24f)      // amber
+                 : pick < 0.7f ? new Color(0.45f, 0.3f, 0.55f)     // plum
+                 : pick < 0.88f ? new Color(0.38f, 0.48f, 0.26f)   // olive
+                 : new Color(0.22f, 0.45f, 0.48f);                 // dark teal
+        }
+
+        /// <summary>Grit: a few fine grains scattered flat, sand or blue-grey.</summary>
+        void Grit(Vector3 p, Vector3 ta, Vector3 tb, float size, float dark, ref Rng rng, List<Point> into)
+        {
+            Color col = rng.Next() < 0.5f ? new Color(0.48f, 0.45f, 0.4f) : new Color(0.36f, 0.42f, 0.55f);
+            int count = 3 + (int)(rng.Next() * 6);
+            for (int k = 0; k < count; k++)
+            {
+                float a = rng.Next() * 6.283f, rr = Mathf.Sqrt(rng.Next()) * size;
+                Add(into, p + (ta * Mathf.Cos(a) + tb * Mathf.Sin(a)) * rr + new Vector3(0, 0.012f, 0), col * (dark * (0.5f + 0.7f * rng.Next())), 5u + (uint)(rng.Next() * 3));
+            }
+        }
+
+        /// <summary>A pebble: an ovoid of points, lighter on top.</summary>
+        void Pebble(Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size, float dark, ref Rng rng, List<Point> into)
+        {
+            Color col = rng.Next() < 0.5f ? new Color(0.5f, 0.48f, 0.44f) : new Color(0.4f, 0.47f, 0.6f);
+            float stretch = 1f + 0.6f * rng.Next(), turn = rng.Next() * 6.283f;
+            Vector3 a1 = ta * Mathf.Cos(turn) + tb * Mathf.Sin(turn), a2 = Vector3.Cross(n, a1);
+            int count = 8 + (int)(size * 500);
+            for (int k = 0; k < count; k++)
+            {
+                float a = rng.Next() * 6.283f, up = Mathf.Sqrt(rng.Next()), side = Mathf.Sqrt(1 - up * up);
+                Vector3 q = p + a1 * (Mathf.Cos(a) * side * size * stretch) + a2 * (Mathf.Sin(a) * side * size) + n * (up * size * 0.7f + 0.01f);
+                Add(into, q, col * (dark * (0.4f + 0.8f * up)), 7u + (uint)(rng.Next() * 3));
+            }
+        }
+
+        /// <summary>A sprout: one to three fine stems rising and leaning, each with a bead at its tip (coral, pale gold,
+        /// lilac or white): the rare bright touch on the floor.</summary>
+        void Sprout(Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float height, float dark, ref Rng rng, List<Point> into)
+        {
+            float pick = rng.Next();
+            Color bead = pick < 0.3f ? new Color(0.95f, 0.5f, 0.5f) : pick < 0.55f ? new Color(0.95f, 0.82f, 0.5f) : pick < 0.8f ? new Color(0.72f, 0.6f, 0.95f) : new Color(0.85f, 0.92f, 0.95f);
+            Color stem = new Color(0.3f, 0.55f, 0.45f);
+            int stems = 1 + (int)(rng.Next() * 3);
+            for (int sIdx = 0; sIdx < stems; sIdx++)
+            {
+                float a = rng.Next() * 6.283f, lean = 0.15f + 0.35f * rng.Next(), hh = height * (0.6f + 0.4f * rng.Next());
+                Vector3 leanDir = ta * Mathf.Cos(a) + tb * Mathf.Sin(a);
+                Vector3 baseP = p + leanDir * (0.01f * sIdx);
+                int segs = 6 + (int)(hh * 70);
+                for (int k = 0; k <= segs; k++)
+                {
+                    float f = k / (float)segs;
+                    Add(into, baseP + n * (f * hh) + leanDir * (f * f * hh * lean), stem * (dark * (0.5f + 0.4f * f)), 5u);
+                }
+                Vector3 tip = baseP + n * hh + leanDir * (hh * lean);
+                for (int k = 0; k < 7; k++)
+                {
+                    Vector3 off = new Vector3(rng.Next() - 0.5f, rng.Next() - 0.5f, rng.Next() - 0.5f) * 0.012f;
+                    Add(into, tip + off, bead * (1.2f + 0.6f * rng.Next()), 7u);
+                }
+            }
+        }
+
         /// <summary>
         /// Replace: vines and roots creeping over the canyon floor, as points: each a stem wandering from a seed with a
         /// steady curl, tapering, now and then a side shoot and small leaves lying on the ground; most along the ways
@@ -932,6 +1158,33 @@ namespace AntGarden
                 bool rose = rng.Next() < 0.08f;
                 Vine(x, z, rng.Next() * Mathf.PI * 2, 1.2f + 3.5f * rng.Next(), 0.014f + 0.012f * rng.Next(), rose, ref rng, 0);
                 made++;
+            }
+            // fungal threads: fine, pale, branching often, lying right on the floor
+            made = 0;
+            for (int tries = 0; made < threads && tries < threads * 60; tries++)
+            {
+                float x = Mathf.Lerp(world.minX, world.maxX, rng.Next()), z = Mathf.Lerp(world.minZ, world.maxZ, rng.Next());
+                Color lw0 = LayerAt(x, z);
+                if (lw0.r < 0.5f || world.HexDist(x, z) > -0.5f) continue;
+                if (rng.Next() > 0.1f + 0.9f * Focus(x, z) || WayDistance(x, z) < 0.5f) continue;
+                Thread(x, z, rng.Next() * Mathf.PI * 2, 0.5f + 1.8f * rng.Next(), ref rng, 0);
+                made++;
+            }
+        }
+
+        void Thread(float x, float z, float dir, float length, ref Rng rng, int depth)
+        {
+            const float step = 0.025f;
+            int steps = Mathf.Max(2, Mathf.RoundToInt(length / step));
+            Color pale = new Color(0.55f, 0.66f, 0.72f);
+            for (int i = 0; i < steps; i++)
+            {
+                dir += (rng.Next() - 0.5f) * 0.5f;
+                x += Mathf.Cos(dir) * step;
+                z += Mathf.Sin(dir) * step;
+                if (LayerAt(x, z).r < 0.3f || world.HexDist(x, z) > -0.3f || WayDistance(x, z) < 0.4f) break;
+                points.Add(new Point { pos = new Vector3(x, HeightAt(x, z) + 0.01f, z), col = PackLinear(pale * (0.16f * (0.6f + 0.8f * rng.Next()) / coverBrightness), Ground, 4u) });
+                if (depth < 3 && rng.Next() < 0.05f) Thread(x, z, dir + (rng.Next() < 0.5f ? 0.8f : -0.8f), length * 0.4f, ref rng, depth + 1);
             }
         }
 
@@ -961,7 +1214,7 @@ namespace AntGarden
                     Vector3 p = new Vector3(x, y + r + 0.012f, z) + side * (Mathf.Cos(a) * r) + Vector3.up * (Mathf.Sin(a) * r)
                               + along * ((rng.Next() - 0.5f) * step);
                     float lit = (0.35f + 0.65f * Mathf.Sin(a)) * node * (0.7f + 0.6f * rng.Next()) * (0.6f + 0.4f * lw.a);
-                    points.Add(new Point { pos = p, col = PackLinear(stem * (0.42f * lit), Ground, 8u) });
+                    points.Add(new Point { pos = p, col = PackLinear(stem * (0.42f * lit / coverBrightness), Ground, 8u) });
                 }
                 // small leaves lying on the ground, now on one side, now on the other
                 if (depth < 2 && rng.Next() < 0.07f)
@@ -987,7 +1240,7 @@ namespace AntGarden
                 var p = new Vector3(at.x + cs * lx - sn * lz, 0, at.z + sn * lx + cs * lz);
                 p.y = HeightAt(p.x, p.z) + 0.014f;
                 float rib = 1 + 0.8f * Mathf.Exp(-w * w * 60f);
-                points.Add(new Point { pos = p, col = PackLinear(colour * (0.3f * rib * (0.7f + 0.6f * rng.Next())), Ground, 8u) });
+                points.Add(new Point { pos = p, col = PackLinear(colour * (0.3f * rib * (0.7f + 0.6f * rng.Next()) / coverBrightness), Ground, 8u) });
             }
         }
 

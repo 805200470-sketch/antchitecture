@@ -45,6 +45,8 @@ Shader "AntGarden/ParticleLook"
             float _Size, _Gain, _GlowGain, _MinPixels, _Shimmer, _Shell;
             float4 _ShellFade, _NearDim;
             float _ShellGain;                    // the shell's brightness (a new one fades in over the old)
+            float4 _CarpetFade;                  // the carpet round the ant (x..y units): plain ground points give way to it
+            float _CoverGain;                    // the floor's small things (ground points of sizes 1-9): their brightness
             float _FlareCount;                   // plants an antenna has lit: where, and how far / high / bright
             float4 _Flares[16], _FlareInfo[16];
             float _UsePalette;
@@ -89,6 +91,11 @@ Shader "AntGarden/ParticleLook"
                 float3 rgb = GammaToLinearSpace(float3(p.col & 255, (p.col >> 8) & 255, (p.col >> 16) & 255) / 255.0);
                 uint b = (p.col >> 24) & 255, kind = b >> 6, sz = b & 63;
                 float glow = kind == 3 ? 1 : 0, ground = kind == 2 ? 1 : 0, dust = kind == 1 ? 1 : 0;
+                // plain ground points (sizes 10, 20, 40; the floor's small things use others) give way to the carpet
+                // round the ant, each at its own distance, so the two dissolve into each other
+                if (kind == 2 && (sz == 10 || sz == 20 || sz == 40) && _CarpetFade.y > 0
+                    && length(p.pos.xz - _TrailPlayer.xz) < lerp(_CarpetFade.x - 0.6, _CarpetFade.y - 0.4, frac(h * 13.7 + 0.31)))
+                    { o.pos = float4(0, 0, 0, 1); return o; }
                 bool plantKind = kind == 0 || kind == 3;
                 bool tinted = _UsePalette > 0.5 && plantKind && sz != 63;   // 63: a thing keeping its own colours
                 float scale = sz == 0 || plantKind ? 1 : sz * 0.125;
@@ -121,6 +128,7 @@ Shader "AntGarden/ParticleLook"
                 // plants are many times denser round the ant: each point dimmer there
                 near *= lerp(lerp(_NearDim.z, 1, smoothstep(_NearDim.x, _NearDim.y, da)), 1, ground + dust);
                 o.col = rgb * (_Gain + glow * _GlowGain) * (1 - ground * 0.55) * breathe * lerp(0.3, 1, spread) * near * soft;
+                if (kind == 2 && sz > 0 && sz < 10) o.col *= _CoverGain;   // (packed below 1, to keep their colour)
                 // a plant an antenna has lit: much brighter, and warmer, while its flare lasts
                 if (ground + dust < 0.5 && _FlareCount > 0)
                 {

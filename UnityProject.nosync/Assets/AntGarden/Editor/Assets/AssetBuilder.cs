@@ -54,6 +54,7 @@ namespace AntGarden.EditorTools
             refs.particleAnt = SimpleMaterial("ParticleAnt", "AntGarden/ParticleAnt");
             refs.particleCarpet = SimpleMaterial("ParticleCarpet", "AntGarden/ParticleCarpet");
             refs.antOccluder = SimpleMaterial("AntOccluder", "AntGarden/AntOccluder");
+            refs.pheromone = SimpleMaterial("Pheromone", "AntGarden/Pheromone");
             refs.groundSets = BuildGroundSets();
             EditorUtility.SetDirty(refs);
             AssetDatabase.SaveAssets();

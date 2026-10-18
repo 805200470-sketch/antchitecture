@@ -220,7 +220,7 @@ namespace AntGarden
                     // a ruin in a honeycomb is a tunnel: its canyons narrower than a nest's open halls
                     List<double> widths = rs.cells?.ConvertAll(c => c.scene != null ? (double)cfg.ruinWidth : 1.0)
                         ?? (rs.scene != null ? new List<double> { cfg.ruinWidth } : null)
-                        ?? (Lab ? new List<double> { cfg.labWidth } : null);   // the particle nest: passages
+                        ?? (Lab ? new List<double> { Arg("-labwidth") is string lw ? double.Parse(lw, System.Globalization.CultureInfo.InvariantCulture) : cfg.labWidth } : null);   // the particle nest: passages
                     (field, connectors, paths, ids) = MakeField(rs.spec, texts, widths);
                 }
                 catch (Exception e) { Fail(Loc.T($"路径数据出错（{rs.spec}）：", $"Bad path data ({rs.spec}): ") + e.GetBaseException().Message); yield break; }
@@ -579,10 +579,15 @@ namespace AntGarden
                 particleLook.shellDensity = 1000f;
                 particleLook.shellFade = new Vector2(5f, 12f);
                 particleLook.carpet = refs.particleCarpet;
-                particleLook.carpetGain = 0.07f;
+                particleLook.carpetGain = 0.075f;   // opaque splats now: the floor's own colour, dark
                 particleLook.bodyAccent = 0.04f;
                 particleLook.dust = 18f;
-                particleLook.vines = 520;   // vines and roots creeping over the floor, between the ways
+                particleLook.vines = 520;
+                particleLook.threads = 700;   // fungal threads
+                particleLook.cover = 7f;       // the ground cover: small things on the floor, many more round the ant
+                particleLook.coverBrightness = 2.4f;
+                particleLook.coverNear = 70f;   // (thinned into drifts)
+                particleLook.splatShare = 0.24f;   // like a splat capture: soft larger splats under the fine points   // vines and roots creeping over the floor, between the ways
                 // the walls and floor become points too, densest along the glowing ways
                 if (lab != null) particleLook.focus = lab.Tracks;
                 foreach (Transform t in worldRoot)
@@ -591,6 +596,8 @@ namespace AntGarden
                             if (mf.name != "SoilWalls") particleLook.ground.Add(mf);
             }
             if (Lab || cfg.particleLook || Arg("-particlelook") != null) particleLook.SetOn(true);
+            // the particle nest: pheromones, arrows of light leading the ant along the way
+            if (Lab && lab != null) gameObject.AddComponent<Pheromones>().Init(lab, player.transform, refs.pheromone);
         }
 
         /// <summary>Animation check: the player's ant becomes another species, in place (camera and ring stay).</summary>
