@@ -39,7 +39,25 @@ namespace AntGarden
         public float Saturation { get; private set; } = 1;
         /// <summary>Shown (not far off, not in the camera's way): drawn as its meshes, or as points.</summary>
         public bool Visible { get; private set; } = true;
-        bool pointsOnly, darkBody;
+        bool pointsOnly, darkBody, bodyShown;
+        /// <summary>Drawn as points: how much of the ant is there (it dissolves out of the camera's way and back).</summary>
+        public float PointFade { get; private set; } = 1f;
+
+        /// <summary>Drawn as points: dissolve toward target (0 gone, 1 whole) over a third of a second; the dark body
+        /// under the points shows only while the ant is whole.</summary>
+        public void FadePoints(float target, float dt)
+        {
+            PointFade = Mathf.MoveTowards(PointFade, target, dt / 0.35f);
+            ShowBody();
+        }
+
+        void ShowBody()
+        {
+            bool body = Visible && darkBody && PointFade > 0.98f;
+            if (renderers == null || body == bodyShown) return;
+            bodyShown = body;
+            foreach (var r in renderers) r.enabled = body;
+        }
         /// <summary>The particle nest: ParticleAnts draws the ant as points. The meshes are not drawn, or, given a
         /// dark body material, drawn with it (wings with nothing), so nothing behind the ant shows through its
         /// points; the skeleton keeps moving either way.</summary>
@@ -70,8 +88,10 @@ namespace AntGarden
                     r.sharedMaterials = mats;
                     r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 }
-                r.enabled = darkBody && Visible;
+                r.enabled = false;
             }
+            bodyShown = false;
+            ShowBody();
         }
         public bool PointsOnly => pointsOnly;
 
@@ -564,8 +584,9 @@ namespace AntGarden
         public void SetVisible(bool v)
         {
             Visible = v;
+            if (pointsOnly) { ShowBody(); return; }
             if (renderers == null) return;
-            foreach (var r in renderers) r.enabled = v && (!pointsOnly || darkBody);
+            foreach (var r in renderers) r.enabled = v;
         }
 
         static float Smooth(float a, float b, float v)

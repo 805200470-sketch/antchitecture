@@ -85,6 +85,13 @@ namespace AntGarden
                 int m = t.Count / 2;
                 if (m + 6 < t.Count) spots.Add(("lab_halfway", t[m], t[m + 6]));
                 if (Approach(game, r, game.LabNest.Heart, 7f, out Vector2 at)) spots.Add(("lab_heart", at, game.LabNest.Heart));
+                // two of the things left beside the way, seen from the way
+                foreach (var (id, pos, from) in game.LabNest.Objects)
+                    if (id == "relic_teacup" || id == "relic_key")
+                    {
+                        Vector2 back = from - (pos - from).normalized * 3.5f;
+                        spots.Add(("lab_" + id, back, pos));
+                    }
                 return spots;
             }
             WEdge e = DemoMode.LongEdge(game, r);

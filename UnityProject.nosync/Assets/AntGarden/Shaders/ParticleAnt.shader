@@ -8,6 +8,8 @@
 // texture (turned by its own hue, _Hue / _Sat; light and dark a little exaggerated, _Contrast), with grains of
 // other colours among them: lighter and deeper ones of its own family, now and then a gold or rose fleck.
 // Lit by a key light from above the camera, with a thin bright rim along the outline. They shimmer a little.
+// Far ants show fewer points (_Count; the last ones shrink away), and an ant in the camera's way dissolves point
+// by point (_Fade) instead of vanishing at once.
 // The fourth colour byte says what the point is (0 shell, 1 eye, 2 wing: a third of its points, small, pale and a
 // little iridescent, so it reads as a thin membrane).
 Shader "AntGarden/ParticleAnt"
@@ -40,6 +42,8 @@ Shader "AntGarden/ParticleAnt"
             StructuredBuffer<AntPoint> _AntPoints;
             StructuredBuffer<float4x4> _Skin;
             float _SkinBase, _Size, _Gain, _MinPixels, _Pale, _Hue, _Sat, _Contrast;
+            float _Count;   // how many of its points are shown (far ants fewer): the last ones shrink away
+            float _Fade;    // how much of the ant is there: it dissolves point by point (out of the camera's way)
 
             struct v2f
             {
@@ -78,12 +82,15 @@ Shader "AntGarden/ParticleAnt"
                 uint kind = (p.col >> 24) & 255;
                 // a wing is a thin membrane: a third of its points, small and pale
                 if (kind == 2 && hc > 0.33) { o.pos = float4(0, 0, 0, 1); return o; }
+                // dissolving, and far: fewer points, the last ones shrinking away
+                float lodK = saturate((_Count - i) / max(1, _Count * 0.15));
+                if (Hash(i + 31337u) > _Fade || lodK <= 0) { o.pos = float4(0, 0, 0, 1); return o; }
                 // most beads small, some middling, a few large; large only where the surface faces the camera
                 float grow = kind == 2 ? 0.55 : hs < 0.05 ? 1.9 : hs < 0.2 ? 1.35 : 0.65 + 0.5 * h;
                 grow = lerp(min(grow, 0.9), grow, smoothstep(0.35, 0.75, facing));
                 float dist = distance(pos, _WorldSpaceCameraPos);
                 float pixel = 2 * dist / (unity_CameraProjection._m11 * _ScreenParams.y);
-                float want = _Size * grow;
+                float want = _Size * grow * lodK;
                 float size = max(want, pixel * _MinPixels);
                 float2 c = corners[id % 3];
                 float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;

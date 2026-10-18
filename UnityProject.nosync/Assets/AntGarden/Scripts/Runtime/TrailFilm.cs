@@ -40,19 +40,28 @@ namespace AntGarden
                 // three stretches: coming in across the seam, halfway, and up to the heart
                 var parts = new[] { (from: 0.5f, seconds: 9f), (from: length * 0.45f, seconds: 5f), (from: Mathf.Max(0, length - 5.5f), seconds: 7f) };
                 int f = 0;
+                bool lab = name == "lab";
                 foreach (var (from, seconds) in parts)
                 {
                     int at = 0;
                     for (float acc = 0; at < track.Count - 1 && acc < from; at++) acc += (track[at + 1] - track[at]).magnitude;
                     at = Mathf.Min(at, track.Count - 2);
+                    if (lab) game.hud.SetFade(1f, true);
                     DemoMode.PlaceFacing(game, track[at], track[Mathf.Min(track.Count - 1, at + 3)]);
                     DemoMode.Shot(game, game.cfg.camera.distance, game.cfg.camera.pitch);
                     game.demoMove = Vector2.zero;
                     game.demoFast = false;
                     for (int i = 0; i < 20; i++) yield return null;   // the camera settles behind the ant
+                    if (lab) game.hud.SetFade(0f);   // the particle nest: each stretch fades in from black and out to it
                     int next = at;
                     for (int k = 0, n = Mathf.RoundToInt(seconds * DemoMode.Fps); k < n; k++, f++)
                     {
+                        if (lab)
+                        {
+                            if (k == n - 12) game.hud.SetFade(1f);
+                            // now and then the ant reaches out with its antennae, lighting the plants it passes
+                            if (k % 75 == 40) game.player.talkTimer = Mathf.Max(game.player.talkTimer, 0.9f);
+                        }
                         // crawl toward a point a little way ahead on the track (at its end: stop at the ring)
                         Vector2 pos = DemoMode.Pos(game);
                         while (next < track.Count - 1 && (track[next] - pos).sqrMagnitude < Lookahead * Lookahead) next++;

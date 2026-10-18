@@ -18,7 +18,7 @@ namespace AntGarden
     public class ParticleAnts : MonoBehaviour
     {
         public float size = 0.0052f;    // a point's radius (units)
-        public float gain = 1.3f;
+        public float gain = 1.15f;
         public float pale = 0.12f;      // how far colours go from the ant's own toward a pale glow
         public float contrast = 1.5f;   // how much the texture's light and dark are exaggerated
         public Color bodyColour = new Color(0.02f, 0.05f, 0.06f);   // the ant's own mesh, dark, under its points
@@ -52,16 +52,18 @@ namespace AntGarden
 
         public int Count => ants.Count;
 
-        /// <summary>Takes over drawing these ants (their meshes are hidden).</summary>
-        public void Init(List<NpcAnt> npcs, RuntimeRefs refs)
+        /// <summary>Takes over drawing these ants, the player's own among them (their meshes go dark under the points).</summary>
+        public void Init(List<NpcAnt> npcs, AntController player, RuntimeRefs refs)
         {
             mat = refs.particleAnt;
             if (mat == null) return;
             if (refs.antOccluder != null) refs.antOccluder.SetColor("_Color", bodyColour);
             int slots = 0;
-            foreach (NpcAnt n in npcs)
+            var all = new List<AntController>();
+            if (player != null) all.Add(player);
+            foreach (NpcAnt n in npcs) all.Add(n.ant);
+            foreach (AntController a in all)
             {
-                AntController a = n.ant;
                 if (a == null || a.Ref == null || a.Model == null) continue;
                 Kind k = Load(a.Ref.id);
                 if (k == null) continue;
@@ -122,16 +124,20 @@ namespace AntGarden
             Vector3 eye = cam != null ? cam.transform.position : Vector3.zero;
             foreach (Shown s in ants)
             {
-                if (!s.ant.Visible) continue;
+                if (!s.ant.Visible || s.ant.PointFade <= 0.01f) continue;
                 for (int i = 0; i < s.bones.Length; i++) skinData[s.skinBase + i] = s.bones[i].localToWorldMatrix * s.kind.poses[i];
             }
             skin.SetData(skinData);
             foreach (Shown s in ants)
             {
-                if (!s.ant.Visible) continue;
+                if (!s.ant.Visible || s.ant.PointFade <= 0.01f) continue;
                 Vector3 p = s.ant.Position;
                 float far = Mathf.InverseLerp(fullUntil, fewBeyond, Vector3.Distance(p, eye));
-                int n = Mathf.Max(1, Mathf.RoundToInt(s.kind.count * Mathf.Lerp(1f, 0.33f, far)));
+                // far ants: fewer points; the last ones shrink away rather than vanish (see the shader's _Count)
+                float shown = s.kind.count * Mathf.Lerp(1f, 0.33f, far);
+                int n = Mathf.Min(s.kind.count, Mathf.CeilToInt(shown * 1.15f));
+                s.block.SetFloat("_Count", shown);
+                s.block.SetFloat("_Fade", s.ant.PointFade);
                 s.block.SetBuffer("_AntPoints", s.kind.points);
                 s.block.SetBuffer("_Skin", skin);
                 s.block.SetFloat("_SkinBase", s.skinBase);

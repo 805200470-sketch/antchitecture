@@ -38,11 +38,15 @@ Shader "AntGarden/ParticleLook"
             #pragma target 4.5
             #pragma multi_compile_fog
             #include "UnityCG.cginc"
+            #include "Chevron.cginc"
 
             struct Point { float3 pos; uint col; };
             StructuredBuffer<Point> _Points;
             float _Size, _Gain, _GlowGain, _MinPixels, _Shimmer, _Shell;
             float4 _ShellFade, _NearDim;
+            float _ShellGain;                    // the shell's brightness (a new one fades in over the old)
+            float _FlareCount;                   // plants an antenna has lit: where, and how far / high / bright
+            float4 _Flares[16], _FlareInfo[16];
             float _UsePalette;
             float4 _BodyPal[8], _GlowPal[8];
             float4 _TrailPlayer;   // global (GuideTrail): points near the ant brighten a little
@@ -72,27 +76,34 @@ Shader "AntGarden/ParticleLook"
                 uint i = id / 3;
                 Point p = _Points[i];
                 float h = (Hash(asuint(p.pos)) & 0xFFFFFF) / 16777216.0;
+                float soft = 1;
                 if (_Shell > 0.5)
                 {
-                    // the shell: only within this point's own distance of the ant
+                    // the shell: only within this point's own distance of the ant, fading in over the last unit of it
                     float reach = lerp(_ShellFade.x, _ShellFade.y, frac(h * 7.31 + 0.17));
-                    if (length(p.pos.xz - _TrailPlayer.xz) > reach) { o.pos = float4(0, 0, 0, 1); return o; }
+                    float dShell = length(p.pos.xz - _TrailPlayer.xz);
+                    if (dShell > reach) { o.pos = float4(0, 0, 0, 1); return o; }
+                    soft = saturate((reach - dShell) / 1.2) * _ShellGain;
                 }
                 float2 c = corners[id % 3];
                 float3 rgb = GammaToLinearSpace(float3(p.col & 255, (p.col >> 8) & 255, (p.col >> 16) & 255) / 255.0);
                 uint b = (p.col >> 24) & 255, kind = b >> 6, sz = b & 63;
                 float glow = kind == 3 ? 1 : 0, ground = kind == 2 ? 1 : 0, dust = kind == 1 ? 1 : 0;
-                bool tinted = _UsePalette > 0.5 && (kind == 0 || kind == 3);
-                float scale = sz == 0 || tinted ? 1 : sz * 0.125;
+                bool plantKind = kind == 0 || kind == 3;
+                bool tinted = _UsePalette > 0.5 && plantKind && sz != 63;   // 63: a thing keeping its own colours
+                float scale = sz == 0 || plantKind ? 1 : sz * 0.125;
                 if (tinted) rgb *= kind == 3 ? _GlowPal[(sz >> 3) & 7].rgb : _BodyPal[sz & 7].rgb;
                 float t = _Time.y;
                 float3 pos = p.pos + _Shimmer * (1 - ground) * float3(sin(t * (0.9 + h * 1.3) + h * 17.0), sin(t * (0.7 + h * 1.1) + h * 29.0), sin(t * (0.8 + h * 1.7) + h * 41.0));
                 // dust wanders slowly through the air
                 float pace = 0.35 + 0.65 * h;
                 pos += dust * float3(0.45 * sin(t * 0.21 * pace + h * 17.0), 0.22 * sin(t * 0.17 * pace + h * 29.0), 0.45 * cos(t * 0.19 * pace + h * 41.0));
+                // a guiding pulse passing under the ground: its points swell and lift a little, like a wave under skin
+                float chev = ground > 0.5 ? Chevron(pos, h) : 0;
+                pos.y += 0.05 * chev;
                 float dist = distance(pos, _WorldSpaceCameraPos);
                 float pixel = 2 * dist / (unity_CameraProjection._m11 * _ScreenParams.y);
-                float want = _Size * scale * (0.6 + 0.8 * h) * (1 + glow * 0.8) * (1 - ground * 0.35);
+                float want = _Size * scale * (0.6 + 0.8 * h) * (1 + glow * 0.8) * (1 - ground * 0.35) * (1 + 0.8 * chev);
                 float size = max(want, pixel * _MinPixels);
                 float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
                 float3 w = pos + (right * c.x + up * c.y) * size;
@@ -109,7 +120,22 @@ Shader "AntGarden/ParticleLook"
                 float near = 1 + (0.6 + 1.0 * ground) * (1 - smoothstep(0.5, 3.5 + 1.5 * ground, da));
                 // plants are many times denser round the ant: each point dimmer there
                 near *= lerp(lerp(_NearDim.z, 1, smoothstep(_NearDim.x, _NearDim.y, da)), 1, ground + dust);
-                o.col = rgb * (_Gain + glow * _GlowGain) * (1 - ground * 0.55) * breathe * lerp(0.3, 1, spread) * near;
+                o.col = rgb * (_Gain + glow * _GlowGain) * (1 - ground * 0.55) * breathe * lerp(0.3, 1, spread) * near * soft;
+                // a plant an antenna has lit: much brighter, and warmer, while its flare lasts
+                if (ground + dust < 0.5 && _FlareCount > 0)
+                {
+                    float lit = 0;
+                    for (int f = 0; f < 16; f++)
+                    {
+                        if (f >= (int)_FlareCount) break;
+                        float4 F = _Flares[f], I = _FlareInfo[f];
+                        float inside = (1 - smoothstep(I.x * 0.75, I.x * 1.2, length(pos.xz - F.xz))) * step(F.y - 0.5, pos.y) * step(pos.y, F.y + I.y + 0.5);
+                        lit = max(lit, inside * I.z);
+                    }
+                    o.col = o.col * (1 + 2.6 * lit) + lit * soft * float3(0.09, 0.075, 0.05) * (0.5 + glow);
+                }
+                // and lights up, warm
+                o.col = lerp(o.col, _ChevronColor.rgb * (_ChevronColor.a * 0.3 * soft), saturate(chev));
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;
             }

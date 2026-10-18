@@ -31,6 +31,7 @@ Shader "AntGarden/ParticleCarpet"
             #pragma multi_compile_fog
             #include "UnityCG.cginc"
             #include "AntGardenCommon.cginc"
+            #include "Chevron.cginc"
 
             sampler2D _HeightMap, _LayerMap, _FloorTex;
             float4 _HeightMap_TexelSize, _FloorTex_TexelSize;
@@ -78,7 +79,9 @@ Shader "AntGarden/ParticleCarpet"
                 float2 cell = floor(_TrailPlayer.xz / _Step) - floor(_N * 0.5) + float2(i % n, i / n);
                 float2 xz = (cell + float2(Hash(cell), Hash(cell + 7919))) * _Step;
                 float d = length(xz - _TrailPlayer.xz);
-                if (d > lerp(_Fade.x, _Fade.y, Hash(cell + 104729))) return o;
+                float reach = lerp(_Fade.x, _Fade.y, Hash(cell + 104729));
+                if (d > reach) return o;
+                float soft = saturate((reach - d) / 0.8);   // each point fades in over its last stretch, never pops
                 float2 uv = (xz - _HeightRect.xy) / _HeightRect.zw;
                 if (any(uv < 0) || any(uv > 1)) return o;
                 float4 lw = tex2Dlod(_LayerMap, float4(uv, 0, 0));   // floor, bank, plateau, open
@@ -95,16 +98,20 @@ Shader "AntGarden/ParticleCarpet"
                 float3 rgb = lerp(tint * lum, albedo * (lum / al), _TexMix) * _Gain;
                 rgb *= 1 + 1.4 * (1 - smoothstep(0.5, 3.0, d));   // round the ant, as if its antennae felt the ground
                 float3 pos = float3(xz.x, Height(uv) + 0.04, xz.y);
+                float chev = Chevron(pos, Hash(cell + 7));   // a guiding pulse passing: the points swell, lift and light up
+                pos.y += 0.05 * chev;
                 float dist = distance(pos, _WorldSpaceCameraPos);
                 float pixel = 2 * dist / (unity_CameraProjection._m11 * _ScreenParams.y);
                 float h = Hash(cell + 7);
-                float want = _Size * (0.6 + 0.8 * h);
+                float want = _Size * (0.6 + 0.8 * h) * (1 + 0.8 * chev);
                 float size = max(want, pixel * _MinPixels);
                 float2 c = corners[id % 3];
                 float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
                 o.pos = mul(UNITY_MATRIX_VP, float4(pos + (right * c.x + up * c.y) * size, 1));
                 o.uv = c;
-                o.col = rgb * lerp(0.3, 1, saturate(want / size)) * (0.85 + 0.15 * sin(_Time.y * (0.5 + h) + h * 23));
+                o.col = rgb * lerp(0.3, 1, saturate(want / size)) * (0.85 + 0.15 * sin(_Time.y * (0.5 + h) + h * 23)) * soft;
+                // the guiding pulses running ahead over the floor
+                o.col = lerp(o.col, _ChevronColor.rgb * (_ChevronColor.a * 0.09 * soft), saturate(chev));
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;
             }

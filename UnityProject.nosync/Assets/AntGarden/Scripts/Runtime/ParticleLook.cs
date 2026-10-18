@@ -68,6 +68,11 @@ namespace AntGarden
         public float carpetGain = 0.1f;
         public float carpetSize = 0.0055f;
 
+        // replace: vines and roots creeping over the floor, as points (between the ways, not on them)
+        public int vines = 0;
+        public Color vineColour = new Color(0.35f, 0.6f, 0.78f), leafColour = new Color(0.55f, 0.95f, 0.85f), vineAccent = new Color(0.85f, 0.55f, 0.6f);
+        public float shellCrossfade = 0.6f; // seconds a newly made shell takes to fade in over the old one
+
         // replace: colour. Plants take a pale tint by kind from bodyPalette (one family of near colours, a rare
         // warm one), their glowing parts one from glowPalette (now and then a warm accent); the ground a tint by
         // layer: floor, bank, plateau, and the bank's top edge (alpha 0: groundColour)
@@ -90,6 +95,7 @@ namespace AntGarden
             public Vector3[] pts;
             public uint[] cols;
             public uint palette;    // its tints (fourth colour byte, low six bits: glow << 3 | body)
+            public bool relic;
             public float[] keep;
             public Matrix4x4 m;
             public Vector3 pos;
@@ -145,10 +151,21 @@ namespace AntGarden
         Vector4 heightRect;
         MaterialPropertyBlock carpetBlock;
         int carpetN;
-        // the shell: made on a worker thread, uploaded a chunk a frame into the back buffer, then swapped in
+        // the shell: made on a worker thread, uploaded a chunk a frame into the back buffer, then faded in over the old
         readonly ComputeBuffer[] shellBuffers = new ComputeBuffer[2];
         readonly int[] shellCounts = new int[2];
-        int shellFront, uploading = -1, uploadedSoFar;
+        int shellFront, uploading = -1, uploadedSoFar, shellPrev = -1;
+        float shellBlend = 1f;
+        bool shellPending;
+        readonly MaterialPropertyBlock prevBlock = new MaterialPropertyBlock();
+        // the carpet's maps on the CPU too (vines grow over them)
+        float[] heightArr;
+        Color32[] layerArr;
+        int mapW, mapH;
+        float mapX0, mapZ0;
+        const float MapCell = 0.125f;
+        // flares: plants an antenna has lit, brighter among the points
+        readonly Vector4[] flarePos = new Vector4[16], flareInfo = new Vector4[16];
         Vector2 shellAt;
         bool shellStarted;
         System.Threading.Tasks.Task shellTask;
@@ -210,7 +227,14 @@ namespace AntGarden
         {
             if (!on || world == null || follow == null) return;
             if (mode == Mode.Overlay && (follow.position - gatheredAt).sqrMagnitude > regatherAfter * regatherAfter) Gather();
-            if (mode == Mode.Replace) UpdateShell();
+            if (mode == Mode.Replace)
+            {
+                UpdateShell();
+                // the plants an antenna has lit stand out among the points
+                int nf = world.glow != null ? world.glow.Flares(flarePos, flareInfo) : 0;
+                mat.SetFloat("_FlareCount", nf);
+                if (nf > 0) { mat.SetVectorArray("_Flares", flarePos); mat.SetVectorArray("_FlareInfo", flareInfo); }
+            }
             if (count == 0) return;
             var bounds = new Bounds(new Vector3((world.minX + world.maxX) / 2, 0, (world.minZ + world.maxZ) / 2),
                 new Vector3(world.maxX - world.minX + 400, 200, world.maxZ - world.minZ + 400));
@@ -223,35 +247,47 @@ namespace AntGarden
                 Graphics.DrawProcedural(carpet, new Bounds(a, new Vector3(carpetFade.y * 2 + 4, 60, carpetFade.y * 2 + 4)), MeshTopology.Triangles,
                     carpetN * carpetN * 3, 1, null, carpetBlock, ShadowCastingMode.Off, false, 0);
             }
-            if (shellCounts[shellFront] > 0)
+            if (shellPrev >= 0)
             {
-                shellBlock.SetBuffer("_Points", shellBuffers[shellFront]);
-                shellBlock.SetFloat("_Shell", 1f);
-                shellBlock.SetVector("_ShellFade", shellFade);
-                Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, shellCounts[shellFront] * 3, 1, null, shellBlock, ShadowCastingMode.Off, false, 0);
+                // a newly made shell fades in over the old one, so nothing pops
+                shellBlend = Mathf.Min(1f, shellBlend + Time.deltaTime / Mathf.Max(0.05f, shellCrossfade));
+                if (shellCounts[shellPrev] > 0) DrawShell(shellPrev, prevBlock, 1f - shellBlend, bounds);
+                if (shellBlend >= 1f) shellPrev = -1;
             }
+            if (shellCounts[shellFront] > 0) DrawShell(shellFront, shellBlock, shellPrev >= 0 ? shellBlend : 1f, bounds);
+        }
+
+        void DrawShell(int which, MaterialPropertyBlock block, float gain, Bounds bounds)
+        {
+            block.SetBuffer("_Points", shellBuffers[which]);
+            block.SetFloat("_Shell", 1f);
+            block.SetFloat("_ShellGain", gain);
+            block.SetVector("_ShellFade", shellFade);
+            Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, shellCounts[which] * 3, 1, null, block, ShadowCastingMode.Off, false, 0);
         }
 
         /// <summary>The shell: once the ant has walked shellMove from where it was made, it is made again round the
-        /// ant on a worker thread; then uploaded a chunk a frame into the buffer not being drawn, and swapped in.</summary>
+        /// ant on a worker thread; then uploaded a chunk a frame into the buffer not being drawn, and faded in over the
+        /// old one (shellCrossfade); a new one waits until that is done.</summary>
         void UpdateShell()
         {
             if ((shellDensity <= 0 && shellPlantArea <= 0) || tris == null) return;
-            if (shellTask != null)
+            if (shellTask != null && shellTask.IsCompleted)
             {
-                if (!shellTask.IsCompleted) return;
                 if (shellTask.IsFaulted) Debug.LogException(shellTask.Exception);
-                else if (shellWork.Count > 0)
-                {
-                    uploading = 1 - shellFront;
-                    uploadedSoFar = 0;
-                    if (shellBuffers[uploading] == null || shellBuffers[uploading].count < shellWork.Count)
-                    {
-                        shellBuffers[uploading]?.Release();
-                        shellBuffers[uploading] = new ComputeBuffer(Mathf.NextPowerOfTwo(shellWork.Count), 16);
-                    }
-                }
+                else shellPending = shellWork.Count > 0;
                 shellTask = null;
+            }
+            if (shellPending && uploading < 0 && shellPrev < 0)
+            {
+                shellPending = false;
+                uploading = 1 - shellFront;
+                uploadedSoFar = 0;
+                if (shellBuffers[uploading] == null || shellBuffers[uploading].count < shellWork.Count)
+                {
+                    shellBuffers[uploading]?.Release();
+                    shellBuffers[uploading] = new ComputeBuffer(Mathf.NextPowerOfTwo(shellWork.Count), 16);
+                }
             }
             if (uploading >= 0)
             {
@@ -260,15 +296,35 @@ namespace AntGarden
                 uploadedSoFar += n;
                 if (uploadedSoFar < shellWork.Count) return;
                 shellCounts[uploading] = shellWork.Count;
+                shellPrev = shellFront;
                 shellFront = uploading;
+                shellBlend = 0f;
                 uploading = -1;
                 return;
             }
+            if (shellTask != null || shellPending || shellPrev >= 0) return;
             var at = new Vector2(follow.position.x, follow.position.z);
             if (shellStarted && (at - shellAt).sqrMagnitude < shellMove * shellMove) return;
             shellStarted = true;
             shellAt = at;
             shellTask = System.Threading.Tasks.Task.Run(() => MakeShell(at));
+        }
+
+        /// <summary>The first shell, made at once (while the nest loads), so it is there from the first frame.</summary>
+        void FirstShell()
+        {
+            if ((shellDensity <= 0 && shellPlantArea <= 0) || tris == null) return;
+            var at = new Vector2(follow.position.x, follow.position.z);
+            MakeShell(at);
+            if (shellWork.Count == 0) return;
+            shellBuffers[0]?.Release();
+            shellBuffers[0] = new ComputeBuffer(Mathf.NextPowerOfTwo(shellWork.Count), 16);
+            shellBuffers[0].SetData(shellWork, 0, 0, shellWork.Count);
+            shellCounts[0] = shellWork.Count;
+            shellFront = 0;
+            shellPrev = -1;
+            shellStarted = true;
+            shellAt = at;
         }
 
         void OnDestroy()
@@ -301,7 +357,7 @@ namespace AntGarden
                 float dx = p0.x - c.x, dz = p0.z - c.z;
                 if (dx * dx + dz * dz > r2) continue;
                 float h = pi.t.lossyScale.y;
-                int n = replace ? Mathf.Clamp(Mathf.RoundToInt(perArea * h * h * Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z))), 150, pi.far ? 12000 : pi.plant.points.Length)
+                int n = replace ? Mathf.Clamp(Mathf.RoundToInt(perArea * h * h * (pi.relic ? 8f : Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z)))), pi.relic ? 20000 : 150, pi.far ? 12000 : pi.plant.points.Length)
                                 : Mathf.Clamp(Mathf.RoundToInt(perUnit * Mathf.Pow(h, 1.6f)), 40, pi.plant.points.Length);
                 picks.Add((pi, n));
                 wanted += n;
@@ -315,7 +371,7 @@ namespace AntGarden
                 float[] keep = replace ? Keep(pi.plant) : null;
                 Matrix4x4 m = pi.t.localToWorldMatrix;
                 Vector3[] src = pi.plant.points;
-                uint pal = replace ? Palette(pi, ord++) << 24 : 0;
+                uint pal = replace ? (pi.relic ? 63u : Palette(pi, ord++)) << 24 : 0;   // 63: its own colours
                 int taken = 0, k = 0;
                 for (; k < src.Length && k < cols.Length && taken < n; k++)
                 {
@@ -324,7 +380,7 @@ namespace AntGarden
                     taken++;
                 }
                 if (replace && !pi.far)
-                    plants.Add(new PlantSlot { pts = src, cols = cols, palette = pal, keep = keep, m = m, pos = pi.t.position, height = pi.t.lossyScale.y, baseEnd = k, baseCount = taken });
+                    plants.Add(new PlantSlot { pts = src, cols = cols, palette = pal, relic = pi.relic, keep = keep, m = m, pos = pi.t.position, height = pi.t.lossyScale.y, baseEnd = k, baseCount = taken });
             }
             int plantPoints = points.Count;
             var rng = new System.Random(7);
@@ -332,9 +388,12 @@ namespace AntGarden
             {
                 SampleGround();
                 int groundPoints = points.Count - plantPoints;
+                GrowVines();
+                int vinePoints = points.Count - plantPoints - groundPoints;
+                groundPoints += vinePoints;
                 FloatDust(rng);
                 Debug.Log($"[AntGarden] particle look (Replace): {plantPoints} plant points from {picks.Count} plants" + (share < 1 ? $" (each at {share:P0})" : "")
-                    + $", {groundPoints} ground, {points.Count - plantPoints - groundPoints} dust");
+                    + $", {groundPoints} ground ({vinePoints} in vines), {points.Count - plantPoints - groundPoints} dust");
             }
             else
             {
@@ -363,6 +422,7 @@ namespace AntGarden
             if (uploaded.Length < count) uploaded = new Point[Mathf.NextPowerOfTwo(count)];
             points.CopyTo(uploaded);
             buffer.SetData(uploaded, 0, 0, count);
+            if (replace) FirstShell();
         }
 
         /// <summary>A stored point's own random number (0..1), the same for every plant of a kind.</summary>
@@ -488,7 +548,7 @@ namespace AntGarden
         /// </summary>
         void BakeCarpet()
         {
-            const float cell = 0.125f;
+            const float cell = MapCell;
             float x0 = world.minX - 1, z0 = world.minZ - 1;
             int w = Mathf.Min(2048, Mathf.CeilToInt((world.maxX - world.minX + 2) / cell));
             int h = Mathf.Min(2048, Mathf.CeilToInt((world.maxZ - world.minZ + 2) / cell));
@@ -521,10 +581,16 @@ namespace AntGarden
                     }
                 }
             for (int i = 0; i < height.Length; i++) if (height[i] == float.MinValue) height[i] = -100f;
-            heightMap = new Texture2D(w, h, TextureFormat.RFloat, false, true) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            heightArr = height;
+            layerArr = layers;
+            mapW = w;
+            mapH = h;
+            mapX0 = x0;
+            mapZ0 = z0;
+            heightMap = new Texture2D(w, h, TextureFormat.RFloat, false, true) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.DontUnloadUnusedAsset };
             heightMap.SetPixelData(height, 0);
             heightMap.Apply(false, true);
-            layerMap = new Texture2D(w, h, TextureFormat.RGBA32, false, true) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            layerMap = new Texture2D(w, h, TextureFormat.RGBA32, false, true) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.DontUnloadUnusedAsset };
             layerMap.SetPixels32(layers);
             layerMap.Apply(false, true);
             heightRect = new Vector4(x0, z0, w * cell, h * cell);
@@ -673,7 +739,7 @@ namespace AntGarden
                 {
                     float dx = p.pos.x - at.x, dz = p.pos.z - at.y, reach = shellReach + p.height;
                     if (dx * dx + dz * dz > reach * reach) continue;
-                    int want = Mathf.RoundToInt(shellPlantArea * p.height * p.height) - p.baseCount;
+                    int want = Mathf.RoundToInt(shellPlantArea * p.height * p.height * (p.relic ? 3f : 1f)) - p.baseCount;
                     for (int k = p.baseEnd, taken = 0; k < p.pts.Length && k < p.cols.Length && taken < want; k++)
                     {
                         if (p.keep != null && PointHash(k) > p.keep[k]) continue;
@@ -845,6 +911,111 @@ namespace AntGarden
             }
         }
 
+        /// <summary>
+        /// Replace: vines and roots creeping over the canyon floor, as points: each a stem wandering from a seed with a
+        /// steady curl, tapering, now and then a side shoot and small leaves lying on the ground; most along the ways
+        /// but never on them (the glowing way stays clear). Stems are points round their upper half, lit from above,
+        /// brighter at their nodes; a few are rose instead of the family's blue-green.
+        /// </summary>
+        void GrowVines()
+        {
+            if (vines <= 0 || heightArr == null) return;
+            var rng = new Rng(4242);
+            int made = 0;
+            for (int tries = 0; made < vines && tries < vines * 60; tries++)
+            {
+                float x = Mathf.Lerp(world.minX, world.maxX, rng.Next()), z = Mathf.Lerp(world.minZ, world.maxZ, rng.Next());
+                Color lw0 = LayerAt(x, z);
+                if (lw0.r + lw0.g < 0.6f || world.HexDist(x, z) > -0.5f) continue;   // the floor and the walls
+                float f = Focus(x, z);
+                if (rng.Next() > 0.1f + 0.9f * f || WayDistance(x, z) < 0.6f) continue;
+                bool rose = rng.Next() < 0.08f;
+                Vine(x, z, rng.Next() * Mathf.PI * 2, 1.2f + 3.5f * rng.Next(), 0.014f + 0.012f * rng.Next(), rose, ref rng, 0);
+                made++;
+            }
+        }
+
+        void Vine(float x, float z, float dir, float length, float radius, bool rose, ref Rng rng, int depth)
+        {
+            const float step = 0.04f;
+            int steps = Mathf.Max(2, Mathf.RoundToInt(length / step));
+            float curl = (rng.Next() - 0.5f) * 0.1f;
+            Color stem = (rose ? vineAccent : vineColour).linear * 2.2f, leaf = (rose ? vineAccent : leafColour).linear * 2.2f;
+            for (int i = 0; i < steps; i++)
+            {
+                float u = i / (float)steps;
+                dir += curl + (rng.Next() - 0.5f) * 0.2f;
+                float cs = Mathf.Cos(dir), sn = Mathf.Sin(dir);
+                x += cs * step;
+                z += sn * step;
+                Color lw = LayerAt(x, z);
+                if (lw.r + lw.g < 0.35f || world.HexDist(x, z) > -0.3f || WayDistance(x, z) < 0.45f) break;
+                float y = HeightAt(x, z), r = radius * (1 - 0.7f * u);
+                var along = new Vector3(cs, 0, sn);
+                var side = new Vector3(-sn, 0, cs);
+                float node = 1 + 0.7f * Mathf.Exp(-Mathf.Pow(i % 9 - 4f, 2) * 0.5f);   // brighter at its nodes
+                int around = 4 + Mathf.RoundToInt(r * 450);
+                for (int k = 0; k < around; k++)
+                {
+                    float a = rng.Next() * Mathf.PI;   // its upper half
+                    Vector3 p = new Vector3(x, y + r + 0.012f, z) + side * (Mathf.Cos(a) * r) + Vector3.up * (Mathf.Sin(a) * r)
+                              + along * ((rng.Next() - 0.5f) * step);
+                    float lit = (0.35f + 0.65f * Mathf.Sin(a)) * node * (0.7f + 0.6f * rng.Next()) * (0.6f + 0.4f * lw.a);
+                    points.Add(new Point { pos = p, col = PackLinear(stem * (0.42f * lit), Ground, 8u) });
+                }
+                // small leaves lying on the ground, now on one side, now on the other
+                if (depth < 2 && rng.Next() < 0.07f)
+                {
+                    float la = dir + (rng.Next() < 0.5f ? 1f : -1f) * (0.6f + 0.5f * rng.Next());
+                    Leaf(new Vector3(x, y + 0.01f, z), la, 0.05f + 0.06f * rng.Next(), leaf, ref rng);
+                }
+                // a side shoot
+                if (depth < 1 && rng.Next() < 0.03f)
+                    Vine(x, z, dir + (rng.Next() < 0.5f ? 0.9f : -0.9f), length * (0.25f + 0.3f * rng.Next()), r * 0.7f, rose, ref rng, depth + 1);
+            }
+        }
+
+        void Leaf(Vector3 at, float dir, float size, Color colour, ref Rng rng)
+        {
+            float cs = Mathf.Cos(dir), sn = Mathf.Sin(dir);
+            int n = 18 + Mathf.RoundToInt(size * 500);
+            for (int k = 0; k < n; k++)
+            {
+                // an almond shape: along its length, narrower toward both ends; the midrib brighter
+                float t = rng.Next(), w = (rng.Next() - 0.5f) * 2f * Mathf.Sin(t * Mathf.PI) * 0.45f;
+                float lx = t * size, lz = w * size;
+                var p = new Vector3(at.x + cs * lx - sn * lz, 0, at.z + sn * lx + cs * lz);
+                p.y = HeightAt(p.x, p.z) + 0.014f;
+                float rib = 1 + 0.8f * Mathf.Exp(-w * w * 60f);
+                points.Add(new Point { pos = p, col = PackLinear(colour * (0.3f * rib * (0.7f + 0.6f * rng.Next())), Ground, 8u) });
+            }
+        }
+
+        Color LayerAt(float x, float z)
+        {
+            int i = Mathf.Clamp(Mathf.FloorToInt((x - mapX0) / MapCell), 0, mapW - 1), j = Mathf.Clamp(Mathf.FloorToInt((z - mapZ0) / MapCell), 0, mapH - 1);
+            return layerArr[j * mapW + i];
+        }
+
+        float HeightAt(float x, float z)
+        {
+            float fx = (x - mapX0) / MapCell - 0.5f, fz = (z - mapZ0) / MapCell - 0.5f;
+            int i = Mathf.Clamp(Mathf.FloorToInt(fx), 0, mapW - 2), j = Mathf.Clamp(Mathf.FloorToInt(fz), 0, mapH - 2);
+            float tx = Mathf.Clamp01(fx - i), tz = Mathf.Clamp01(fz - j);
+            float a = heightArr[j * mapW + i], b = heightArr[j * mapW + i + 1], c = heightArr[(j + 1) * mapW + i], d = heightArr[(j + 1) * mapW + i + 1];
+            return Mathf.Lerp(Mathf.Lerp(a, b, tx), Mathf.Lerp(c, d, tx), tz);
+        }
+
+        /// <summary>How far (x, z) is from the nearest glowing way (units; far: large).</summary>
+        float WayDistance(float x, float z)
+        {
+            if (focus == null || focus.Count == 0 || focusD2 == null) return 99f;
+            int i = Mathf.Clamp(Mathf.RoundToInt((x - fx0) / FocusCell), 0, fw - 1);
+            int j = Mathf.Clamp(Mathf.RoundToInt((z - fz0) / FocusCell), 0, fh - 1);
+            float d2 = focusD2[j * fw + i];
+            return d2 == float.MaxValue ? 99f : Mathf.Sqrt(d2);
+        }
+
         /// <summary>The squared distance to the nearest way, on a coarse grid (for Focus).</summary>
         void BuildFocus()
         {
@@ -895,6 +1066,7 @@ namespace AntGarden
         uint[] Colours(PlantInstance pi)
         {
             Color scanColour = scanOverride.a > 0 ? scanOverride * (pi.far ? 0.6f : 1f) : pi.scan;
+            if (pi.relic) scanColour.a = 0.5f;   // (a different key) a thing keeps more of its own colour
             var key = (pi.plant, pi.hue, pi.sat, pi.glow, scanColour);
             if (colours.TryGetValue(key, out uint[] cached)) return cached;
             Color32[] src = pi.plant.pointColors;
@@ -925,7 +1097,7 @@ namespace AntGarden
                 bool tinted = mode == Mode.Replace && glowPalette != null;
                 Color c = glows ? (tinted ? Color.Lerp(shifted, Color.white * (0.55f + 0.9f * Mathf.Sqrt(lum)), 0.85f)
                                           : Color.Lerp(Color.Lerp(shifted, pi.glow.linear, 0.7f), scanColour.linear, mode == Mode.Replace ? 0.5f : 0f))
-                                : Color.Lerp(shifted * 1.6f, scan, scanMix);
+                                : Color.Lerp(shifted * 1.6f, scan, pi.relic ? scanMix * 0.4f : scanMix);
                 cols[k] = Pack(c.gamma, glows ? Glow : Plant);
             }
             colours[key] = cols;

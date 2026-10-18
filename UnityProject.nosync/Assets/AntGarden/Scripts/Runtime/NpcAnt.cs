@@ -394,11 +394,21 @@ namespace AntGarden
         {
             age += dt;
             float far = Vector3.Distance(player.Position, ant.Position);
-            bool hidden = far > cfg.drawDistance;
+            bool hidden = far > cfg.drawDistance, inWay = InTheWay(ant.Position, player.Position);
+            if (ant.PointsOnly)
+            {
+                // drawn as points: it dissolves out of the camera's way and back, and in and out at the edge of
+                // sight, instead of vanishing or appearing at once
+                bool gone = inWay || far > cfg.drawDistance * 0.9f;
+                ant.FadePoints(gone ? 0 : 1, dt);
+                hidden = hidden && ant.PointFade <= 0f;
+                ant.SetVisible(!hidden);
+            }
+            else ant.SetVisible(!hidden && !inWay);
             ant.dormant = hidden;
-            ant.SetVisible(!hidden && !InTheWay(ant.Position, player.Position));
-            // crowd LOD: nearer ants are animated every frame and cast shadows
-            ant.animInterval = far < cfg.lodNear ? 1 : far < cfg.lodMid ? 2 : 4;
+            // crowd LOD: nearer ants are animated every frame and cast shadows (as points, every ant every frame:
+            // a skeleton posed every few frames would make its points jump)
+            ant.animInterval = ant.PointsOnly || far < cfg.lodNear ? 1 : far < cfg.lodMid ? 2 : 4;
             ant.SetShadows(far < cfg.shadowDistance);
             greetCooldown -= dt;
             meetCooldown -= dt;

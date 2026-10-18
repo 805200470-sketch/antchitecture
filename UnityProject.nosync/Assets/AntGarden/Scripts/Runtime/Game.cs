@@ -194,6 +194,8 @@ namespace AntGarden
 
         IEnumerator Build()
         {
+            Shader.SetGlobalFloat("_ChevronOn", 0f);   // the particle nest's guiding pulses: only there
+            Shader.SetGlobalFloat("_TrailPlayerD", -1f);
             hud = new Hud();
             Stage(Loc.T("读取路径数据…", "Reading the path data…"), 0.02f);
             yield return null;
@@ -320,7 +322,13 @@ namespace AntGarden
                 lab = new LabNest(world, world.regions[0], refs);
                 var sp = world.SpawnPoint(0);
                 lab.Plan(new Vector2(sp.x, sp.z));
+                lab.PlaceObjects(root);
             }
+            // the particle nest grows five more kinds of plant (from the amber nest), so its forest is more varied
+            if (Lab)
+                foreach (ScatterRule rule in cfg.scatter.rules)
+                    if (GameConfig.InList(cfg.labExtraPlants, rule.plant) && !string.IsNullOrEmpty(rule.biomes) && !GameConfig.InList(rule.biomes, "blue"))
+                        rule.biomes += ",blue";
             int placed = 0;
             for (int i = 0; i < world.regions.Count; i++)
             {
@@ -386,7 +394,7 @@ namespace AntGarden
             yield return null;
             SpawnPlayer();
             SpawnNpcs();
-            if (Lab) gameObject.AddComponent<ParticleAnts>().Init(npcs, refs);   // the NPC ants as points too
+            if (Lab) gameObject.AddComponent<ParticleAnts>().Init(npcs, player, refs);   // the ants as points too, the player's own
             burst = MakeBurst();
 
             // 6 · UI
@@ -534,8 +542,8 @@ namespace AntGarden
                 // accents (sand, blush on bodies; amber, coral, pink, gold on glowing parts) beside the golden way
                 particleLook.mode = ParticleLook.Mode.Replace;
                 particleLook.pointSize = 0.011f;
-                particleLook.brightness = 0.42f;
-                particleLook.glowBrightness = 1.4f;
+                particleLook.brightness = 0.34f;   // a fifth darker than before: the guides and lit plants stand out
+                particleLook.glowBrightness = 1.05f;
                 particleLook.shimmer = 0.006f;
                 particleLook.scanOverride = new Color(0.94f, 0.96f, 1f, 1f);
                 particleLook.scanMix = 0.4f;
@@ -559,7 +567,7 @@ namespace AntGarden
                 // the ground: the terrain sinks dark; sparse points over the nest, dense round the ant, and underfoot
                 // the carpet, made on the GPU; by layer a teal floor, blue-violet walls, a lilac edge along their tops
                 particleLook.groundDim = 0.985f;
-                particleLook.groundBrightness = 3.2f;
+                particleLook.groundBrightness = 2.6f;
                 particleLook.groundColour = new Color(0.6f, 0.7f, 1f, 1f);
                 particleLook.floorColour = new Color(0.55f, 0.85f, 1f, 1f);
                 particleLook.bankColour = new Color(0.62f, 0.66f, 1f, 1f);
@@ -571,9 +579,10 @@ namespace AntGarden
                 particleLook.shellDensity = 1000f;
                 particleLook.shellFade = new Vector2(5f, 12f);
                 particleLook.carpet = refs.particleCarpet;
-                particleLook.carpetGain = 0.085f;
+                particleLook.carpetGain = 0.07f;
                 particleLook.bodyAccent = 0.04f;
                 particleLook.dust = 18f;
+                particleLook.vines = 520;   // vines and roots creeping over the floor, between the ways
                 // the walls and floor become points too, densest along the glowing ways
                 if (lab != null) particleLook.focus = lab.Tracks;
                 foreach (Transform t in worldRoot)

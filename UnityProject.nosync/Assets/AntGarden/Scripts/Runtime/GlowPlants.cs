@@ -40,6 +40,22 @@ namespace AntGarden
 
         public int Count => all.Count;
 
+        /// <summary>The flares lit now, brightest first (as many as fit): where (xyz), and how far round and how high
+        /// they reach and how bright they are (x, y, z), for the particle look. Returns how many.</summary>
+        public int Flares(Vector4[] pos, Vector4[] info)
+        {
+            int n = 0;
+            foreach (var g in active)
+            {
+                if (n >= pos.Length) break;
+                if (g.flash <= 0.01f) continue;
+                pos[n] = g.pos;
+                info[n] = new Vector4(Mathf.Max(g.reach, g.height * 0.45f) + 0.3f, g.height, g.flash, 0);
+                n++;
+            }
+            return n;
+        }
+
         public GlowPlants(GlowSettings cfg, Transform parent, int seed)
         {
             this.cfg = cfg;
