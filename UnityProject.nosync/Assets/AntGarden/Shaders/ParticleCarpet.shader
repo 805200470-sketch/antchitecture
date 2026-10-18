@@ -145,8 +145,8 @@ Shader "AntGarden/ParticleCarpet"
             {
                 float r2 = dot(i.uv, i.uv);
                 clip(1 - r2);
-                // a splat: a little lighter at its middle
-                fixed4 col = fixed4(i.col * (1.12 - 0.3 * r2), 1);
+                // a splat: flat, like a dab of paint, its very edge a touch darker so neighbours stay apart
+                fixed4 col = fixed4(i.col * (1 - 0.12 * smoothstep(0.75, 1.0, r2)), 1);
                 UNITY_APPLY_FOG(i.fogCoord, col);
                 return col;
             }

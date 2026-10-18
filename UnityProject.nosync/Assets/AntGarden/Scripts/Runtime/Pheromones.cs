@@ -13,12 +13,12 @@ namespace AntGarden
     /// </summary>
     public class Pheromones : MonoBehaviour
     {
-        public int orbiters = 7;            // arrows circling the swarm's heart
-        public int streamers = 34;          // arrows streaming on ahead along the way
+        public int orbiters = 10;           // arrows circling the swarm's heart
+        public int streamers = 40;          // arrows streaming on ahead along the way
         public float lead = 2.6f;           // how far ahead of the ant the swarm's heart hovers (units)
         public float reach = 12f;           // how far ahead the streaming arrows fly before they fade
-        public float arrowLength = 0.05f, arrowWidth = 0.04f;
-        public float gain = 1.3f;           // their brightness (HDR)
+        public float arrowLength = 0.085f, arrowWidth = 0.065f;
+        public float gain = 2.1f;           // their brightness (HDR)
         public Color colour = new Color(0.55f, 0.9f, 1f), accent = new Color(0.78f, 0.72f, 1f);
 
         class Arrow
@@ -148,12 +148,12 @@ namespace AntGarden
                 else { a.dir = Vector3.forward; a.started = true; }
                 a.pos = p;
                 Color c = Color.Lerp(colour, accent, a.hue > 0.85f ? 1f : 0f);
-                c.a = alpha * (0.55f + 0.25f * Mathf.Sin(t * 3f + a.phase)) * (a.orbit && !done ? 0.7f : 1f);
+                c.a = alpha * (0.6f + 0.3f * Mathf.Sin(t * 3f + a.phase)) * (a.orbit && !done ? 0.75f : 1f);
                 Quad(ref v, p, a.dir, arrowLength * a.size, arrowWidth * a.size, c, false);
             }
             // the glow at the swarm's heart
-            Color g = colour * 0.35f;
-            g.a = 0.3f + 0.1f * Mathf.Sin(t * 2.1f);
+            Color g = colour * 0.3f;
+            g.a = 0.28f + 0.08f * Mathf.Sin(t * 2.1f);
             Quad(ref v, core, Vector3.forward, 0.32f, 0.32f, g, true);
             mesh.vertices = verts;
             mesh.normals = normals;

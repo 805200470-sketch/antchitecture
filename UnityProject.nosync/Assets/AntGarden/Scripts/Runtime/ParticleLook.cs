@@ -718,8 +718,11 @@ namespace AntGarden
                     ref rng, groundBrightness, splatShare, points);
             }
             if (cover > 0)
+            {
+                var pen = new CoverPen(this, points);
                 for (int i = 0; i < tris.Length; i++)
-                    Cover(tris[i], i, 0, CoverCount(tris[i], i, cover * Mathf.Lerp(0.15f, 1f, Focus(tris[i].x, tris[i].z))), points);
+                    Cover(tris[i], i, 0, CoverCount(tris[i], i, cover * Mathf.Lerp(0.15f, 1f, Focus(tris[i].x, tris[i].z))), points, pen);
+            }
         }
 
         /// <summary>The shell's points round (x, z): the ground's and the plants' (on a worker thread: plain
@@ -748,6 +751,7 @@ namespace AntGarden
             }
             if (coverNear > 0)
             {
+                var pen = new CoverPen(this, shellWork);
                 int r = Mathf.CeilToInt(shellReach / CellSize);
                 int cx = Mathf.FloorToInt(at.x / CellSize), cz = Mathf.FloorToInt(at.y / CellSize);
                 for (int z = cz - r; z <= cz + r; z++)
@@ -761,7 +765,7 @@ namespace AntGarden
                         if (dx * dx + dz * dz > reach2) continue;
                         // the same things as far away, then many more: the near field is a superset
                         int from = CoverCount(g, i, cover * Mathf.Lerp(0.15f, 1f, Focus(g.x, g.z)));
-                        Cover(g, i, from, Mathf.Max(from, CoverCount(g, i, coverNear)), shellWork);
+                        Cover(g, i, from, Mathf.Max(from, CoverCount(g, i, coverNear)), shellWork, pen);
                     }
                 }
             }
@@ -943,6 +947,20 @@ namespace AntGarden
             }
         }
 
+        /// <summary>What the cover's shapes (GroundCoverShapes) draw with: a random sequence they can call, and a callback
+        /// adding to one list. Made once per pass, so nothing is allocated per thing.</summary>
+        sealed class CoverPen
+        {
+            public Rng rng;
+            public readonly System.Func<float> rnd;
+            public readonly System.Action<Vector3, Color, uint> add;
+            public CoverPen(ParticleLook look, List<Point> into)
+            {
+                rnd = () => rng.Next();
+                add = (q, c, size) => look.Add(into, q, c, size);
+            }
+        }
+
         /// <summary>How many of the ground cover's things a triangle holds at this density (its area, mostly floor).</summary>
         int CoverCount(GroundTri g, int i, float density)
         {
@@ -959,7 +977,7 @@ namespace AntGarden
         /// picks what grows where): moss tufts, lichen rosettes, trefoils, fallen leaves, grit and pebbles, now and
         /// then a sprout with a bead; on the trodden way mostly grit. Plain arithmetic only (a worker thread runs it).
         /// </summary>
-        void Cover(GroundTri g, int ti, int from, int to, List<Point> into)
+        void Cover(GroundTri g, int ti, int from, int to, List<Point> into, CoverPen pen)
         {
             if (to <= from) return;
             var (v, nr, c, t, _) = meshes[g.mesh];
@@ -981,24 +999,41 @@ namespace AntGarden
                 float dark = 0.55f + 0.45f * lw.a;   // creases darker
                 float way = WayDistance(p.x, p.z);
                 float roll = rng.Next();
+                pen.rng = rng;
                 if (way < 0.45f)
                 {
-                    // the trodden way: grit, a pebble now and then, a leaf blown onto it
-                    if (roll < 0.7f) Grit(p, ta, tb, 0.03f + 0.05f * rng.Next(), dark, ref rng, into);
-                    else if (roll < 0.9f) Pebble(p, n, ta, tb, 0.018f + 0.03f * rng.Next(), dark, ref rng, into);
-                    else LeafOn(p, n, ta, tb, rng.Next() * 6.283f, 0.05f + 0.07f * rng.Next(), LitterColour(ref rng), dark, ref rng, into);
+                    // the trodden way: grit, a pebble now and then, a leaf, a twig or a grain of crystal blown onto it
+                    if (roll < 0.62f) Grit(p, ta, tb, 0.03f + 0.05f * rng.Next(), dark, ref rng, into);
+                    else if (roll < 0.8f) Pebble(p, n, ta, tb, 0.018f + 0.03f * rng.Next(), dark, ref rng, into);
+                    else if (roll < 0.9f) LeafOn(p, n, ta, tb, rng.Next() * 6.283f, 0.05f + 0.07f * rng.Next(), LitterColour(ref rng), dark, ref rng, into);
+                    else if (roll < 0.96f) GroundCoverShapes.Twig(p, n, ta, tb, 0.1f + 0.2f * rng.Next(), dark, pen.rnd, pen.add);
+                    else GroundCoverShapes.Crystals(p, n, ta, tb, 0.05f + 0.06f * rng.Next(), dark, pen.rnd, pen.add);
                     continue;
                 }
-                // what grows here: patches of moss, of lichen, of trefoils, with leaves, grit and a rare sprout among them
+                // what grows here: patches of moss (spore caps among it), of lichen, of trefoils and ferns, with leaves,
+                // twigs, petals, seed pods, roots, crystals, shells, a feather and a rare sprout among them
                 float moss = Noise(p.x * 0.55f + 3.1f, p.z * 0.55f - 1.7f), lichen = Noise(p.x * 0.4f - 7.3f, p.z * 0.4f + 2.2f), clover = Noise(p.x * 0.7f + 11.9f, p.z * 0.7f + 5.3f);
-                float wMoss = moss * moss * 2.2f, wLichen = lichen * lichen * 1.6f, wClover = clover * clover * clover * 1.6f, wLeaf = 0.35f, wGrit = 0.22f, wSprout = 0.07f;
-                float sum = wMoss + wLichen + wClover + wLeaf + wGrit + wSprout, r = roll * sum;
-                if ((r -= wMoss) < 0) Moss(p, n, ta, tb, 0.04f + 0.14f * rng.Next() * rng.Next() + 0.1f * moss, dark, ref rng, into);
-                else if ((r -= wLichen) < 0) Lichen(p, n, ta, tb, 0.05f + 0.16f * rng.Next() * rng.Next() + 0.06f * lichen, dark, ref rng, into);
-                else if ((r -= wClover) < 0) Trefoil(p, n, ta, tb, 0.04f + 0.05f * rng.Next(), rng.Next() * 6.283f, dark, ref rng, into);
-                else if ((r -= wLeaf) < 0) LeafOn(p, n, ta, tb, rng.Next() * 6.283f, 0.05f + 0.09f * rng.Next(), LitterColour(ref rng), dark, ref rng, into);
-                else if ((r -= wGrit) < 0) Grit(p, ta, tb, 0.03f + 0.06f * rng.Next(), dark, ref rng, into);
-                else Sprout(p, n, ta, tb, 0.04f + 0.08f * rng.Next(), dark, ref rng, into);
+                float litter = Noise(p.x * 0.25f - 21.3f, p.z * 0.25f + 13.7f);
+                float wMoss = moss * moss * 2.2f, wLichen = lichen * lichen * 1.6f, wClover = clover * clover * clover * 1.6f, wLeaf = 0.2f + 0.4f * litter, wGrit = 0.18f, wSprout = 0.07f;
+                float wTwig = 0.06f + 0.22f * litter, wFern = 0.12f * clover + 0.04f, wPetal = 0.06f, wSeed = 0.05f + 0.06f * litter, wSpore = 0.03f + 0.12f * moss;
+                float wCrystal = 0.05f, wRoot = 0.06f, wShell = 0.03f, wFeather = 0.025f;
+                float sum = wMoss + wLichen + wClover + wLeaf + wGrit + wSprout + wTwig + wFern + wPetal + wSeed + wSpore + wCrystal + wRoot + wShell + wFeather, r = roll * sum;
+                float size = rng.Next();
+                if ((r -= wMoss) < 0) Moss(p, n, ta, tb, 0.04f + 0.14f * size * rng.Next() + 0.1f * moss, dark, ref rng, into);
+                else if ((r -= wLichen) < 0) Lichen(p, n, ta, tb, 0.05f + 0.16f * size * rng.Next() + 0.06f * lichen, dark, ref rng, into);
+                else if ((r -= wClover) < 0) Trefoil(p, n, ta, tb, 0.04f + 0.05f * size, rng.Next() * 6.283f, dark, ref rng, into);
+                else if ((r -= wLeaf) < 0) LeafOn(p, n, ta, tb, rng.Next() * 6.283f, 0.05f + 0.09f * size, LitterColour(ref rng), dark, ref rng, into);
+                else if ((r -= wGrit) < 0) Grit(p, ta, tb, 0.03f + 0.06f * size, dark, ref rng, into);
+                else if ((r -= wSprout) < 0) Sprout(p, n, ta, tb, 0.04f + 0.08f * size, dark, ref rng, into);
+                else if ((r -= wTwig) < 0) GroundCoverShapes.Twig(p, n, ta, tb, 0.12f + 0.33f * size, dark, pen.rnd, pen.add);
+                else if ((r -= wFern) < 0) GroundCoverShapes.FernFrond(p, n, ta, tb, 0.15f + 0.25f * size, dark, pen.rnd, pen.add);
+                else if ((r -= wPetal) < 0) GroundCoverShapes.Petal(p, n, ta, tb, 0.06f + 0.08f * size, dark, pen.rnd, pen.add);
+                else if ((r -= wSeed) < 0) GroundCoverShapes.SeedPod(p, n, ta, tb, 0.08f + 0.1f * size, dark, pen.rnd, pen.add);
+                else if ((r -= wSpore) < 0) GroundCoverShapes.SporeCaps(p, n, ta, tb, 0.06f + 0.1f * size, dark, pen.rnd, pen.add);
+                else if ((r -= wCrystal) < 0) GroundCoverShapes.Crystals(p, n, ta, tb, 0.05f + 0.07f * size, dark, pen.rnd, pen.add);
+                else if ((r -= wRoot) < 0) GroundCoverShapes.RootNodules(p, n, ta, tb, 0.15f + 0.2f * size, dark, pen.rnd, pen.add);
+                else if ((r -= wShell) < 0) GroundCoverShapes.TinyShell(p, n, ta, tb, 0.05f + 0.06f * size, dark, pen.rnd, pen.add);
+                else GroundCoverShapes.Feather(p, n, ta, tb, 0.12f + 0.18f * size, dark, pen.rnd, pen.add);
             }
         }
 
