@@ -56,6 +56,7 @@ namespace AntGarden.EditorTools
             refs.antOccluder = SimpleMaterial("AntOccluder", "AntGarden/AntOccluder");
             refs.pheromone = SimpleMaterial("Pheromone", "AntGarden/Pheromone");
             refs.particleSolid = SimpleMaterial("ParticleSolid", "AntGarden/ParticleSolid");
+            refs.lightThread = SimpleMaterial("LightThread", "AntGarden/LightThread");
             refs.groundSets = BuildGroundSets();
             EditorUtility.SetDirty(refs);
             AssetDatabase.SaveAssets();

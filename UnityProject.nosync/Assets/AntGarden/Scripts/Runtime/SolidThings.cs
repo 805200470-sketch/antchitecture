@@ -23,16 +23,16 @@ namespace AntGarden
         public float farDensity = 0.07f;    // and far from them
         public int roots = 44;
         public float perArea = 2200f;       // splats per unit² of a thing's surface
-        public float gain = 0.5f;           // night: the things are seen by moonlight, darker than the glowing plants
-        public Vector4 lod = new Vector4(14f, 48f, 0.28f, 0);   // all splats within x units, thinned to z of them by y
+        public float gain = 0.62f;          // night: the things are seen by moonlight, darker than the glowing plants
+        public Vector4 lod = new Vector4(12f, 40f, 0.22f, 0);   // all splats within x units, thinned to z of them by y
 
         enum Kind { Leaf, Twig, Petal, Seed, Fern, Feather, Blossom, Moss, Clover, Mushrooms, Seedling, Lichen, Pebbles, Crystals, Shell }
 
         // the fine splats of the plants round the ant (ParticleLook.SolidShell), made again on a worker thread as it
         // walks, uploaded a chunk a frame into the buffer not being drawn, then swapped in (they are the same splats
         // where the old and new overlap, so nothing changes but at the far edge, where the coarse set takes over)
-        public float shellReach = 12f, shellMove = 2.5f;
-        public Vector2 nearFade = new Vector2(6f, 10f);   // fine splats out to y round the ant, giving way to coarse from x
+        public float shellReach = 12.5f, shellMove = 2.5f;
+        public Vector2 nearFade = new Vector2(7f, 10.5f);   // fine splats out to y round the ant, giving way to coarse from x
         Transform ant;
         readonly ComputeBuffer[] shellBuffers = new ComputeBuffer[2];
         readonly int[] shellCounts = new int[2];
@@ -62,7 +62,7 @@ namespace AntGarden
             mat = material;
             if (mat == null || world == null || look == null || !look.HasMaps) { enabled = false; return; }
             var splats = new List<SolidPoint>(1 << 21);
-            var pen = new ThingPen(splats) { PerArea = perArea, Keep = 0.18f };   // the one palette over each thing's own colours
+            var pen = new ThingPen(splats) { PerArea = perArea, Keep = 0.3f };   // the palette over each thing's own colours
             float t0 = Time.realtimeSinceStartup;
             int things = Place(pen), rootsMade = Roots(pen), thingSplats = splats.Count;
             // the plants too, as solid splats, when the particle look draws them so
@@ -193,21 +193,21 @@ namespace AntGarden
         /// <summary>The nest's tints (ParticleLook.bodyPalette) each kind of thing takes; a few things take a warm one.</summary>
         static readonly int[][] Tints =
         {
-            new[] { 2, 4, 5, 1 },   // leaf: periwinkle, lilac, sky, blue
-            new[] { 5, 1, 2 },      // twig
-            new[] { 7, 6, 4 },      // petal: blush, sand, lilac
-            new[] { 6, 5 },         // seed
-            new[] { 3, 0, 2 },      // fern: mint, cyan, periwinkle
-            new[] { 0, 5 },         // feather
-            new[] { 7, 4 },         // blossom
-            new[] { 3, 0 },         // moss
-            new[] { 3, 0 },         // clover
-            new[] { 4, 7, 2 },      // mushrooms
-            new[] { 3, 0 },         // seedling
-            new[] { 0, 3, 4 },      // lichen
-            new[] { 1, 5, 2 },      // pebbles
-            new[] { 0, 5 },         // crystals
-            new[] { 6, 4, 5 },      // shell
+            new[] { 7, 1, 0, 5 },   // leaf: straw, moss, sage, deep sage-teal
+            new[] { 5, 0, 3 },      // twig
+            new[] { 4, 7 },         // petal: bone, straw
+            new[] { 7, 4 },         // seed
+            new[] { 1, 0, 6 },      // fern
+            new[] { 4, 3 },         // feather
+            new[] { 4, 6 },         // blossom
+            new[] { 1, 6 },         // moss
+            new[] { 1, 2 },         // clover
+            new[] { 4, 0 },         // mushrooms
+            new[] { 6, 1 },         // seedling
+            new[] { 3, 4, 2 },      // lichen
+            new[] { 3, 5, 4 },      // pebbles
+            new[] { 3, 4 },         // crystals
+            new[] { 4, 7 },         // shell
         };
 
         Color TintFor(int[] choices)
@@ -283,7 +283,7 @@ namespace AntGarden
             return made;
         }
 
-        static readonly int[] RootTints = { 5, 2, 1 };
+        static readonly int[] RootTints = { 5, 0 };
 
         void Root(ThingPen pen, float x, float z, float dir, float length, float radius, int depth)
         {
@@ -387,11 +387,13 @@ namespace AntGarden
             block.SetVectorArray("_FlareInfo", flareInfo);
             block.SetBuffer("_Solid", buffer);
             block.SetFloat("_Gain", gain);
-            block.SetFloat("_GlowGain", 0.9f);
+            block.SetFloat("_GlowGain", 1.1f);
+            block.SetVector("_RimColor", new Color(0.05f, 0.065f, 0.065f));
+            block.SetVector("_GlintColor", new Color(0.55f, 0.62f, 0.6f));
             block.SetVector("_Lod", lod);
             block.SetVector("_MoonDir", new Vector4(0.32f, 0.9f, 0.28f, 0).normalized);
-            block.SetVector("_MoonColor", new Color(0.5f, 0.62f, 0.9f));
-            block.SetVector("_FillColor", new Color(0.09f, 0.12f, 0.19f));
+            block.SetVector("_MoonColor", new Color(0.66f, 0.72f, 0.72f));
+            block.SetVector("_FillColor", new Color(0.13f, 0.18f, 0.18f));
             block.SetVector("_NearFade", look.solidPlants ? (Vector4)nearFade : Vector4.zero);
             block.SetFloat("_Shell", 0f);
             var bounds = new Bounds(new Vector3((world.minX + world.maxX) / 2, 0, (world.minZ + world.maxZ) / 2),
@@ -404,11 +406,13 @@ namespace AntGarden
                 shellBlock.SetVectorArray("_FlareInfo", flareInfo);
                 shellBlock.SetBuffer("_Solid", shellBuffers[shellFront]);
                 shellBlock.SetFloat("_Gain", gain);
-                shellBlock.SetFloat("_GlowGain", 0.9f);
+                shellBlock.SetFloat("_GlowGain", 1.1f);
+                shellBlock.SetVector("_RimColor", new Color(0.05f, 0.065f, 0.065f));
+                shellBlock.SetVector("_GlintColor", new Color(0.55f, 0.62f, 0.6f));
                 shellBlock.SetVector("_Lod", lod);
                 shellBlock.SetVector("_MoonDir", new Vector4(0.32f, 0.9f, 0.28f, 0).normalized);
-                shellBlock.SetVector("_MoonColor", new Color(0.5f, 0.62f, 0.9f));
-                shellBlock.SetVector("_FillColor", new Color(0.09f, 0.12f, 0.19f));
+                shellBlock.SetVector("_MoonColor", new Color(0.66f, 0.72f, 0.72f));
+                shellBlock.SetVector("_FillColor", new Color(0.13f, 0.18f, 0.18f));
                 shellBlock.SetVector("_NearFade", nearFade);
                 shellBlock.SetFloat("_Shell", 1f);
                 Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, shellCounts[shellFront] * 3, 1, null, shellBlock, ShadowCastingMode.Off, false, 0);

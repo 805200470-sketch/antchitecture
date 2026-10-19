@@ -101,7 +101,7 @@ Shader "AntGarden/ParticleAnt"
                 rgb = AG_HueShift(rgb, _Hue, _Sat);
                 float lum = max(1e-3, dot(rgb, float3(0.3, 0.55, 0.15)));
                 rgb *= pow(lum / 0.18, _Contrast - 1);
-                rgb = lerp(rgb, float3(0.75, 0.88, 1.0) * lum * 2.2, _Pale);
+                rgb = lerp(rgb, float3(0.80, 0.90, 0.86) * lum * 2.2, _Pale);
                 // grains of other colours: lighter and deeper ones of its own family, now and then gold or rose
                 if (kind == 0)
                 {

@@ -45,6 +45,12 @@ namespace AntGarden
         /// <summary>The things left beside the way (id, where on the floor, and the point of the way beside it).</summary>
         public readonly List<(string id, Vector2 at, Vector2 from)> Objects = new List<(string, Vector2, Vector2)>();
 
+        // rings spreading over the floor from the ant's steps (NestField.cginc)
+        readonly Vector4[] ripples = new Vector4[8];
+        int rippleNext;
+        Vector3 lastStep;
+        bool stepped;
+
         public LabNest(World world, Region region, RuntimeRefs refs)
         {
             this.world = world;
@@ -232,7 +238,7 @@ namespace AntGarden
         public void Build(Transform parent, float gain, float density)
         {
             if (route == null || refs.guideTrail == null) return;
-            trail = GuideTrail.Build(world, region, route, refs.guideTrail, new Color(0.62f, 0.95f, 1f), gain * 2.1f, density, parent, 77);
+            trail = GuideTrail.Build(world, region, route, refs.guideTrail, new Color(0.72f, 0.92f, 0.88f), gain * 1.8f, density, parent, 77);
             // the specks' pulses keep step with the chevrons on the floor
             trail.GetPropertyBlock(block);
             block.SetFloat("_PulseSpeed", PulseSpeed);
@@ -307,8 +313,29 @@ namespace AntGarden
             hud.SetObjective(Loc.T("继续往深处走，找到蚁穴的心脏", "Go on, deeper, to the heart of the nest"));
         }
 
+        /// <summary>The nest's living field: the wind, and no rings yet.</summary>
+        public void StartField()
+        {
+            Shader.SetGlobalVectorArray("_Ripples", ripples);
+            Shader.SetGlobalVector("_NestWind", new Vector4(0.045f, 0.35f, 6f, 0));
+        }
+
+        /// <summary>Every few steps of the ant a ring spreads over the floor from where it is.</summary>
+        void Steps(Vector3 ant)
+        {
+            if (!stepped) { lastStep = ant; stepped = true; return; }
+            float moved = (new Vector2(ant.x, ant.z) - new Vector2(lastStep.x, lastStep.z)).magnitude;
+            if (moved < 0.6f) return;
+            float strength = Mathf.Clamp(0.35f + 0.25f * (moved - 0.6f), 0.35f, 0.6f);
+            lastStep = ant;
+            ripples[rippleNext] = new Vector4(ant.x, Time.time, ant.z, strength);
+            rippleNext = (rippleNext + 1) % ripples.Length;
+            Shader.SetGlobalVectorArray("_Ripples", ripples);
+        }
+
         public void Tick(float dt, Vector3 ant, Hud hud)
         {
+            Steps(ant);
             if (!begun && (cardIn -= dt) <= 0)
             {
                 begun = true;

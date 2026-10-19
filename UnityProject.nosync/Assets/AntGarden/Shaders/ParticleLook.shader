@@ -40,6 +40,7 @@ Shader "AntGarden/ParticleLook"
             #pragma multi_compile_fog
             #include "UnityCG.cginc"
             #include "Chevron.cginc"
+            #include "NestField.cginc"
 
             struct Point { float3 pos; uint col; };
             StructuredBuffer<Point> _Points;
@@ -103,9 +104,20 @@ Shader "AntGarden/ParticleLook"
                 if (tinted) rgb *= kind == 3 ? _GlowPal[(sz >> 3) & 7].rgb : _BodyPal[sz & 7].rgb;
                 float t = _Time.y;
                 float3 pos = p.pos + _Shimmer * (1 - ground) * float3(sin(t * (0.9 + h * 1.3) + h * 17.0), sin(t * (0.7 + h * 1.1) + h * 29.0), sin(t * (0.8 + h * 1.7) + h * 41.0));
-                // dust wanders slowly through the air
+                // dust wanders slowly through the air, and round the ant it is drawn into a slow swirl
                 float pace = 0.35 + 0.65 * h;
                 pos += dust * float3(0.45 * sin(t * 0.21 * pace + h * 17.0), 0.22 * sin(t * 0.17 * pace + h * 29.0), 0.45 * cos(t * 0.19 * pace + h * 41.0));
+                if (dust > 0.5)
+                {
+                    float2 dd = pos.xz - _TrailPlayer.xz;
+                    float rr = length(dd), swirl = (1 - smoothstep(0.3, 1.8, rr)) * 0.5;
+                    float ang = swirl * (1 + 0.3 * sin(t * 0.7 + h * 9));
+                    float cs = cos(ang), sn = sin(ang);
+                    pos.xz = _TrailPlayer.xz + float2(dd.x * cs - dd.y * sn, dd.x * sn + dd.y * cs) * (1 + 0.15 * swirl);
+                }
+                // the floor's points: rings from the ant's steps lift them as they pass
+                float rip = ground > 0.5 ? NestRipple(pos.xz) : 0;
+                pos.y += 0.025 * rip;
                 // a guiding pulse passing under the ground: its points swell and lift a little, like a wave under skin
                 float chev = ground > 0.5 ? Chevron(pos, h) : 0;
                 pos.y += 0.05 * chev;
@@ -151,8 +163,14 @@ Shader "AntGarden/ParticleLook"
                     }
                     o.col = o.col * (1 + 4.5 * lit) + lit * soft * float3(0.1, 0.085, 0.055) * (0.5 + 1.5 * glow);
                 }
-                // and lights up, warm
+                // and lights up
                 o.col = lerp(o.col, _ChevronColor.rgb * (_ChevronColor.a * 0.3 * soft), saturate(chev));
+                // the floor's points: the steps' rings, a slow breath running across, the threads' pools of light
+                if (ground > 0.5)
+                {
+                    o.col *= (1 + 1.4 * rip) * (1 + 0.16 * sin(dot(pos.xz, float2(0.21, 0.13)) - t * 0.5));
+                    o.col += NestBeacon(pos) * _BeaconColor.rgb * 0.1 * soft;
+                }
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;
             }

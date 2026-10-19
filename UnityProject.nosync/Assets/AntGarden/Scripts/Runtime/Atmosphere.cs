@@ -171,6 +171,8 @@ namespace AntGarden
         public float fogDensity;
         public float blendTime = 2.5f;
         public float fogScale = 1f;   // the particle nest: a darker fog, so the dark ground fades into night instead of haze
+        public Color fogTint = Color.clear;                     // alpha > 0: the fog this colour instead of the biome's
+        public Color skyTopTint = Color.clear, skyHorizonTint = Color.clear;   // and the sky
         public float tunnelAmbient = 0.9f, tunnelMoon = 0.8f, tunnelRim = 0.9f, tunnelExposure = -0.05f, tunnelAntDim = 0.2f;
         Biome target;
         float elapsed, probeTimer;
@@ -240,7 +242,7 @@ namespace AntGarden
 
         void Blend(float k)
         {
-            RenderSettings.fogColor = Color.Lerp(RenderSettings.fogColor, target.fogColor * fogScale, k);
+            RenderSettings.fogColor = Color.Lerp(RenderSettings.fogColor, fogTint.a > 0 ? fogTint : target.fogColor * fogScale, k);
             skyAmbient = Color.Lerp(skyAmbient, target.ambientSky, k);
             equatorAmbient = Color.Lerp(equatorAmbient, target.ambientEquator, k);
             groundAmbient = Color.Lerp(groundAmbient, target.ambientGround, k);
@@ -249,8 +251,8 @@ namespace AntGarden
             if (rim != null) rim.color = Color.Lerp(rim.color, target.rimColor, k);
             if (sky != null)
             {
-                sky.SetColor("_TopColor", Color.Lerp(sky.GetColor("_TopColor"), target.skyTop, k));
-                sky.SetColor("_HorizonColor", Color.Lerp(sky.GetColor("_HorizonColor"), target.skyHorizon, k));
+                sky.SetColor("_TopColor", Color.Lerp(sky.GetColor("_TopColor"), skyTopTint.a > 0 ? skyTopTint : target.skyTop, k));
+                sky.SetColor("_HorizonColor", Color.Lerp(sky.GetColor("_HorizonColor"), skyHorizonTint.a > 0 ? skyHorizonTint : target.skyHorizon, k));
             }
         }
 

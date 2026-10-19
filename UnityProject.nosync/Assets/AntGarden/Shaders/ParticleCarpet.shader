@@ -36,6 +36,7 @@ Shader "AntGarden/ParticleCarpet"
             #include "UnityCG.cginc"
             #include "AntGardenCommon.cginc"
             #include "Chevron.cginc"
+            #include "NestField.cginc"
 
             sampler2D _HeightMap, _LayerMap, _FloorTex;
             float4 _HeightMap_TexelSize, _FloorTex_TexelSize;
@@ -126,6 +127,12 @@ Shader "AntGarden/ParticleCarpet"
                 float3 pos = float3(xz.x, Height(uv) + 0.007 - 0.005 * big, xz.y);
                 float chev = Chevron(pos, Hash(cell + 7));       // a guiding pulse passing: the splats swell, lift and light up
                 pos.y += 0.04 * chev;
+                // rings from the ant's steps lift and light the floor as they pass; a slow breath runs across it; the
+                // guiding threads' pools of light
+                float rip = NestRipple(xz);
+                pos.y += 0.025 * rip;
+                rgb *= (1 + 1.4 * rip) * (1 + 0.16 * sin(dot(xz, float2(0.21, 0.13)) - _Time.y * 0.5));
+                rgb += NestBeacon(pos) * _BeaconColor.rgb * 0.26 * soft;
                 float dist = distance(pos, _WorldSpaceCameraPos);
                 float pixel = 2 * dist / (unity_CameraProjection._m11 * _ScreenParams.y);
                 float want = _Size * grow * (1 + 0.6 * chev) * lerp(0.35, 1, soft);

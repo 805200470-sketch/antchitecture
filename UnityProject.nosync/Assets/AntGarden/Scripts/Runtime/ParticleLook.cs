@@ -43,10 +43,10 @@ namespace AntGarden
         // coarse set for every plant, and a fine one for the plants round the ant (the solid shell)
         public bool solidPlants;
         public float solidCoarse = 240f;    // splats per unit² of a plant's surface in the coarse set (along the ways)
-        public int solidCoarseBudget = 1100000;
-        public float solidFine = 1200f;     // and in the fine one, round the ant
+        public int solidCoarseBudget = 1500000;
+        public float solidFine = 1400f;     // and in the fine one, round the ant
         public int solidFineCap = 36000;    // at most this many for one plant
-        public float solidAlbedo = 0.26f;   // how bright a plant's splats are lit (its dots' colours were for glowing)
+        public float solidAlbedo = 0.34f;   // how bright a plant's splats are lit (its dots' colours were for glowing)
 
         /// <summary>A plant as the solid shell sees it (copied on the main thread: workers cannot touch transforms).</summary>
         public sealed class SolidSlot
@@ -364,6 +364,7 @@ namespace AntGarden
             buffer?.Release();
             foreach (ComputeBuffer b in shellBuffers) b?.Release();
             if (heightMap != null) Destroy(heightMap);
+            Shader.SetGlobalVector("_FloorHeightRect", Vector4.zero);
             if (layerMap != null) Destroy(layerMap);
             Shader.SetGlobalFloat("_PlantDim", 0f);
             Shader.SetGlobalFloat("_GroundDim", 0f);
@@ -497,7 +498,7 @@ namespace AntGarden
                     body = bodyPalette != null && pal != 63 ? bodyPalette[pal & 7].linear : Color.white,
                     glow = glowPalette != null && pal != 63 ? glowPalette[(pal >> 3) & 7].linear : Color.white,
                 };
-                float radius = Mathf.Min(pi.far ? 0.6f : 0.08f, 0.62f * Mathf.Sqrt(area / n));
+                float radius = Mathf.Min(pi.far ? 0.6f : 0.055f, 0.62f * Mathf.Sqrt(area / n));
                 for (int k = 0; k < n && k < slot.pts.Length && k < slot.cols.Length; k++)
                     into.Add(SolidSplat(slot, k, -radius));   // negative: coarse (left out round the ant)
                 if (!pi.far) solidSlots.Add(slot);
@@ -704,6 +705,9 @@ namespace AntGarden
             layerMap.SetPixels32(layers);
             layerMap.Apply(false, true);
             heightRect = new Vector4(x0, z0, w * cell, h * cell);
+            // the floor's height for every point shader of the nest (NestField.cginc: sway, parting, ripples)
+            Shader.SetGlobalTexture("_FloorHeightMap", heightMap);
+            Shader.SetGlobalVector("_FloorHeightRect", heightRect);
             GroundLook look = null;
             foreach (GroundLook l in looks.Values) { look = l; break; }
             carpetN = Mathf.CeilToInt(carpetFade.y * 2 / carpetStep) + 2;
@@ -1029,7 +1033,7 @@ namespace AntGarden
             if (dust <= 0) return;
             float area = (world.maxX - world.minX) * (world.maxZ - world.minZ);
             int tries = Mathf.RoundToInt(area * dustHeight * dust);
-            Color pale = new Color(0.62f, 0.75f, 1f).linear, gold = new Color(0.82f, 0.98f, 1f).linear, rose = new Color(0.62f, 0.92f, 0.96f).linear;   // all of the one family
+            Color pale = new Color(0.62f, 0.74f, 0.74f).linear, gold = new Color(0.86f, 0.88f, 0.80f).linear, rose = new Color(0.55f, 0.85f, 0.88f).linear;   // silver mist, bone, cyan breath
             for (int i = 0; i < tries; i++)
             {
                 float x = Mathf.Lerp(world.minX, world.maxX, (float)rng.NextDouble());

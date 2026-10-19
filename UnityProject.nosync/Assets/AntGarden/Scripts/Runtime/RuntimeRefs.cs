@@ -29,6 +29,7 @@ namespace AntGarden
         public Material antOccluder;    // the particle nest's NPC ants: their meshes as a dark body under their points
         public Material pheromone;      // the particle nest: arrows of light leading the ant
         public Material particleSolid;  // the particle nest: the floor's things as opaque lit splats
+        public Material lightThread;    // the particle nest: the guiding threads of light
         public List<PlantRef> plants = new List<PlantRef>();
         public List<AntRef> ants = new List<AntRef>();
         public List<GroundSet> groundSets = new List<GroundSet>();
