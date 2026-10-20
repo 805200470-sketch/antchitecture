@@ -57,6 +57,7 @@ namespace AntGarden.EditorTools
             refs.pheromone = SimpleMaterial("Pheromone", "AntGarden/Pheromone");
             refs.particleSolid = SimpleMaterial("ParticleSolid", "AntGarden/ParticleSolid");
             refs.lightThread = SimpleMaterial("LightThread", "AntGarden/LightThread");
+            refs.microLife = SimpleMaterial("MicroLife", "AntGarden/MicroLife");
             refs.groundSets = BuildGroundSets();
             EditorUtility.SetDirty(refs);
             AssetDatabase.SaveAssets();
@@ -345,8 +346,9 @@ namespace AntGarden.EditorTools
                 TuneLods(go, new[] { 0.2f, 0.06f, 0.01f }); // full detail until a plant is small on screen
                 string prefabPath = $"{Gen}/Plants/{name}.prefab";
                 var prefab = PrefabUtility.SaveAsPrefabAsset(go, prefabPath);
-                SurfacePoints(go, baseColor, mat, 100000, name.GetHashCode(), out Vector3[] points, out Color32[] pointColors, out Vector3[] pointNormals, out float area);
-                SavePoints(name, points, pointColors, pointNormals, area);
+                SurfacePoints(go, baseColor, mat, 200000, name.GetHashCode(), out Vector3[] points, out Color32[] pointColors, out Vector3[] pointNormals,
+                    out float area, out float[] density, out byte[] ao);
+                SavePoints(name, points, pointColors, pointNormals, area, density, ao);
                 Object.DestroyImmediate(go);
 
                 var pr = new PlantRef { name = name, prefab = prefab };
@@ -363,15 +365,22 @@ namespace AntGarden.EditorTools
         }
 
         /// <summary>
-        /// Points spread evenly over a plant's surface (its most detailed LOD), in the plant's own space, in random
-        /// order, with their colours from the base colour texture; alpha 255 marks points in the glowing part (the
-        /// material's glow bands, bright enough in the texture). For the particle look.
+        /// Points over a plant's surface (its most detailed LOD), in the plant's own space, in random order, with their
+        /// colours from the base colour texture, their normals, and how open each is (ao: the share of rays into its
+        /// hemisphere that leave the plant, so crevices and the insides of clusters are dark). Denser where there is
+        /// detail: where the texture changes over a triangle (veins, spots, edges between colours) and where the mesh is
+        /// finer (Tripo spends its faces on the thin, curled, detailed parts); each point keeps how much denser than an
+        /// even spread it is (density, 1 = even), so its splat can be drawn as big as its own share of the surface.
+        /// Alpha 255 marks points in the glowing part (the material's glow bands, bright enough in the texture).
         /// </summary>
-        static void SurfacePoints(GameObject go, string texPath, Material mat, int count, int seed, out Vector3[] points, out Color32[] colors, out Vector3[] normals, out float area)
+        static void SurfacePoints(GameObject go, string texPath, Material mat, int count, int seed, out Vector3[] points, out Color32[] colors,
+            out Vector3[] normals, out float area, out float[] density, out byte[] ao)
         {
             points = new Vector3[0];
             colors = new Color32[0];
             normals = new Vector3[0];
+            density = new float[0];
+            ao = new byte[0];
             area = 0;
             var group = go.GetComponentInChildren<LODGroup>();
             Renderer[] renderers = group != null && group.GetLODs().Length > 0 ? group.GetLODs()[0].renderers : go.GetComponentsInChildren<MeshRenderer>();
@@ -416,22 +425,47 @@ namespace AntGarden.EditorTools
                 }
             }
             if (tris.Count == 0) return;
-            // pick triangles by area
-            var cdf = new double[tris.Count];
-            double total = 0;
-            for (int i = 0; i < tris.Count; i++) { total += Vector3.Cross(tris[i].b - tris[i].a, tris[i].c - tris[i].a).magnitude * 0.5; cdf[i] = total; }
-            area = (float)total;
             Texture2D tex = null;
             if (File.Exists(texPath)) { tex = new Texture2D(2, 2, TextureFormat.RGBA32, false); tex.LoadImage(File.ReadAllBytes(texPath)); }
+            // each triangle's area, and its weight: its area, more where the texture changes over it, and a share of
+            // its own (small triangles are where the mesh is detailed)
+            var areas = new float[tris.Count];
+            double total = 0;
+            for (int i = 0; i < tris.Count; i++) { areas[i] = Vector3.Cross(tris[i].b - tris[i].a, tris[i].c - tris[i].a).magnitude * 0.5f; total += areas[i]; }
+            area = (float)total;
+            double meanArea = total / tris.Count, totalWeight = 0;
+            var cdf = new double[tris.Count];
+            var rel = new float[tris.Count];
+            for (int i = 0; i < tris.Count; i++)
+            {
+                var t = tris[i];
+                float detail = 0;
+                if (tex != null)
+                {
+                    Vector2 um = (t.ua + t.ub + t.uc) / 3f;
+                    Color c0 = tex.GetPixelBilinear(t.ua.x, t.ua.y), c1 = tex.GetPixelBilinear(t.ub.x, t.ub.y), c2 = tex.GetPixelBilinear(t.uc.x, t.uc.y);
+                    Color c3 = tex.GetPixelBilinear(um.x, um.y), c4 = tex.GetPixelBilinear((t.ua.x + um.x) * 0.5f, (t.ua.y + um.y) * 0.5f);
+                    float l0 = Lum(c0), l1 = Lum(c1), l2 = Lum(c2), l3 = Lum(c3), l4 = Lum(c4), lm = (l0 + l1 + l2 + l3 + l4) / 5f;
+                    float spread = Mathf.Sqrt(((l0 - lm) * (l0 - lm) + (l1 - lm) * (l1 - lm) + (l2 - lm) * (l2 - lm) + (l3 - lm) * (l3 - lm) + (l4 - lm) * (l4 - lm)) / 5f);
+                    float chroma = (Chroma(c0, c3) + Chroma(c1, c3) + Chroma(c2, c3)) / 3f;
+                    detail = Mathf.Clamp01(spread * 7f + chroma * 2.5f);
+                }
+                double w = areas[i] * (1 + 2.5 * detail) + 0.3 * meanArea;
+                totalWeight += w;
+                cdf[i] = totalWeight;
+                rel[i] = (float)(w / Mathf.Max(1e-12f, areas[i]));
+            }
+            float evenDensity = (float)(totalWeight / total);
             float g1 = mat.GetFloat("_GlowMinY"), g2 = mat.GetFloat("_GlowMaxY"), h1 = mat.GetFloat("_Glow2MinY"), h2 = mat.GetFloat("_Glow2MaxY");
             float strength = mat.GetFloat("_GlowStrength"), lumMin = mat.GetFloat("_GlowLumMin");
             var rng = new System.Random(seed);
             points = new Vector3[count];
             colors = new Color32[count];
             normals = new Vector3[count];
+            density = new float[count];
             for (int k = 0; k < count; k++)
             {
-                double pick = rng.NextDouble() * total;
+                double pick = rng.NextDouble() * totalWeight;
                 int lo = 0, hi = cdf.Length - 1;
                 while (lo < hi) { int mid = (lo + hi) / 2; if (cdf[mid] < pick) lo = mid + 1; else hi = mid; }
                 var t = tris[lo];
@@ -445,16 +479,86 @@ namespace AntGarden.EditorTools
                 points[k] = p;
                 normals[k] = (t.na * wa + t.nb * wb + t.nc * wc).normalized;
                 colors[k] = new Color32((byte)(c.r * 255), (byte)(c.g * 255), (byte)(c.b * 255), (byte)(glows ? 255 : 0));
+                density[k] = Mathf.Clamp(rel[lo] / evenDensity, 0.07f, 15f);
             }
             if (tex != null) Object.DestroyImmediate(tex);
+            ao = Openness(go, renderers, points, normals);
+        }
+
+        static float Lum(Color c) => c.r * 0.3f + c.g * 0.55f + c.b * 0.15f;
+        static float Chroma(Color a, Color b) => Mathf.Abs(a.r - b.r) + Mathf.Abs(a.g - b.g) + Mathf.Abs(a.b - b.b);
+
+        /// <summary>
+        /// How open each point of a plant is (0..255): eight rays into its hemisphere (cosine-weighted, a little turned
+        /// for every point), up to a third of the plant's height, against the plant's own surfaces (both faces, so thin
+        /// leaves shade too). Batched as raycast jobs over temporary mesh colliders.
+        /// </summary>
+        static byte[] Openness(GameObject go, Renderer[] renderers, Vector3[] points, Vector3[] normals)
+        {
+            var ao = new byte[points.Length];
+            for (int i = 0; i < ao.Length; i++) ao[i] = 255;
+            var colliders = new List<MeshCollider>();
+            foreach (Renderer r in renderers)
+            {
+                var mf = r != null ? r.GetComponent<MeshFilter>() : null;
+                if (mf == null || mf.sharedMesh == null) continue;
+                var mc = mf.gameObject.AddComponent<MeshCollider>();
+                mc.sharedMesh = mf.sharedMesh;
+                colliders.Add(mc);
+            }
+            if (colliders.Count == 0) return ao;
+            Physics.SyncTransforms();
+            const int Rays = 8, Chunk = 20000;
+            const float Reach = 0.32f, Lift = 0.004f;
+            Matrix4x4 toWorld = go.transform.localToWorldMatrix;
+            var scene = Physics.defaultPhysicsScene;
+            var query = new QueryParameters(Physics.DefaultRaycastLayers, false, QueryTriggerInteraction.Ignore, true);
+            var cmds = new Unity.Collections.NativeArray<RaycastCommand>(Chunk * Rays, Unity.Collections.Allocator.TempJob);
+            var hits = new Unity.Collections.NativeArray<RaycastHit>(Chunk * Rays, Unity.Collections.Allocator.TempJob);
+            try
+            {
+                for (int start = 0; start < points.Length; start += Chunk)
+                {
+                    int n = Mathf.Min(Chunk, points.Length - start);
+                    for (int k = 0; k < n; k++)
+                    {
+                        Vector3 p = toWorld.MultiplyPoint3x4(points[start + k]), nn = toWorld.MultiplyVector(normals[start + k]).normalized;
+                        if (nn.sqrMagnitude < 0.5f) nn = Vector3.up;
+                        Vector3 t1 = Vector3.Cross(nn, Mathf.Abs(nn.y) < 0.9f ? Vector3.up : Vector3.right).normalized, t2 = Vector3.Cross(nn, t1);
+                        for (int j = 0; j < Rays; j++)
+                        {
+                            float u = (j + 0.5f) / Rays, phi = j * 2.39996f + (start + k) * 0.7548f;
+                            float sr = Mathf.Sqrt(u), z = Mathf.Sqrt(1 - u);
+                            Vector3 d = (t1 * (Mathf.Cos(phi) * sr) + t2 * (Mathf.Sin(phi) * sr) + nn * z).normalized;
+                            cmds[k * Rays + j] = new RaycastCommand(scene, p + nn * Lift, d, query, Reach);
+                        }
+                    }
+                    for (int k = n * Rays; k < Chunk * Rays; k++) cmds[k] = new RaycastCommand(scene, Vector3.zero, Vector3.up, query, 0f);
+                    RaycastCommand.ScheduleBatch(cmds, hits, 512, 1).Complete();
+                    for (int k = 0; k < n; k++)
+                    {
+                        int open = 0;
+                        for (int j = 0; j < Rays; j++) if (hits[k * Rays + j].collider == null) open++;
+                        ao[start + k] = (byte)(255 * open / Rays);
+                    }
+                }
+            }
+            finally
+            {
+                cmds.Dispose();
+                hits.Dispose();
+                foreach (MeshCollider mc in colliders) Object.DestroyImmediate(mc);
+            }
+            return ao;
         }
 
         /// <summary>
-        /// A plant's surface points as Resources/AntGarden/Points/&lt;name&gt;.bytes, compact: "AGP3", the count, the
+        /// A plant's surface points as Resources/AntGarden/Points/&lt;name&gt;.bytes, compact: "AGP4", the count, the
         /// surface's area (model units²), the bounds (min, size), then per point x, y, z as 16-bit fractions of the
-        /// bounds, its normal as two 16-bit octahedral halves and rgba bytes (14 bytes).
+        /// bounds, its normal as two 16-bit octahedral halves, rgb bytes, a byte with the glow flag (128) and how much
+        /// denser than an even spread it is (low seven bits: 64 + 16·log2 density), and how open it is (a byte): 15 bytes.
         /// </summary>
-        static void SavePoints(string name, Vector3[] points, Color32[] colors, Vector3[] normals, float area)
+        static void SavePoints(string name, Vector3[] points, Color32[] colors, Vector3[] normals, float area, float[] density, byte[] ao)
         {
             string dir = $"{Root}/Resources/AntGarden/Points";
             Directory.CreateDirectory(dir);
@@ -463,7 +567,7 @@ namespace AntGarden.EditorTools
             Vector3 size = Vector3.Max(max - min, Vector3.one * 1e-5f);
             using (var w = new BinaryWriter(File.Create($"{dir}/{name}.bytes")))
             {
-                w.Write(0x33504741);   // "AGP3"
+                w.Write(0x34504741);   // "AGP4"
                 w.Write(points.Length);
                 w.Write(area);
                 w.Write(min.x); w.Write(min.y); w.Write(min.z);
@@ -475,7 +579,10 @@ namespace AntGarden.EditorTools
                     w.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(q.y / size.y * 65535), 0, 65535));
                     w.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(q.z / size.z * 65535), 0, 65535));
                     w.Write(ThingPen.EncodeNormal(normals[i]));
-                    w.Write(colors[i].r); w.Write(colors[i].g); w.Write(colors[i].b); w.Write(colors[i].a);
+                    w.Write(colors[i].r); w.Write(colors[i].g); w.Write(colors[i].b);
+                    int dq = Mathf.Clamp(Mathf.RoundToInt(64 + 16 * Mathf.Log(Mathf.Max(1e-3f, density[i]), 2)), 0, 127);
+                    w.Write((byte)((colors[i].a > 127 ? 128 : 0) | dq));
+                    w.Write(ao[i]);
                 }
             }
             AssetDatabase.ImportAsset($"{dir}/{name}.bytes");

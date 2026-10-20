@@ -45,11 +45,12 @@ namespace AntGarden
         /// <summary>The things left beside the way (id, where on the floor, and the point of the way beside it).</summary>
         public readonly List<(string id, Vector2 at, Vector2 from)> Objects = new List<(string, Vector2, Vector2)>();
 
-        // rings spreading over the floor from the ant's steps (NestField.cginc)
+        // rings spreading over the floor now and then (NestField.cginc): from no step in particular, at their own
+        // irregular times and places round the ant, and from a plant its antennae light
         readonly Vector4[] ripples = new Vector4[8];
         int rippleNext;
-        Vector3 lastStep;
-        bool stepped;
+        float nextRipple = 2f;
+        readonly System.Random calm = new System.Random(1701);
 
         public LabNest(World world, Region region, RuntimeRefs refs)
         {
@@ -320,22 +321,29 @@ namespace AntGarden
             Shader.SetGlobalVector("_NestWind", new Vector4(0.045f, 0.35f, 6f, 0));
         }
 
-        /// <summary>Every few steps of the ant a ring spreads over the floor from where it is.</summary>
-        void Steps(Vector3 ant)
+        /// <summary>Now and then, at irregular times, a faint ring spreads over the floor somewhere round the ant (never at
+        /// its feet, never in step with it), as if the ground breathed.</summary>
+        void Breathe(float dt, Vector3 ant)
         {
-            if (!stepped) { lastStep = ant; stepped = true; return; }
-            float moved = (new Vector2(ant.x, ant.z) - new Vector2(lastStep.x, lastStep.z)).magnitude;
-            if (moved < 0.6f) return;
-            float strength = Mathf.Clamp(0.35f + 0.25f * (moved - 0.6f), 0.35f, 0.6f);
-            lastStep = ant;
-            ripples[rippleNext] = new Vector4(ant.x, Time.time, ant.z, strength);
+            if ((nextRipple -= dt) > 0) return;
+            nextRipple = 1.6f + 5f * (float)(calm.NextDouble() * calm.NextDouble());
+            float a = (float)calm.NextDouble() * 6.283f, r = 2.5f + 7f * (float)calm.NextDouble();
+            Ripple(new Vector3(ant.x + Mathf.Cos(a) * r, 0, ant.z + Mathf.Sin(a) * r), 0.18f + 0.22f * (float)calm.NextDouble());
+        }
+
+        void Ripple(Vector3 at, float strength)
+        {
+            ripples[rippleNext] = new Vector4(at.x, Time.time, at.z, strength);
             rippleNext = (rippleNext + 1) % ripples.Length;
             Shader.SetGlobalVectorArray("_Ripples", ripples);
         }
 
+        /// <summary>A plant the antennae lit: a ring spreads from it.</summary>
+        public void RippleAt(Vector3 at) => Ripple(at, 0.5f);
+
         public void Tick(float dt, Vector3 ant, Hud hud)
         {
-            Steps(ant);
+            Breathe(dt, ant);
             if (!begun && (cardIn -= dt) <= 0)
             {
                 begun = true;

@@ -56,9 +56,12 @@ float NestRipple(float2 xz)
         if (R.w <= 0) continue;
         float age = t - R.y;
         if (age < 0 || age > 2.6) continue;
-        float ring = age * 1.1;
-        float d = length(xz - R.xz) - ring;
-        sum += R.w * exp(-d * d / 0.03) * (1 - age / 2.6) * (1 - smoothstep(1.6, 2.8, ring));
+        // a soft, uneven ring (never a perfect circle), widening as it slows
+        float2 off = xz - R.xz;
+        float ang = atan2(off.y, off.x), seed = frac(R.y * 0.137) * 6.28;
+        float ring = age * 1.1 * (1 + 0.16 * sin(ang * 3 + seed) + 0.09 * sin(ang * 5 - seed * 1.7));
+        float d = length(off) - ring, width = 0.03 + 0.05 * age;
+        sum += R.w * exp(-d * d / width) * (1 - age / 2.6) * (1 - smoothstep(1.6, 2.8, ring));
     }
     return saturate(sum);
 }

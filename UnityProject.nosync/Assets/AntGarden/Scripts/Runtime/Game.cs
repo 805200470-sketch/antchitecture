@@ -349,7 +349,7 @@ namespace AntGarden
             // memory plants tell their story when an antenna lights them
             if (world.glow != null)
             {
-                world.glow.onFlare = at => { Sfx.Flare(at); Pad.Rumble(0.05f, 0.12f, 0.07f); lab?.OnPlantLit(hud); };
+                world.glow.onFlare = at => { Sfx.Flare(at); Pad.Rumble(0.05f, 0.12f, 0.07f); lab?.OnPlantLit(hud); lab?.RippleAt(at); };
                 world.glow.onStory = (k, at) =>
                 {
                     hud.ShowLine(Loc.T("留在这里的话 · 一位访客", "Left here · by a visitor"), Voices.T(Voices.Stories[k % Voices.Stories.Length]));
@@ -585,7 +585,7 @@ namespace AntGarden
                 particleLook.shellDensity = 1000f;
                 particleLook.shellFade = new Vector2(5f, 12f);
                 particleLook.carpet = refs.particleCarpet;
-                particleLook.carpetGain = 0.075f;   // opaque splats: the floor's own colour, dark (the things on it stand out)
+                particleLook.carpetGain = 0.085f;   // opaque splats: the floor's own colour, dark (the things on it stand out)
                 particleLook.dust = 18f;
                 // the floor's things are solid (SolidThings): leaves, twigs, moss, mushrooms... at ant scale; and the
                 // plants, drawn the same way, with the same grain
@@ -602,7 +602,11 @@ namespace AntGarden
             if (Lab || cfg.particleLook || Arg("-particlelook") != null) particleLook.SetOn(true);
             // the particle nest: the things on the floor, solid, at ant scale; and the pheromones, a sprite of arrows
             // of light leading the ant
-            if (Lab && particleLook.On) gameObject.AddComponent<SolidThings>().Init(world, particleLook, refs.particleSolid, player.transform);
+            if (Lab && particleLook.On)
+            {
+                gameObject.AddComponent<SolidThings>().Init(world, particleLook, refs.particleSolid, player.transform);
+                gameObject.AddComponent<MicroLife>().Init(world, particleLook, refs.microLife);   // the small life
+            }
             if (Lab && lab != null)
             {
                 gameObject.AddComponent<GuideThreads>().Init(lab, player.transform, refs.lightThread);

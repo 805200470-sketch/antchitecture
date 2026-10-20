@@ -44,21 +44,32 @@ namespace AntGarden
         public bool solidPlants;
         public float solidCoarse = 240f;    // splats per unit² of a plant's surface in the coarse set (along the ways)
         public int solidCoarseBudget = 1500000;
-        public float solidFine = 1400f;     // and in the fine one, round the ant
-        public int solidFineCap = 36000;    // at most this many for one plant
-        public float solidAlbedo = 0.34f;   // how bright a plant's splats are lit (its dots' colours were for glowing)
+        public float solidFine = 1500f;     // and in the fine one, round the ant
+        public int solidFineCap = 42000;    // at most this many for one plant
+        public float solidAlbedo = 0.5f;    // how bright a plant's splats are lit (its dots' colours were for glowing)
 
         /// <summary>A plant as the solid shell sees it (copied on the main thread: workers cannot touch transforms).</summary>
         public sealed class SolidSlot
         {
             public Vector3[] pts;
-            public uint[] cols, nrms;
+            public Color32[] raw;           // the texture's colour at each point (alpha 255: a glowing part)
+            public uint[] nrms;
+            public float[] density;         // how much denser than an even spread each point lies (null: even)
+            public byte[] open;             // how open each point is (null: all open)
             public Matrix4x4 m;
             public Vector3 pos;
-            public float reach, area;
-            public Color body, glow;
+            public float reach, area, top, meanLum;
+            // this plant's own look, so no two of a kind are alike: its tints (base to tip), how much of the texture's
+            // own colour it keeps, its mottling, how strongly its glowing parts glow, and how it is bent, twisted and
+            // stretched
+            public Color baseTint, tipTint, glow;
+            public float keepOwn, contrast, mottle, mottleScale, mottleSeed, band, bandFreq, glowGain;
+            public Vector2 bendDir;
+            public float bend, twist, sy, sxz;
+            public bool rigid;              // a thing (relic): neither bent nor recoloured
         }
         readonly List<SolidSlot> solidSlots = new List<SolidSlot>();
+        readonly Dictionary<PlantRef, (float mean, float top)> kindStats = new Dictionary<PlantRef, (float, float)>();
 
         // replace: the ground as points
         public readonly List<MeshFilter> ground = new List<MeshFilter>();   // the terrain's meshes
@@ -462,10 +473,12 @@ namespace AntGarden
         /// <summary>
         /// Replace, solid plants: every plant's stored points as opaque lit splats (Shaders/ParticleSolid.shader, drawn by
         /// SolidThings with the floor's things), so the plants have the same grain as everything else: here the coarse
-        /// set, a few splats per unit² of surface (more along the ways), each as big as needed to close the surface,
-        /// flagged (negative radius) so the shader leaves them out round the ant, where the fine set (SolidShell) is
-        /// drawn instead. Coloured as the dots were (the texture's light and dark, pale), times the plant's tint; its
-        /// glowing parts glow. Returns how many it added.
+        /// set, a few splats per unit² of surface (more along the ways), flagged (negative radius) so the shader leaves
+        /// them out round the ant, where the fine set (SolidShell) is drawn instead. Every plant is its own: bent,
+        /// twisted and stretched a little its own way, in its own tints from the palette, keeping more or less of its
+        /// texture's own colour, mottled in its own pattern; its crevices dark (the baked openness), its texture's
+        /// light and dark kept and a little exaggerated; splats smaller where the detail is (the sampling was denser
+        /// there). Returns how many it added.
         /// </summary>
         public int BuildSolidPlants(List<SolidPoint> into)
         {
@@ -473,6 +486,7 @@ namespace AntGarden
             solidSlots.Clear();
             int start = into.Count;
             var picks = new List<(PlantInstance pi, float area, int n)>();
+            var census = new Dictionary<string, int>();
             long wanted = 0;
             foreach (PlantInstance pi in world.plantInstances)
             {
@@ -480,31 +494,85 @@ namespace AntGarden
                 float sc = pi.t.lossyScale.y;
                 float area = (pi.plant.pointArea > 0 ? pi.plant.pointArea : 2.5f) * sc * sc;
                 Vector3 p0 = pi.t.position;
-                float density = solidCoarse * (pi.relic ? 2f : Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z)));
+                float density = solidCoarse * (pi.relic ? 2f : pi.far ? 0.15f : Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z)));
                 int n = Mathf.Clamp(Mathf.RoundToInt(area * density), 120, pi.far ? 8000 : pi.plant.points.Length);
                 picks.Add((pi, area, n));
                 wanted += n;
+                census[pi.plant.name] = census.TryGetValue(pi.plant.name, out int c) ? c + 1 : 1;
             }
             float share = wanted > solidCoarseBudget ? (float)solidCoarseBudget / wanted : 1f;
             int ord = 0;
             foreach (var (pi, area, n0) in picks)
             {
                 int n = Mathf.Max(100, Mathf.RoundToInt(n0 * share));
-                uint pal = pi.relic ? 63u : Palette(pi, ord++);
-                var slot = new SolidSlot
-                {
-                    pts = pi.plant.points, cols = Colours(pi), nrms = pi.plant.pointNormals, m = pi.t.localToWorldMatrix, pos = pi.t.position,
-                    reach = pi.t.lossyScale.y * 0.8f, area = area,
-                    body = bodyPalette != null && pal != 63 ? bodyPalette[pal & 7].linear : Color.white,
-                    glow = glowPalette != null && pal != 63 ? glowPalette[(pal >> 3) & 7].linear : Color.white,
-                };
+                SolidSlot slot = Slot(pi, area, ord++);
                 float radius = Mathf.Min(pi.far ? 0.6f : 0.055f, 0.62f * Mathf.Sqrt(area / n));
-                for (int k = 0; k < n && k < slot.pts.Length && k < slot.cols.Length; k++)
+                for (int k = 0; k < n && k < slot.pts.Length; k++)
                     into.Add(SolidSplat(slot, k, -radius));   // negative: coarse (left out round the ant)
                 if (!pi.far) solidSlots.Add(slot);
             }
-            Debug.Log($"[AntGarden] solid plants: {into.Count - start} coarse splats from {picks.Count} plants" + (share < 1 ? $" (each at {share:P0})" : ""));
+            var top = new List<KeyValuePair<string, int>>(census);
+            top.Sort((a, b) => b.Value.CompareTo(a.Value));
+            var line = new System.Text.StringBuilder();
+            foreach (var kv in top) line.Append($" {kv.Key} {kv.Value},");
+            Debug.Log($"[AntGarden] solid plants: {into.Count - start} coarse splats from {picks.Count} plants" + (share < 1 ? $" (each at {share:P0})" : "") + $"; kinds:{line}");
             return into.Count - start;
+        }
+
+        /// <summary>A plant's own look and shape (from its place, so it is the same every time the nest is made).</summary>
+        SolidSlot Slot(PlantInstance pi, float area, int ord)
+        {
+            PlantRef plant = pi.plant;
+            if (!kindStats.TryGetValue(plant, out var st))
+            {
+                double sum = 0;
+                float topY = 0.01f;
+                int count = 0;
+                for (int k = 0; k < plant.points.Length; k += 7)
+                {
+                    Color32 c = plant.pointColors[k];
+                    if (c.a <= 127) { sum += Linear[c.r] * 0.3f + Linear[c.g] * 0.55f + Linear[c.b] * 0.15f; count++; }
+                    topY = Mathf.Max(topY, plant.points[k].y);
+                }
+                st = (count > 0 ? Mathf.Max(1e-3f, (float)(sum / count)) : 0.2f, topY);
+                kindStats[plant] = st;
+            }
+            Vector3 p0 = pi.t.position;
+            var rng = new Rng((uint)Mathf.RoundToInt(p0.x * 73.1f) * 73856093u ^ (uint)Mathf.RoundToInt(p0.z * 91.7f) * 19349663u ^ (uint)ord);
+            float R() => rng.Next();
+            Color[] body = bodyPalette, glowPal = glowPalette;
+            uint pal = pi.relic ? 63u : Palette(pi, ord);
+            Color b0 = body != null && pal != 63 ? body[pal & 7] : Color.white;
+            // the tip a neighbour of the base tint in the palette (or the same, lighter), each jittered
+            Color b1 = body != null && pal != 63 ? body[(int)((pal & 7) + 1 + (int)(R() * 2.99f)) % 8] : Color.white;
+            if (R() < 0.35f) b1 = Color.Lerp(b0, Color.white, 0.25f);
+            Color Jitter(Color c, float hueDeg, float v) => (HueShift(c.linear, hueDeg, 0.85f + 0.4f * R()) * v);
+            float hue = (R() - 0.5f) * 26f;
+            var slot = new SolidSlot
+            {
+                pts = plant.points, raw = plant.pointColors, nrms = plant.pointNormals, density = plant.pointDensity, open = plant.pointOpen,
+                m = pi.t.localToWorldMatrix, pos = p0, reach = pi.t.lossyScale.y * 0.8f, area = area, top = st.top, meanLum = st.mean,
+                rigid = pi.relic,
+                baseTint = Jitter(b0, hue, 0.8f + 0.3f * R()),
+                tipTint = Jitter(b1, hue + (R() - 0.5f) * 20f, 0.9f + 0.35f * R()),
+                glow = glowPal != null && pal != 63 ? HueShift(glowPal[(pal >> 3) & 7].linear, (R() - 0.5f) * 30f, 1f) : Color.white,
+                keepOwn = pi.relic ? 0.8f : 0.25f + 0.35f * R(),
+                contrast = 1.1f + 0.25f * R(),
+                mottle = 0.06f + 0.16f * R(), mottleScale = 2.5f + 7f * R(), mottleSeed = R() * 97f,
+                band = R() < 0.3f ? 0.1f + 0.15f * R() : 0f, bandFreq = 8f + 22f * R(),
+                glowGain = 0.45f + 0.9f * R(),
+                bendDir = new Vector2(Mathf.Cos(R() * 6.283f), 0), bend = 0, twist = 0, sy = 1, sxz = 1,
+            };
+            if (!pi.relic && !pi.far)
+            {
+                float a = R() * 6.283f;
+                slot.bendDir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                slot.bend = 0.06f + 0.32f * R() * R();
+                slot.twist = (R() - 0.5f) * 1.6f;
+                slot.sy = 0.82f + 0.4f * R();
+                slot.sxz = 0.85f + 0.3f * R();
+            }
+            return slot;
         }
 
         /// <summary>
@@ -519,21 +587,58 @@ namespace AntGarden
                 float dx = slot.pos.x - at.x, dz = slot.pos.z - at.y, r = reach + slot.reach;
                 if (dx * dx + dz * dz > r * r) continue;
                 int n = Mathf.Min(Mathf.Min(solidFineCap, slot.pts.Length), Mathf.RoundToInt(slot.area * solidFine));
-                float radius = Mathf.Max(0.0045f, 0.62f * Mathf.Sqrt(slot.area / Mathf.Max(1, n)));
-                for (int k = 0; k < n && k < slot.cols.Length; k++) into.Add(SolidSplat(slot, k, radius));
+                float radius = Mathf.Max(0.004f, 0.62f * Mathf.Sqrt(slot.area / Mathf.Max(1, n)));
+                for (int k = 0; k < n; k++) into.Add(SolidSplat(slot, k, radius));
             }
         }
 
-        /// <summary>Splat k of a plant: where its point is, which way it faces, its colour and its radius (a little varied).</summary>
+        /// <summary>
+        /// Splat k of a plant: where its point is (bent, twisted and stretched as this plant is), which way it faces, its
+        /// colour (the texture's light and dark against the plant's own mean, a little exaggerated; some of its own colour,
+        /// the rest this plant's tints from base to tip; mottled; dark in its crevices) and its radius (smaller where the
+        /// sampling was denser; a little varied). Plain arithmetic only.
+        /// </summary>
         SolidPoint SolidSplat(SolidSlot s, int k, float radius)
         {
-            uint c = s.cols[k];
-            bool glows = ((c >> 30) & 3u) == Glow;
-            var lin = new Color(Linear[c & 255], Linear[(c >> 8) & 255], Linear[(c >> 16) & 255]);
-            Color albedo = glows ? s.glow * (0.16f + 0.3f * Lum(lin)) : lin * s.body * solidAlbedo;
-            Vector3 nrm = s.nrms != null ? s.m.MultiplyVector(ThingPen.DecodeNormal(s.nrms[k])) : Vector3.up;
-            float vary = 0.7f + 0.6f * PointHash(k);
-            return ThingPen.Splat(s.m.MultiplyPoint3x4(s.pts[k]), nrm, albedo, radius * vary, glows ? 0.9f : 0f);
+            Color32 c = s.raw[k];
+            bool glows = c.a > 127;
+            var lin = new Color(Linear[c.r], Linear[c.g], Linear[c.b]);
+            Vector3 p = s.pts[k];
+            Vector3 n = s.nrms != null ? ThingPen.DecodeNormal(s.nrms[k]) : Vector3.up;
+            float y01 = Mathf.Clamp01(p.y / s.top);
+            if (!s.rigid && (s.bend != 0 || s.twist != 0 || s.sy != 1 || s.sxz != 1))
+            {
+                float y = Mathf.Max(0, p.y);
+                // stretched, twisted about its stem, bent over (the higher, the more)
+                p.x *= s.sxz; p.z *= s.sxz; p.y *= s.sy;
+                n.x /= s.sxz; n.z /= s.sxz; n.y /= s.sy;
+                float a = s.twist * y, ca = Mathf.Cos(a), sa = Mathf.Sin(a);
+                p = new Vector3(p.x * ca - p.z * sa, p.y, p.x * sa + p.z * ca);
+                n = new Vector3(n.x * ca - n.z * sa, n.y, n.x * sa + n.z * ca);
+                float yy = y * s.sy, b = s.bend;
+                p.x += s.bendDir.x * b * yy * yy;
+                p.z += s.bendDir.y * b * yy * yy;
+                n.y -= 2 * b * yy * (s.bendDir.x * n.x + s.bendDir.y * n.z);
+            }
+            float open = s.open != null ? s.open[k] / 255f : 1f;
+            float shade = 0.3f + 0.7f * Mathf.Pow(open, 1.1f);
+            // the texture's light and dark against the plant's own mean (a little exaggerated), some of its own colour,
+            // the rest this plant's tints from base to tip; its glowing parts lean to its glow colour but keep the
+            // pattern, and glow most where the texture is lightest (veins, rims)
+            float lum = Mathf.Max(1e-4f, Lum(lin));
+            float rel = Mathf.Clamp(Mathf.Pow(lum / s.meanLum, s.contrast), 0.05f, 3.2f);
+            Color own = lin * (1f / lum);                                   // the texture's own hue, at unit brightness
+            Color tint = Color.Lerp(s.baseTint, s.tipTint, Mathf.SmoothStep(0.15f, 1f, y01));
+            Color col = s.rigid ? lin * 1.6f : Color.Lerp(tint, own * 0.75f, s.keepOwn) * (s.meanLum * rel * 2.2f);
+            if (glows && !s.rigid) col = Color.Lerp(col, s.glow * (s.meanLum * rel * 2.2f), 0.45f);
+            // mottling in this plant's own pattern, and now and then faint bands along its height
+            float mot = Noise(p.x * s.mottleScale + s.mottleSeed, p.z * s.mottleScale + p.y * s.mottleScale * 0.7f);
+            col *= 1f + s.mottle * (mot * 2f - 1f) + (s.band > 0 ? s.band * Mathf.Sin(p.y * s.bandFreq + s.mottleSeed) : 0f);
+            Color albedo = col * (solidAlbedo * shade);
+            float glow = glows ? Mathf.Clamp01(s.glowGain * (0.55f + 0.4f * Mathf.Clamp01(rel * 0.8f))) : 0f;
+            float dens = s.density != null ? s.density[k] : 1f;
+            float vary = (0.72f + 0.56f * PointHash(k)) / Mathf.Sqrt(Mathf.Clamp(dens, 0.25f, 9f));
+            return ThingPen.Splat(s.m.MultiplyPoint3x4(p), s.m.MultiplyVector(n), albedo, radius * vary, glow);
         }
 
         /// <summary>A stored point's own random number (0..1), the same for every plant of a kind.</summary>

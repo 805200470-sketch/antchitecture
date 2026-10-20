@@ -31,6 +31,7 @@ MonoBehaviour:
   pheromone: {fileID: 2100000, guid: 6d7069d6ad09d42308612e484777cd5a, type: 2}
   particleSolid: {fileID: 2100000, guid: 2c0f5c1b8101143c49638b33edcd30da, type: 2}
   lightThread: {fileID: 2100000, guid: c4a1585da88ea4310b845ec6eadafa52, type: 2}
+  microLife: {fileID: 2100000, guid: 00f5ec282626e45bf9fd9d9e4f0a3b40, type: 2}
   plants:
   - name: amber_resin
     prefab: {fileID: 8144775433280480473, guid: 4a215baa7601b464fb9a6b8c0e9a947e, type: 3}

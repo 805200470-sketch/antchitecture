@@ -30,6 +30,7 @@ namespace AntGarden
         public Material pheromone;      // the particle nest: arrows of light leading the ant
         public Material particleSolid;  // the particle nest: the floor's things as opaque lit splats
         public Material lightThread;    // the particle nest: the guiding threads of light
+        public Material microLife;      // the particle nest: the small life (springtails, mites, midges, seed fluff)
         public List<PlantRef> plants = new List<PlantRef>();
         public List<AntRef> ants = new List<AntRef>();
         public List<GroundSet> groundSets = new List<GroundSet>();
@@ -66,6 +67,8 @@ namespace AntGarden
         [NonSerialized] public Color32[] pointColors;
         [NonSerialized] public uint[] pointNormals;   // octahedral (ThingPen.EncodeNormal); null in older files
         [NonSerialized] public float pointArea;       // the surface the points cover (model units²; 0: not known)
+        [NonSerialized] public float[] pointDensity;  // how much denser than an even spread each point lies (null: even)
+        [NonSerialized] public byte[] pointOpen;      // how open each point is, 0 (deep in a crevice) .. 255 (null: all open)
         [NonSerialized] bool pointsTried;
 
         public bool LoadPoints()
@@ -78,7 +81,31 @@ namespace AntGarden
             using (var r = new System.IO.BinaryReader(new System.IO.MemoryStream(asset.bytes)))
             {
                 int head = r.ReadInt32();
-                if (head == 0x33504741)
+                if (head == 0x34504741)
+                {
+                    // "AGP4": as AGP3, and per point how dense the spread is there and how open it is
+                    n = r.ReadInt32();
+                    pointArea = r.ReadSingle();
+                    var min = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                    var size = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle()) / 65535f;
+                    points = new Vector3[n];
+                    pointColors = new Color32[n];
+                    pointNormals = new uint[n];
+                    pointDensity = new float[n];
+                    pointOpen = new byte[n];
+                    var dens = new float[128];
+                    for (int q = 0; q < 128; q++) dens[q] = Mathf.Pow(2f, (q - 64) / 16f);
+                    for (int i = 0; i < n; i++)
+                    {
+                        points[i] = new Vector3(min.x + r.ReadUInt16() * size.x, min.y + r.ReadUInt16() * size.y, min.z + r.ReadUInt16() * size.z);
+                        pointNormals[i] = r.ReadUInt32();
+                        byte cr = r.ReadByte(), cg = r.ReadByte(), cb = r.ReadByte(), flags = r.ReadByte();
+                        pointColors[i] = new Color32(cr, cg, cb, (byte)((flags & 128) != 0 ? 255 : 0));
+                        pointDensity[i] = dens[flags & 127];
+                        pointOpen[i] = r.ReadByte();
+                    }
+                }
+                else if (head == 0x33504741)
                 {
                     // "AGP3": 16-bit fractions of the bounds, normals, and the surface's area
                     n = r.ReadInt32();

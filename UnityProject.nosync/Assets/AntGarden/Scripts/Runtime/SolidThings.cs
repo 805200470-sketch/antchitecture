@@ -24,7 +24,7 @@ namespace AntGarden
         public int roots = 44;
         public float perArea = 2200f;       // splats per unit² of a thing's surface
         public float gain = 0.62f;          // night: the things are seen by moonlight, darker than the glowing plants
-        public Vector4 lod = new Vector4(12f, 40f, 0.22f, 0);   // all splats within x units, thinned to z of them by y
+        public Vector4 lod = new Vector4(7f, 30f, 0.28f, 0);    // all splats within x units of the camera, thinned to z of them by y
 
         enum Kind { Leaf, Twig, Petal, Seed, Fern, Feather, Blossom, Moss, Clover, Mushrooms, Seedling, Lichen, Pebbles, Crystals, Shell }
 
@@ -245,6 +245,20 @@ namespace AntGarden
                 case Kind.Crystals: NestThingsGrowth.Crystals(pen, p, n, ta, tb, size); break;
                 default: NestThingsGrowth.SnailShell(pen, p, n, ta, tb, size); break;
             }
+            // dew: a few beads on what holds it (leaves, moss, clover, lichen, petals, fronds), on parts that face up
+            if (k == Kind.Leaf || k == Kind.Moss || k == Kind.Clover || k == Kind.Lichen || k == Kind.Petal || k == Kind.Fern || k == Kind.Seedling)
+            {
+                int beads = (int)(R() * 4.5f), end = pen.into.Count;
+                for (int b = 0, tries = 0; b < beads && tries < 30 && end > from; tries++)
+                {
+                    SolidPoint sp = pen.into[from + (int)(R() * (end - from)) % (end - from)];
+                    Vector3 nn = ThingPen.DecodeNormal(sp.nrm);
+                    if (nn.y < 0.6f) continue;
+                    float r = 0.018f + 0.022f * R();
+                    pen.into.Add(ThingPen.Splat(sp.pos + nn * (Mathf.Abs(sp.radius) * 0.5f + r * 0.6f), Vector3.up, new Color(0.62f, 0.7f, 0.7f), r, 0.4f));
+                    b++;
+                }
+            }
             // flat things drape over the floor: each splat keeps its height above the plane through p, over the floor
             // under it (so a big leaf follows the ground's rise and fall instead of floating or sinking)
             if (k == Kind.Leaf || k == Kind.Petal || k == Kind.Fern || k == Kind.Feather || k == Kind.Blossom || k == Kind.Lichen)
@@ -387,7 +401,7 @@ namespace AntGarden
             block.SetVectorArray("_FlareInfo", flareInfo);
             block.SetBuffer("_Solid", buffer);
             block.SetFloat("_Gain", gain);
-            block.SetFloat("_GlowGain", 1.1f);
+            block.SetFloat("_GlowGain", 1.35f);
             block.SetVector("_RimColor", new Color(0.05f, 0.065f, 0.065f));
             block.SetVector("_GlintColor", new Color(0.55f, 0.62f, 0.6f));
             block.SetVector("_Lod", lod);
@@ -406,7 +420,7 @@ namespace AntGarden
                 shellBlock.SetVectorArray("_FlareInfo", flareInfo);
                 shellBlock.SetBuffer("_Solid", shellBuffers[shellFront]);
                 shellBlock.SetFloat("_Gain", gain);
-                shellBlock.SetFloat("_GlowGain", 1.1f);
+                shellBlock.SetFloat("_GlowGain", 1.35f);
                 shellBlock.SetVector("_RimColor", new Color(0.05f, 0.065f, 0.065f));
                 shellBlock.SetVector("_GlintColor", new Color(0.55f, 0.62f, 0.6f));
                 shellBlock.SetVector("_Lod", lod);
