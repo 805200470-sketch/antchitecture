@@ -150,6 +150,12 @@ Shader "AntGarden/ParticleLook"
                 near *= lerp(lerp(_NearDim.z, 1, smoothstep(_NearDim.x, _NearDim.y, da)), 1, ground + dust);
                 o.col = rgb * (_Gain + glow * _GlowGain) * (1 - ground * 0.55) * breathe * lerp(0.3, 1, spread) * near * soft / pow(max(vary, 1), 0.8);
                 if (kind == 2 && sz > 0 && sz < 10) o.col *= _CoverGain;   // (packed below 1, to keep their colour)
+                // a few grains of the floor glow faintly, breathing with the plants: more in some patches, none in others
+                if (kind == 2 && _GrainGlow.a > 0 && frac(h * 91.7 + 0.13) < 0.045 * smoothstep(0.45, 0.85, NestNoise2(pos.xz * 0.27 + 5.1)))
+                {
+                    float b = NestBreath(pos);
+                    o.col += _GrainGlow.rgb * _GrainGlow.a * (0.25 + 0.75 * b * b) * soft;
+                }
                 // a plant an antenna has lit: much brighter, and warmer, while its flare lasts
                 if (ground + dust < 0.5 && _FlareCount > 0)
                 {

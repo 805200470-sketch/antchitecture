@@ -8,15 +8,16 @@ namespace AntGarden
     /// The particle nest's glass-bulbed plants (ParticleLook.glassKinds): a soft light inside each bulb, seen through
     /// the gaps of its broken shell of splats (drawn after them, additive, so the splats in front of it hide it). Drawn
     /// with the threads' shader (Shaders/LightThread.shader) as a round knot of light facing the camera, in the plant's
-    /// glow colour; each breathes slowly at its own pace, and fades out far away and right in front of the lens.
+    /// glow colour; it breathes slowly with the plants' glowing parts (NestBreath), and fades out far away and right in
+    /// front of the lens.
     /// </summary>
     public class GlassLamps : MonoBehaviour
     {
-        public float gain = 0.9f;            // brightness (HDR): a quiet light, far below the threads'
+        public float gain = 1.15f;           // brightness (HDR): a quiet light, far below the threads'
         public float reach = 32f;            // not drawn further from the camera than this
         public float spread = 1.6f;          // the knot's size against the light's radius (its halo fills the bulb)
 
-        struct Lamp { public Vector3 pos; public float size; public Color col; public float seed; }
+        struct Lamp { public Vector3 pos; public float size; public Color col; }
 
         readonly List<Lamp> lamps = new List<Lamp>();
         readonly List<Vector3> verts = new List<Vector3>(4096);
@@ -35,7 +36,7 @@ namespace AntGarden
             mat.SetColor("_Core", new Color(0.95f, 0.98f, 0.96f).linear);
             mat.SetColor("_Halo", Color.white);
             foreach (var (pos, size, col) in from)
-                lamps.Add(new Lamp { pos = pos, size = size, col = col, seed = Mathf.Repeat(pos.x * 12.9898f + pos.z * 78.233f, 97f) });
+                lamps.Add(new Lamp { pos = pos, size = size, col = col });
             mesh = new Mesh { name = "GlassLamps" };
             mesh.MarkDynamic();
             Debug.Log($"[AntGarden] glass lamps: {lamps.Count}");
@@ -48,7 +49,7 @@ namespace AntGarden
             if (cam == null) return;
             verts.Clear(); cols.Clear(); uvs.Clear(); uv2s.Clear(); tris.Clear();
             Vector3 eye = cam.transform.position, fwd = cam.transform.forward, right = cam.transform.right, up = cam.transform.up;
-            float t = Time.time, r2 = reach * reach;
+            float r2 = reach * reach;
             float pixelK = 2f * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, cam.pixelHeight);
             foreach (Lamp l in lamps)
             {
@@ -56,7 +57,8 @@ namespace AntGarden
                 float d2 = v.sqrMagnitude;
                 if (d2 > r2 || Vector3.Dot(v, fwd) < -l.size) continue;
                 float dist = Mathf.Sqrt(d2);
-                float breathe = 0.6f + 0.4f * Mathf.Sin(t * (0.35f + 0.25f * Mathf.Repeat(l.seed, 1f)) + l.seed);
+                float b = WalkLight.Breath(l.pos, Time.timeSinceLevelLoad);
+                float breathe = 0.45f + 0.55f * b * b;
                 float fade = (1 - Mathf.SmoothStep(0, 1, (dist - reach * 0.6f) / (reach * 0.4f))) * Mathf.SmoothStep(0.3f, 1.2f, dist);
                 float a = breathe * fade * (1f + 2f * (WalkLight.Instance != null ? WalkLight.Instance.LitAt(l.pos) : 0f));
                 if (a < 0.01f) continue;

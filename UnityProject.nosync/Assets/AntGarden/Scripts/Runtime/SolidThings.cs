@@ -67,6 +67,7 @@ namespace AntGarden
             int things = Place(pen), rootsMade = Roots(pen), thingSplats = splats.Count;
             // the plants too, as solid splats, when the particle look draws them so
             if (look.solidPlants) look.BuildSolidPlants(splats);
+            splats.AddRange(look.extraSolids);   // the vines round the guiding beams
             count = splats.Count;
             if (count == 0) { enabled = false; return; }
             buffer = new ComputeBuffer(count, 24);
@@ -401,7 +402,7 @@ namespace AntGarden
             block.SetVectorArray("_FlareInfo", flareInfo);
             block.SetBuffer("_Solid", buffer);
             block.SetFloat("_Gain", gain);
-            block.SetFloat("_GlowGain", 1.35f);
+            block.SetFloat("_GlowGain", 2f);
             block.SetVector("_RimColor", new Color(0.05f, 0.065f, 0.065f));
             block.SetVector("_GlintColor", new Color(0.55f, 0.62f, 0.6f));
             block.SetVector("_Lod", lod);
@@ -420,7 +421,7 @@ namespace AntGarden
                 shellBlock.SetVectorArray("_FlareInfo", flareInfo);
                 shellBlock.SetBuffer("_Solid", shellBuffers[shellFront]);
                 shellBlock.SetFloat("_Gain", gain);
-                shellBlock.SetFloat("_GlowGain", 1.35f);
+                shellBlock.SetFloat("_GlowGain", 2f);
                 shellBlock.SetVector("_RimColor", new Color(0.05f, 0.065f, 0.065f));
                 shellBlock.SetVector("_GlintColor", new Color(0.55f, 0.62f, 0.6f));
                 shellBlock.SetVector("_Lod", lod);

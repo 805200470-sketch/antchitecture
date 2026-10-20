@@ -329,6 +329,20 @@ namespace AntGarden
                 foreach (ScatterRule rule in cfg.scatter.rules)
                     if (GameConfig.InList(cfg.labExtraPlants, rule.plant) && !string.IsNullOrEmpty(rule.biomes) && !GameConfig.InList(rule.biomes, "blue"))
                         rule.biomes += ",blue";
+            // and its own plants, from high-precision models (2026-10-20): four more curled kinds beside the one it had,
+            // lantern pods, a branching coral and feather fronds; fewer of that one curled kind and of the common
+            // glass-bulbed stalk, so no kind repeats all along the way
+            if (Lab)
+            {
+                foreach (ScatterRule rule in cfg.scatter.rules)
+                {
+                    if (rule.plant == "curl_glow") rule.spacing *= 1.8f;
+                    if (rule.plant == "spore_stalk") rule.spacing *= 1.5f;
+                }
+                var rules = new List<ScatterRule>(cfg.scatter.rules);
+                rules.AddRange(LabPlants());
+                cfg.scatter.rules = rules.ToArray();
+            }
             int placed = 0;
             for (int i = 0; i < world.regions.Count; i++)
             {
@@ -603,20 +617,32 @@ namespace AntGarden
             if (Lab || cfg.particleLook || Arg("-particlelook") != null) particleLook.SetOn(true);
             // the particle nest: the things on the floor, solid, at ant scale; and the pheromones, a sprite of arrows
             // of light leading the ant
+            // the guiding light first: its vines are drawn with the floor's things
+            GuideThreads guide = Lab && lab != null ? gameObject.AddComponent<GuideThreads>() : null;
+            guide?.Init(lab, player.transform, refs.lightThread);
             if (Lab && particleLook.On)
             {
+                guide?.VineSplats(particleLook.extraSolids, particleLook.bodyPalette, particleLook.glowPalette);
                 gameObject.AddComponent<SolidThings>().Init(world, particleLook, refs.particleSolid, player.transform);
                 gameObject.AddComponent<WalkLight>().Init(player.transform);   // what the ant walks past lights up
                 if (particleLook.glassLamps.Count > 0)   // a light inside every glass bulb, through its broken shell
                     gameObject.AddComponent<GlassLamps>().Init(particleLook.glassLamps, refs.lightThread);
                 gameObject.AddComponent<MicroLife>().Init(world, particleLook, refs.microLife);   // the small life
             }
-            if (Lab && lab != null)
-            {
-                gameObject.AddComponent<GuideThreads>().Init(lab, player.transform, refs.lightThread);
-                lab.StartField();
-            }
+            if (Lab && lab != null) lab.StartField();
         }
+
+        /// <summary>The particle nest's own plants: where they grow from the way, how far apart, how tall.</summary>
+        static ScatterRule[] LabPlants() => new[]
+        {
+            new ScatterRule { plant = "curl_a_crozier", dMin = -0.6f, dMax = 4f, spacing = 8.5f, height = new Vector2(1.4f, 3.0f), tilt = 0.2f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2) },
+            new ScatterRule { plant = "curl_b_double", dMin = -0.4f, dMax = 4.5f, spacing = 10f, height = new Vector2(1.6f, 3.2f), tilt = 0.2f, tintJitter = 0.08f },
+            new ScatterRule { plant = "curl_c_hook", dMin = -0.6f, dMax = 4f, spacing = 9.5f, height = new Vector2(1.4f, 2.8f), tilt = 0.2f, tintJitter = 0.08f, cluster = new Vector2Int(1, 3) },
+            new ScatterRule { plant = "curl_d_cluster", dMin = -1f, dMax = 3.5f, spacing = 11f, height = new Vector2(1.1f, 2.2f), tilt = 0.35f, tintJitter = 0.1f },
+            new ScatterRule { plant = "puff_b_lantern", dMin = -0.5f, dMax = 5f, spacing = 11f, height = new Vector2(1.6f, 3.0f), tilt = 0.15f, tintJitter = 0.08f },
+            new ScatterRule { plant = "coral_b_branching", dMin = -1.2f, dMax = 3.5f, spacing = 9f, height = new Vector2(0.9f, 1.8f), tilt = 0.4f, tintJitter = 0.1f, cluster = new Vector2Int(1, 2) },
+            new ScatterRule { plant = "frond_a_feather", dMin = -0.4f, dMax = 5f, spacing = 8f, height = new Vector2(1.4f, 3.2f), tilt = 0.25f, tintJitter = 0.1f, cluster = new Vector2Int(1, 3) },
+        };
 
         /// <summary>Animation check: the player's ant becomes another species, in place (camera and ring stay).</summary>
         public void SwapPlayerSpecies(string species)

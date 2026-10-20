@@ -50,6 +50,11 @@ namespace AntGarden
         // plants whose glowing part is glass (a mesh can only make it an opaque lump): there a thin, broken shell of
         // splats round a light of its own inside, as a capture of something translucent looks
         public string[] glassKinds = { "spore_stalk" };
+        // plants whose glowing part is only their head (the curl of a lollipop-like curl): glowing from this far up
+        public readonly Dictionary<string, float> glowFrom = new Dictionary<string, float>
+        {
+            { "curl_glow", 0.5f }, { "curl_a_crozier", 0.6f }, { "curl_b_double", 0.62f }, { "curl_c_hook", 0.5f }, { "curl_d_cluster", 0.55f },
+        };
         public int glassCore = 1400;        // splats in that light (all in the fine set, a sixth in the coarse one)
 
         /// <summary>A plant as the solid shell sees it (copied on the main thread: workers cannot touch transforms).</summary>
@@ -73,6 +78,8 @@ namespace AntGarden
             public float bend, twist, sy, sxz;
             public bool rigid;              // a thing (relic): neither bent nor recoloured
             public bool glass;              // its glowing part is glass (glassKinds)
+            public float glowFrom;          // its glowing part only from this far up (0..1 of its height)
+            public Color glowDeep;          // its glow colour, deeper (the palette's glow colours are pale: as light they read white)
             public Vector4[] core;          // and the light inside it: where (xyz), how far out (w, 0 middle .. 1 edge)
         }
         readonly List<SolidSlot> solidSlots = new List<SolidSlot>();
@@ -82,6 +89,9 @@ namespace AntGarden
         /// <summary>Replace, solid plants: every glass plant's light (where in the world, how big, its colour), for
         /// GlassLamps; filled by BuildSolidPlants.</summary>
         public readonly List<(Vector3 pos, float size, Color col)> glassLamps = new List<(Vector3, float, Color)>();
+        /// <summary>Replace: more solid splats for SolidThings to draw with the floor's things (the vines round the
+        /// guiding beams, GuideThreads.VineSplats); filled before SolidThings starts.</summary>
+        public readonly List<SolidPoint> extraSolids = new List<SolidPoint>();
 
         // replace: the ground as points
         public readonly List<MeshFilter> ground = new List<MeshFilter>();   // the terrain's meshes
@@ -581,7 +591,7 @@ namespace AntGarden
                 contrast = 1.1f + 0.25f * R(),
                 mottle = 0.06f + 0.16f * R(), mottleScale = 2.5f + 7f * R(), mottleSeed = R() * 97f,
                 band = R() < 0.3f ? 0.1f + 0.15f * R() : 0f, bandFreq = 8f + 22f * R(),
-                glowGain = 0.45f + 0.9f * R(),
+                glowGain = 0.75f + 0.5f * R(),
                 faint = pi.relic ? 0f : 0.1f + 0.14f * R(),
                 bendDir = new Vector2(Mathf.Cos(R() * 6.283f), 0), bend = 0, twist = 0, sy = 1, sxz = 1,
             };
@@ -594,6 +604,9 @@ namespace AntGarden
                 slot.sy = 0.82f + 0.4f * R();
                 slot.sxz = 0.85f + 0.3f * R();
             }
+            if (glowFrom.TryGetValue(plant.name, out float from)) slot.glowFrom = from;
+            // as light, the palette's pale glow colours read white: deeper, and toward the nest's teal
+            slot.glowDeep = Color.Lerp(HueShift(slot.glow, 0f, 1.9f), new Color(0.22f, 0.78f, 0.82f), slot.glowFrom > 0 ? 0.55f : 0.3f);
             if (!pi.relic && glassKinds != null && System.Array.IndexOf(glassKinds, plant.name) >= 0)
             {
                 slot.glass = true;
@@ -662,9 +675,9 @@ namespace AntGarden
         SolidPoint SolidSplat(SolidSlot s, int k, float radius)
         {
             Color32 c = s.raw[k];
-            bool glows = c.a > 127;
             var lin = new Color(Linear[c.r], Linear[c.g], Linear[c.b]);
             Vector3 p = s.pts[k];
+            bool glows = c.a > 127 && p.y >= s.glowFrom * s.top;
             Vector3 n = s.nrms != null ? ThingPen.DecodeNormal(s.nrms[k]) : Vector3.up;
             float y01 = Mathf.Clamp01(p.y / s.top);
             Shape(s, ref p, ref n);
@@ -678,12 +691,13 @@ namespace AntGarden
             Color own = lin * (1f / lum);                                   // the texture's own hue, at unit brightness
             Color tint = Color.Lerp(s.baseTint, s.tipTint, Mathf.SmoothStep(0.15f, 1f, y01));
             Color col = s.rigid ? lin * 1.6f : Color.Lerp(tint, own * 0.75f, s.keepOwn) * (s.meanLum * rel * 2.2f);
-            if (glows && !s.rigid) col = Color.Lerp(col, s.glow * (s.meanLum * rel * 2.2f), 0.45f);
+            if (glows && !s.rigid) col = Color.Lerp(col, s.glowDeep * Mathf.Clamp(s.meanLum * rel * 2.4f, 0.22f, 0.55f), 0.8f);
+            else if (s.glowFrom > 0 && !s.rigid) col *= 0.7f;   // a lollipop's stick: darker, so its head reads as a light
             // mottling in this plant's own pattern, and now and then faint bands along its height
             float mot = Noise(p.x * s.mottleScale + s.mottleSeed, p.z * s.mottleScale + p.y * s.mottleScale * 0.7f);
             col *= 1f + s.mottle * (mot * 2f - 1f) + (s.band > 0 ? s.band * Mathf.Sin(p.y * s.bandFreq + s.mottleSeed) : 0f);
             Color albedo = col * (solidAlbedo * shade);
-            float glow = glows ? Mathf.Clamp01(s.glowGain * (0.55f + 0.4f * Mathf.Clamp01(rel * 0.8f)))
+            float glow = glows ? (s.glowFrom > 0 ? 1f : Mathf.Clamp01(s.glowGain * (0.55f + 0.4f * Mathf.Clamp01(rel * 0.8f))))
                 : s.faint * Mathf.SmoothStep(0f, 1f, (rel - 1.05f) / 1.2f);   // its own faint light, in its lightest parts
             if (s.glass && glows)
             {

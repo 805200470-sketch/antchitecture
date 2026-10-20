@@ -2,7 +2,8 @@
 // floor's height under any point (_FloorHeightMap, baked by ParticleLook), a slow wind that sways what stands up from
 // the floor (more the higher it stands), the ant's own nearness parting what it walks through, rings spreading from its
 // steps over the floor (_Ripples, LabNest), and the pools of light the guiding threads cast on the floor below them
-// (_Beacons, GuideThreads). Everything here is small and slow: the ant stays the thing that moves.
+// (_Beacons, GuideThreads), and the slow breath of everything that glows (NestBreath). Everything here is small and
+// slow: the ant stays the thing that moves.
 #ifndef ANTGARDEN_NEST_FIELD
 #define ANTGARDEN_NEST_FIELD
 
@@ -12,6 +13,24 @@ float4 _NestWind;           // x: how far things sway (units at 3 units up), y: 
 float4 _Ripples[8];         // x, z: where a step fell; w: how strong; y: when (time)
 float4 _Beacons[4];         // x, y, z: where a thread of light meets the floor; w: how bright
 float4 _BeaconColor;        // rgb: its pool's colour (linear)
+float4 _GrainGlow;          // rgb: the colour of the floor's few glowing grains (linear); a: how bright (0: none)
+
+float NestHash2(float2 c) { return frac(sin(dot(c, float2(127.1, 311.7))) * 43758.5453); }
+
+// smooth value noise over the plane (0..1)
+float NestNoise2(float2 p)
+{
+    float2 i = floor(p), f = frac(p), u = f * f * (3 - 2 * f);
+    return lerp(lerp(NestHash2(i), NestHash2(i + float2(1, 0)), u.x), lerp(NestHash2(i + float2(0, 1)), NestHash2(i + float2(1, 1)), u.x), u.y);
+}
+
+// the slow breath of what glows (0..1): one pace everywhere (about eleven seconds a breath), its phase drifting
+// smoothly over the nest, so a plant breathes as one and its neighbours a little out of step, like a wave passing
+// (GlassLamps.cs reckons the same on the CPU)
+float NestBreath(float3 p)
+{
+    return 0.5 + 0.5 * sin(_Time.y * 0.55 + NestNoise2(p.xz * 0.35) * 6.2831853);
+}
 
 // the floor's height under xz (the nearest sample; -1000 where there is no map)
 float NestFloor(float2 xz)

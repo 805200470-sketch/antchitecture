@@ -62,6 +62,18 @@ namespace AntGarden
             return lit;
         }
 
+        static float Fract(float x) => x - Mathf.Floor(x);
+        static float Hash2(float x, float y) => Fract(Mathf.Sin(x * 127.1f + y * 311.7f) * 43758.5453f);
+
+        /// <summary>The slow breath of what glows at p (0..1), as Shaders/NestField.cginc's NestBreath reckons it.</summary>
+        public static float Breath(Vector3 p, float time)
+        {
+            float x = p.x * 0.35f, y = p.z * 0.35f, ix = Mathf.Floor(x), iy = Mathf.Floor(y), fx = x - ix, fy = y - iy;
+            float ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+            float n = Mathf.Lerp(Mathf.Lerp(Hash2(ix, iy), Hash2(ix + 1, iy), ux), Mathf.Lerp(Hash2(ix, iy + 1), Hash2(ix + 1, iy + 1), ux), uy);
+            return 0.5f + 0.5f * Mathf.Sin(time * 0.55f + n * 6.2831853f);
+        }
+
         void OnDestroy()
         {
             if (Instance == this) Instance = null;

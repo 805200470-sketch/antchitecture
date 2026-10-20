@@ -321,6 +321,9 @@ namespace AntGarden
         {
             Shader.SetGlobalVectorArray("_Ripples", ripples);
             Shader.SetGlobalVector("_NestWind", new Vector4(0.045f, 0.35f, 6f, 0));
+            // a few grains of the floor glow faintly and breathe (NestField.cginc), in the cool glow colour
+            Color grain = new Color(0.42f, 0.86f, 0.84f).linear;
+            Shader.SetGlobalVector("_GrainGlow", new Vector4(grain.r, grain.g, grain.b, 0.35f));
         }
 
         /// <summary>Now and then, at irregular times, a faint ring spreads over the floor somewhere round the ant (never at

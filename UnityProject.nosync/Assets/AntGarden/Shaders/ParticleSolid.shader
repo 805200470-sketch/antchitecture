@@ -133,13 +133,12 @@ Shader "AntGarden/ParticleSolid"
                 lit += _GlintColor.rgb * step(0.972, Hash(i + 555u)) * pow(tw, 8);
                 // the steps' rings and the threads' pools of light
                 lit *= 1 + 1.2 * rip;
-                lit += albedo * NestBeacon(pos) * _BeaconColor.rgb * 4.5;
-                // glowing parts breathe, each thing at its own pace (by where it is)
+                lit += albedo * NestBeacon(pos) * _BeaconColor.rgb * lerp(1.2, 4.5, low);
+                // glowing parts breathe slowly, a plant as one (NestBreath), never quite out
                 if (glow > 0)
                 {
-                    float cell = Hash(asuint(floor(p.pos.x * 0.8)) * 73856093u ^ asuint(floor(p.pos.z * 0.8)) * 19349663u);
-                    float breathe = 0.35 + 0.65 * (0.5 + 0.5 * sin(_Time.y * (0.45 + 0.6 * cell) + cell * 40));
-                    lit += albedo * glow * _GlowGain * breathe;
+                    float b = NestBreath(p.pos);
+                    lit += albedo * glow * _GlowGain * (0.4 + 0.6 * b * b);
                 }
                 // a plant an antenna has lit: much brighter, and warmer, while its flare lasts
                 float flare = 0;
