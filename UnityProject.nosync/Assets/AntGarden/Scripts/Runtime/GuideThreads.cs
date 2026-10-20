@@ -5,31 +5,39 @@ using UnityEngine.Rendering;
 namespace AntGarden
 {
     /// <summary>
-    /// The particle nest's guiding filaments of light (Shaders/LightThread.shader), after a forest at night threaded with
-    /// fine, angular lines of light: continuous filaments hanging in the air over the way, from the way in to the heart.
-    /// Each is a line of straight runs that turn sharply now and then (a kink, a tooth), wandering from side to side and
-    /// rising and falling between a little above the ant and well over its head; here and there a short fork leaves one
-    /// and stops, and now and then one drops straight down to the floor and lights a pool there. One runs the whole way;
-    /// others join it for a stretch, higher up, so in places there are two or three. They are made once, so they stay
-    /// where they are: the ant follows them. Only the stretch ahead of the ant shows, coming up out of the dark far on
-    /// and fading just behind it; light runs along them toward the heart, and they flicker a little. At the heart the
-    /// last stretch stays lit.
+    /// The particle nest's guiding light (Shaders/LightThread.shader), after a night forest where one straight beam of
+    /// light stands in the moss and fine, wandering threads of light rise round it and hang in the air. Beams stand
+    /// beside the way from the way in to the heart, each lighting a pool on the floor at its foot and seen from far
+    /// off over the walls, so the ant always has the next one to walk to. Round the foot of each, threads rise from a
+    /// low tangle on the floor, and a few hang down from high up beside it: wandering, kinking, curling into hooks,
+    /// branching, some broken into dashes. Between the beams, threads hang over the way and run along it toward the heart at different heights,
+    /// two or three in places, braiding and parting, each wandering its own way, with now and then a sharp turn, a
+    /// small loop or a short branch ending in a curl. All are made once and stay where they are: the ant follows them.
+    /// The threads show only ahead of the ant (coming up out of the dark far on, fading just behind it); light runs
+    /// along them (toward the heart, or up the rising ones), they flicker and sway a little, and their breaks drift.
+    /// At the heart the last of them stays lit.
     /// </summary>
     public class GuideThreads : MonoBehaviour
     {
-        public float reach = 26f;            // how far ahead along the way the filaments show (units)
+        public float reach = 26f;            // how far ahead along the way the threads show (units)
+        public float beamReach = 55f;        // and the beams, much further: they are what the ant walks toward
         public float gain = 2.4f;
         public Color core = new Color(0.92f, 0.95f, 0.9f), halo = new Color(0.55f, 0.9f, 0.95f);
 
-        /// <summary>A line of light: its points, and each one's distance to the heart along the way (for the window
-        /// ahead of the ant), how bright it is, and whether it drops to the floor (a pool of light there).</summary>
+        /// <summary>A thread of light: its points, each one's distance to the heart along the way (for the window ahead
+        /// of the ant) and along the thread from its start (for the light running along it and its breaks).</summary>
         class Filament
         {
             public readonly List<Vector3> pts = new List<Vector3>();
             public readonly List<float> d = new List<float>();
-            public float bright = 1f, width = 0.022f, seed;
-            public bool drop;
+            public readonly List<float> s = new List<float>();
+            public float bright = 1f, width = 0.014f, seed, dash, baseY;
+            public float dMin = float.MaxValue, dMax = float.MinValue;
+            public bool rising;              // rises from the floor: light runs up it, it sways more the higher it is
         }
+
+        /// <summary>A straight beam of light standing on the floor beside the way.</summary>
+        class Beam { public Vector3 foot; public float height, d, seed; }
 
         LabNest lab;
         Transform ant;
@@ -37,10 +45,11 @@ namespace AntGarden
         Material mat;
         Mesh mesh;
         readonly List<Filament> lines = new List<Filament>();
-        readonly List<Vector3> verts = new List<Vector3>(8192);
-        readonly List<Color> cols = new List<Color>(8192);
-        readonly List<Vector2> uvs = new List<Vector2>(8192), uv2s = new List<Vector2>(8192);
-        readonly List<int> tris = new List<int>(16384);
+        readonly List<Beam> beams = new List<Beam>();
+        readonly List<Vector3> verts = new List<Vector3>(16384);
+        readonly List<Color> cols = new List<Color>(16384);
+        readonly List<Vector2> uvs = new List<Vector2>(16384), uv2s = new List<Vector2>(16384);
+        readonly List<int> tris = new List<int>(24576);
         readonly Vector4[] beacons = new Vector4[4];
         readonly System.Random rng = new System.Random(4711);
         float lastD = 999f;
@@ -54,7 +63,7 @@ namespace AntGarden
             mat.SetFloat("_Gain", gain);
             mat.SetColor("_Core", core.linear);
             mat.SetColor("_Halo", halo.linear);
-            mesh = new Mesh { name = "GuideThreads" };
+            mesh = new Mesh { name = "GuideThreads", indexFormat = IndexFormat.UInt32 };
             mesh.MarkDynamic();
             Shader.SetGlobalVectorArray("_Beacons", beacons);
             Shader.SetGlobalColor("_BeaconColor", new Color(0.62f, 0.86f, 0.84f).linear);
@@ -63,9 +72,18 @@ namespace AntGarden
 
         float R() => (float)rng.NextDouble();
         float U(float a, float b) => a + (b - a) * R();
+        Vector3 Rand3() => new Vector3(U(-1f, 1f), U(-1f, 1f), U(-1f, 1f));
 
-        /// <summary>The filaments, once: one along every way (the main one whole, the others until they meet it), and a
-        /// few higher ones joining the main one for a stretch.</summary>
+        /// <summary>A unit vector at random across v.</summary>
+        Vector3 Across(Vector3 v)
+        {
+            Vector3 a = Vector3.Cross(v, Rand3());
+            return a.sqrMagnitude > 1e-6f ? a.normalized : Vector3.Cross(v, Vector3.right).normalized;
+        }
+
+        /// <summary>The light, once: threads along every way (the main one whole, with a second braiding with it; the
+        /// others until they come near it), higher ones over the main way for a stretch, and the beams with the threads
+        /// rising round them, from the way in to the heart.</summary>
         void Build()
         {
             List<Vector2> mainPts = null;
@@ -85,105 +103,226 @@ namespace AntGarden
                         if (NearTrack(mainPts, p) < 1.6f) { dNear = d; break; }
                     }
                 }
-                Grow(pts, ds, dFar, Mathf.Max(0, dNear), 0.9f, 3.2f, 1.2f, 1f);
+                Along(pts, ds, dFar, Mathf.Max(0, dNear), 0.8f, 3.4f, 1.1f, 0.85f);
+                if (main) Along(pts, ds, dFar - U(2f, 6f), Mathf.Max(0, dNear), 0.5f, 2.4f, 0.8f, 0.55f);
             }
             if (mainPts != null)
             {
                 float dFar = Mathf.Max(mainDs[0], mainDs[mainDs.Count - 1]);
-                for (float at = dFar - U(4, 14); at > 6; at -= U(10, 26))
+                for (float at = dFar - U(4f, 14f); at > 6f; at -= U(10f, 24f))
                 {
-                    float len = U(8, 28), dEnd = Mathf.Max(1, at - len);
-                    Grow(mainPts, mainDs, at, dEnd, 1.8f, 5.6f, 2f, 0.75f);
+                    float len = U(8f, 26f);
+                    Along(mainPts, mainDs, at, Mathf.Max(1f, at - len), 2.2f, 6.5f, 1.6f, 0.5f);
                 }
+                for (float at = dFar - 7f; at > 9f; at -= U(16f, 24f)) Station(mainPts, mainDs, at);
+                Station(mainPts, mainDs, 2.5f);
             }
             int n = 0;
             foreach (Filament f in lines) n += f.pts.Count;
-            Debug.Log($"[AntGarden] guiding filaments: {lines.Count} lines, {n} points");
+            Debug.Log($"[AntGarden] guiding light: {beams.Count} beams, {lines.Count} threads, {n} points");
+        }
+
+        Filament Thread(float bright, float width, float dash) =>
+            new Filament { bright = bright, width = width, dash = dash, seed = R() * 100f };
+
+        static void Add(Filament f, Vector3 p, float d, float s)
+        {
+            f.pts.Add(p);
+            f.d.Add(d);
+            f.s.Add(s);
+            if (d < f.dMin) f.dMin = d;
+            if (d > f.dMax) f.dMax = d;
         }
 
         /// <summary>
-        /// A filament along a way from distance dFrom to dTo from the heart: straight runs of varied length, each turning
-        /// sharply now and then (side, height or both), now and then a tooth (out and back over a short way); forks and
-        /// drops to the floor here and there. Height between hMin and hMax over the floor, never further to a side than
-        /// side.
+        /// A thread along a way from distance dFrom to dTo from the heart, between hMin and hMax over the floor and never
+        /// much further to a side than side: it swings slowly from side to side and up and down, with smaller quicker
+        /// swings and a fine tremble over them; now and then it turns sharply (a corner it eases out of), loops once, or
+        /// sends off a short branch that ends in a curl. Some are broken into dashes.
         /// </summary>
-        void Grow(List<Vector2> pts, List<float> ds, float dFrom, float dTo, float hMin, float hMax, float side, float bright)
+        void Along(List<Vector2> pts, List<float> ds, float dFrom, float dTo, float hMin, float hMax, float side, float bright)
         {
-            var f = new Filament { bright = bright, seed = R() * 100, width = 0.018f + 0.01f * R() };
-            float lat = U(-0.4f, 0.4f) * side, ht = U(hMin, (hMin + hMax) * 0.5f);
-            float nextDrop = dFrom - U(4, 14);
-            for (float d = dFrom; d > dTo; )
+            if (dFrom - dTo < 1f) return;
+            var f = Thread(bright, U(0.010f, 0.016f), R() < 0.35f ? U(0.3f, 0.5f) : 0f);
+            float sa = R() * 100f, sb = R() * 100f, sc = R() * 100f;
+            const float step = 0.08f;
+            float nextLoop = dFrom - U(3f, 9f), nextBranch = dFrom - U(1.5f, 5f), nextKink = dFrom - U(0.8f, 3f);
+            float kinkAt = float.MinValue, kinkIn = 0.2f, kinkOut = 0.6f;
+            Vector2 kink = Vector2.zero;   // the corner's push (to the side, up)
+            float s = 0;
+            Vector3 last = Vector3.zero;
+            bool first = true;
+            for (float d = dFrom; d > dTo; d -= step)
             {
                 Vector2 p = OnTrack(pts, ds, d, out Vector2 dir);
-                Vector2 q = p + new Vector2(-dir.y, dir.x) * lat;
-                var v = new Vector3(q.x, lab.WalkHeight(q) + ht, q.y);
-                f.pts.Add(v);
-                f.d.Add(d);
-                // a fork: a few short runs off to one side or up, and it stops
-                if (R() < 0.06f) Fork(v, new Vector3(dir.x, 0, dir.y), d, bright * 0.6f, f.width * 0.8f);
-                // a drop: down to the floor, a pool of light there
-                if (d < nextDrop)
+                var nrm = new Vector2(-dir.y, dir.x);
+                if (d < nextKink)
                 {
-                    nextDrop = d - U(5, 16);
-                    var drop = new Filament { bright = bright * 0.85f, seed = R() * 100, width = f.width * 0.9f, drop = true };
-                    float floor = lab.WalkHeight(q);
-                    if (R() < 0.35f)
+                    kinkIn = U(0.1f, 0.3f);
+                    kinkOut = U(0.4f, 1.3f);
+                    kinkAt = d - kinkIn;
+                    kink = new Vector2(U(0.15f, 0.45f) * (R() < 0.5f ? -1 : 1), U(0.1f, 0.4f) * (R() < 0.5f ? -1 : 1));
+                    nextKink = kinkAt - kinkOut - U(0.6f, 3f);
+                }
+                // the corner: straight out to it, then slowly back
+                float k = d >= kinkAt ? Mathf.Clamp01((kinkAt + kinkIn - d) / kinkIn) : Mathf.Clamp01(1f - (kinkAt - d) / kinkOut);
+                float lat = side * ((Noise1(d * 0.09f + sa) - 0.5f) * 1.5f + (Noise1(d * 0.42f + sb) - 0.5f) * 0.55f)
+                            + (Noise1(d * 2.7f + sc) - 0.5f) * 0.07f + kink.x * k;
+                float ht = Mathf.Lerp(hMin, hMax, Noise1(d * 0.06f + sb + 50f)) + (Noise1(d * 0.47f + sc + 20f) - 0.5f) * 0.7f
+                           + (Noise1(d * 2.9f + sa + 7f) - 0.5f) * 0.06f + kink.y * k;
+                Vector2 q = p + nrm * lat;
+                var v = new Vector3(q.x, lab.WalkHeight(q) + Mathf.Max(0.25f, ht), q.y);
+                if (!first) s += (v - last).magnitude;
+                Vector3 travel = first ? new Vector3(dir.x, 0, dir.y) : (v - last).normalized;
+                Add(f, v, d, s);
+                if (!first && d < nextLoop)
+                {
+                    // now and then a loop, never quite closed, growing as it goes round (a hook more than a ring)
+                    nextLoop = d - U(10f, 25f);
+                    float r = U(0.12f, 0.32f), turn = U(3.8f, 5.6f);
+                    Vector3 up = Across(travel);
+                    int n = Mathf.CeilToInt(turn * r / 0.05f);
+                    for (int i = 1; i <= n; i++)
                     {
-                        // it bends once on the way down
-                        var mid = new Vector3(v.x + U(-0.4f, 0.4f), Mathf.Lerp(floor, v.y, U(0.35f, 0.7f)), v.z + U(-0.4f, 0.4f));
-                        drop.pts.Add(v); drop.pts.Add(mid); drop.pts.Add(new Vector3(mid.x, floor - 0.05f, mid.z));
-                        drop.d.Add(d); drop.d.Add(d); drop.d.Add(d);
+                        float a = turn * i / n, ri = r * (0.75f + 0.5f * i / n);
+                        Vector3 lp = v + up * (ri - ri * Mathf.Cos(a)) + travel * (ri * Mathf.Sin(a));
+                        s += turn * r / n;
+                        Add(f, lp, d, s);
                     }
-                    else
-                    {
-                        drop.pts.Add(v); drop.pts.Add(new Vector3(v.x, floor - 0.05f, v.z));
-                        drop.d.Add(d); drop.d.Add(d);
-                    }
-                    lines.Add(drop);
                 }
-                // the next run: mostly straight on, now and then a sharp turn, now and then a tooth
-                float step = R() < 0.15f ? U(1.6f, 2.6f) : U(0.35f, 1.5f);
-                if (R() < 0.3f)
+                if (!first && d < nextBranch)
                 {
-                    lat += U(-1f, 1f) * 0.55f * side;
-                    ht += U(-1f, 1f) * 0.8f;
+                    nextBranch = d - U(2f, 7f);
+                    Vector3 bdir = Quaternion.AngleAxis(U(35f, 80f), Across(travel)) * travel;
+                    Walk(v, bdir, U(0.5f, 2.2f), Vector3.up * U(-0.2f, 0.5f), bright * 0.7f, f.width * 0.7f, d, 1, false, 0.35f);
                 }
-                else
-                {
-                    lat += U(-1f, 1f) * 0.12f;
-                    ht += U(-1f, 1f) * 0.1f;
-                }
-                if (R() < 0.07f)
-                {
-                    float half = Mathf.Min(step * 0.5f, 0.3f);
-                    Vector2 p2 = OnTrack(pts, ds, d - half, out Vector2 dir2);
-                    Vector2 q2 = p2 + new Vector2(-dir2.y, dir2.x) * (lat + U(-0.5f, 0.5f));
-                    f.pts.Add(new Vector3(q2.x, lab.WalkHeight(q2) + ht + (R() < 0.5f ? 1 : -1) * U(0.35f, 0.8f), q2.y));
-                    f.d.Add(d - half);
-                }
-                if (Mathf.Abs(lat) > side) lat = Mathf.Sign(lat) * (2 * side - Mathf.Abs(lat));
-                ht = Mathf.Clamp(ht, hMin, hMax);
-                d -= step;
+                last = v;
+                first = false;
             }
             if (f.pts.Count >= 2) lines.Add(f);
         }
 
-        void Fork(Vector3 from, Vector3 along, float d, float bright, float width)
+        /// <summary>
+        /// A thread walking freely from p: its heading wanders smoothly and is drawn toward pull; now and then it turns
+        /// sharply or loops once; at the top level it may branch; it may end in a tightening curl (curl: how likely).
+        /// It never goes under the floor. All its points take distance d (to the heart), so it shows all at once.
+        /// </summary>
+        void Walk(Vector3 p, Vector3 dir, float length, Vector3 pull, float bright, float width, float d, int depth, bool rising, float curl)
         {
-            var f = new Filament { bright = bright, seed = R() * 100, width = width };
-            Vector3 dir = (along * U(-0.3f, 0.6f) + Vector3.Cross(Vector3.up, along) * (R() < 0.5f ? 1 : -1) + Vector3.up * U(-0.3f, 0.9f)).normalized;
-            Vector3 p = from;
-            int runs = 2 + (int)(R() * 4);
-            for (int i = 0; i <= runs; i++)
+            var f = Thread(bright, width, rising && R() < 0.4f ? U(0.25f, 0.5f) : 0f);
+            f.rising = rising;
+            f.baseY = p.y;
+            float sa = R() * 100f, sb = R() * 100f, sc = R() * 100f;
+            const float step = 0.06f;
+            bool loops = R() < 0.3f;
+            float s = 0, nextKink = U(0.4f, 1.6f), nextLoop = U(0.8f, 3f), nextBranch = U(0.5f, 1.8f);
+            int loopLeft = 0;
+            float loopRate = 0;
+            Vector3 loopAxis = Vector3.up;
+            Add(f, p, d, 0);
+            while (s < length)
             {
-                f.pts.Add(p);
-                f.d.Add(d);
-                // each run turns sharply from the last
-                Vector3 turn = new Vector3(U(-1, 1), U(-0.6f, 1), U(-1, 1)).normalized;
-                dir = (dir + turn * 0.9f).normalized;
-                p += dir * U(0.25f, 0.75f);
+                if (loopLeft > 0)
+                {
+                    dir = Quaternion.AngleAxis(loopRate * step * Mathf.Rad2Deg, loopAxis) * dir;
+                    loopLeft--;
+                }
+                else
+                {
+                    var wob = new Vector3(Noise1(s * 1.6f + sa) - 0.5f, Noise1(s * 1.4f + sb) - 0.5f, Noise1(s * 1.5f + sc) - 0.5f);
+                    dir = (dir + wob * 0.25f + pull * step).normalized;
+                    if (s > nextKink)
+                    {
+                        dir = Quaternion.AngleAxis(U(35f, 80f), Across(dir)) * dir;
+                        nextKink = s + U(0.6f, 2.2f);
+                    }
+                    if (loops && s > nextLoop)
+                    {
+                        float r = U(0.12f, 0.3f);
+                        loopAxis = Across(dir);
+                        loopRate = 1f / r;
+                        loopLeft = Mathf.CeilToInt(U(3.6f, 5.4f) * r / step);   // most of the way round, not closed
+                        nextLoop = s + U(2.5f, 6f);
+                    }
+                    if (depth == 0 && rising && s > nextBranch)
+                    {
+                        nextBranch = s + U(0.8f, 2.5f);
+                        Vector3 bdir = Quaternion.AngleAxis(U(30f, 70f), Across(dir)) * dir;
+                        Walk(p, bdir, U(0.4f, 1.6f), pull * 0.6f, bright * 0.75f, width * 0.75f, d, depth + 1, true, 0.4f);
+                    }
+                }
+                p += dir * step;
+                s += step;
+                float floor = lab.WalkHeight(new Vector2(p.x, p.z)) + 0.02f;
+                if (p.y < floor)
+                {
+                    p.y = floor;
+                    if (dir.y < 0) dir = new Vector3(dir.x, -dir.y * 0.5f, dir.z).normalized;
+                }
+                Add(f, p, d, s);
             }
-            lines.Add(f);
+            if (R() < curl)
+            {
+                // the tip: a hook, curling in a little
+                float r = U(0.1f, 0.22f);
+                Vector3 axis = Across(dir);
+                int n = 12 + (int)(R() * 16);
+                for (int i = 0; i < n; i++)
+                {
+                    dir = Quaternion.AngleAxis(step / r * Mathf.Rad2Deg, axis) * dir;
+                    p += dir * step;
+                    s += step;
+                    r *= 0.97f;
+                    Add(f, p, d, s);
+                }
+            }
+            if (f.pts.Count >= 2) lines.Add(f);
+        }
+
+        /// <summary>A beam beside the way at distance d from the heart (to one side, as far as the floor allows), the
+        /// threads rising round its foot from a low tangle on the floor, and a few hanging down beside it.</summary>
+        void Station(List<Vector2> pts, List<float> ds, float d)
+        {
+            Vector2 p = OnTrack(pts, ds, d, out Vector2 dir);
+            var nrm = new Vector2(-dir.y, dir.x);
+            float sideSign = R() < 0.5f ? -1 : 1;
+            Vector2 foot = p;
+            for (float off = U(1.1f, 1.6f); off > 0.15f; off -= 0.15f)
+            {
+                if (lab.OnFloor(p + nrm * sideSign * off, 0.25f)) { foot = p + nrm * sideSign * off; break; }
+                if (lab.OnFloor(p - nrm * sideSign * off, 0.25f)) { foot = p - nrm * sideSign * off; break; }
+            }
+            var footAt = new Vector3(foot.x, lab.WalkHeight(foot), foot.y);
+            beams.Add(new Beam { foot = footAt, height = U(11f, 16f), d = d, seed = R() * 100f });
+            int n = 8 + (int)(R() * 7);
+            for (int i = 0; i < n; i++)
+            {
+                float a = R() * 6.283f, rad = U(0.15f, 1.3f);
+                var at = new Vector2(foot.x + Mathf.Cos(a) * rad, foot.y + Mathf.Sin(a) * rad);
+                if (!lab.OnFloor(at, 0.05f)) continue;
+                var outward = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a));
+                Vector3 dir0 = (Vector3.up + outward * U(0.1f, 0.6f) + Rand3() * 0.3f).normalized;
+                float len = R() < 0.3f ? U(5f, 10f) : U(1.5f, 5f);
+                Walk(new Vector3(at.x, lab.WalkHeight(at) + 0.02f, at.y), dir0, len, Vector3.up * U(0.3f, 0.9f) + outward * U(-0.1f, 0.25f),
+                    U(0.55f, 0.95f), U(0.008f, 0.014f), d, 0, true, 0.45f);
+            }
+            int hang = 3 + (int)(R() * 4);
+            for (int i = 0; i < hang; i++)
+            {
+                // hanging down from high up beside it, curling at the end
+                float a = R() * 6.283f, rad = U(0.3f, 1.6f);
+                var at = new Vector2(foot.x + Mathf.Cos(a) * rad, foot.y + Mathf.Sin(a) * rad);
+                var top = new Vector3(at.x, footAt.y + U(4f, 9f), at.y);
+                Walk(top, (Vector3.down + Rand3() * 0.4f).normalized, U(1.5f, 5f), Vector3.down * U(0.2f, 0.5f), U(0.4f, 0.75f), U(0.007f, 0.012f), d, 1, false, 0.6f);
+            }
+            for (int i = 0; i < 3; i++)
+            {
+                // the tangle on the floor at its foot
+                float a = R() * 6.283f;
+                Vector2 at = foot + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * U(0.05f, 0.5f);
+                Walk(new Vector3(at.x, lab.WalkHeight(at) + 0.03f, at.y), new Vector3(Mathf.Cos(a + 1.6f), 0.15f, Mathf.Sin(a + 1.6f)),
+                    U(0.8f, 2f), Vector3.up * 0.05f, U(0.35f, 0.6f), 0.008f, d, 1, true, 0f);
+            }
         }
 
         static Vector2 OnTrack(List<Vector2> pts, List<float> ds, float d, out Vector2 dir)
@@ -238,33 +377,67 @@ namespace AntGarden
             float playerD = GuideTrail.PlayerD(lab.Route, ant.position);
             bool done = lab.Done;
             if (playerD < 0) playerD = lastD; else lastD = playerD;
-            int nb = 0;
             foreach (Filament f in lines)
             {
-                float flick = 0.82f + 0.18f * Noise1(t * 0.9f + f.seed);
+                if (done ? f.dMin > 13f : playerD - f.dMax > reach + 1f || playerD - f.dMin < -2f) continue;
+                float flick = 0.8f + 0.2f * Noise1(t * 0.9f + f.seed);
                 Vector3 prevP = Vector3.zero;
                 float prevA = 0;
                 for (int i = 0; i < f.pts.Count; i++)
                 {
-                    float d = f.d[i];
+                    float d = f.d[i], s = f.s[i];
                     float ahead = playerD - d;
                     float show = done ? 1 - Mathf.SmoothStep(0, 1, (d - 6f) / 6f)
                         : Mathf.SmoothStep(0, 1, (ahead + 1f) / 2.5f) * (1 - Mathf.SmoothStep(0, 1, (ahead - reach * 0.6f) / (reach * 0.4f)));
-                    // the light running along it toward the heart
-                    float pulse = Mathf.Exp(-Mathf.Pow(Mathf.Repeat((d + t * 3f + f.seed) / 7f, 1f) - 0.5f, 2) * 50f);
-                    float a = show * f.bright * flick * (0.32f + 0.95f * pulse);
-                    // a little tremor, the runs staying straight; a drop's foot stays on the floor
+                    // the light running along it: toward the heart, or up a rising one
+                    float pulse = f.rising ? Mathf.Exp(-Mathf.Pow(Mathf.Repeat((s - t * 1.1f + f.seed) / 3.2f, 1f) - 0.5f, 2) * 45f)
+                        : Mathf.Exp(-Mathf.Pow(Mathf.Repeat((d + t * 3f + f.seed) / 7f, 1f) - 0.5f, 2) * 50f);
+                    // its breaks, drifting
+                    float whole = f.dash > 0 ? Mathf.SmoothStep(0, 1, (Noise1(s * 2.3f + f.seed + t * 0.25f) - f.dash + 0.08f) / 0.16f) : 1f;
+                    float a = show * f.bright * flick * whole * (0.3f + 0.9f * pulse);
                     Vector3 p = f.pts[i];
-                    if (!(f.drop && i == f.pts.Count - 1))
-                        p += new Vector3(Noise1(t * 0.5f + i * 1.7f + f.seed) - 0.5f, Noise1(t * 0.4f + i * 2.3f + f.seed) - 0.5f, Noise1(t * 0.45f + i * 3.1f + f.seed) - 0.5f) * 0.05f;
+                    // swaying: a rising one the more the higher up it is, the others trembling a little
+                    float sway = f.rising ? 0.05f * Mathf.Clamp(p.y - f.baseY, 0f, 6f) : 0.04f;
+                    p += new Vector3(Noise1(t * 0.45f + s * 0.6f + f.seed) - 0.5f, (Noise1(t * 0.35f + s * 0.5f + f.seed + 9f) - 0.5f) * 0.5f,
+                        Noise1(t * 0.4f + s * 0.7f + f.seed + 17f) - 0.5f) * sway;
                     if (i > 0 && (a > 0.004f || prevA > 0.004f)) Segment(prevP, p, prevA, a, f.width);
-                    if (a > 0.004f && i > 0 && i < f.pts.Count - 1) Knot(p, a * 0.9f, f.width * 3.2f);
-                    if (f.drop && i == f.pts.Count - 1 && a > 0.02f && nb < 4) beacons[nb++] = new Vector4(p.x, p.y, p.z, a * 1.2f);
+                    // now and then a bead of light on it, glinting
+                    if (a > 0.03f && Hash(i * 31 + (int)f.seed) < 0.012f)
+                        Knot(p, a * (0.4f + 0.6f * Noise1(t * 1.3f + i)), f.width * 3.5f);
                     prevP = p;
                     prevA = a;
                 }
             }
-            for (int k = nb; k < 4; k++) beacons[k] = Vector4.zero;
+            // the beams: seen from far off, fading once passed; a pool of light at the foot of the nearest
+            int nb = 0;
+            for (int k = 0; k < 4; k++) beacons[k] = Vector4.zero;
+            foreach (Beam b in beams)
+            {
+                float ahead = playerD - b.d;
+                float show = done ? (b.d < 6f ? 1f : 0f)
+                    : Mathf.SmoothStep(0, 1, (ahead + 3f) / 4f) * (1 - Mathf.SmoothStep(0, 1, (ahead - beamReach * 0.7f) / (beamReach * 0.3f)));
+                if (show < 0.005f) continue;
+                float flick = 0.85f + 0.15f * Noise1(t * 0.7f + b.seed);
+                const int pieces = 10;
+                Vector3 prevP = b.foot;
+                float prevA = show * flick;
+                for (int i = 1; i <= pieces; i++)
+                {
+                    float h = (float)i / pieces;
+                    Vector3 p = b.foot + Vector3.up * (b.height * h);
+                    float a = show * flick * (1 - Mathf.Pow(h, 1.6f));
+                    Segment(prevP, p, prevA, a, 0.011f);
+                    prevP = p;
+                    prevA = a;
+                }
+                // sparks sliding down it now and then
+                for (int j = 0; j < 2; j++)
+                {
+                    float u = Mathf.Repeat(t * 0.08f + b.seed + j * 0.5f, 1f);
+                    Knot(b.foot + Vector3.up * (b.height * (1 - u) * 0.7f), show * 0.6f * Mathf.Sin(u * Mathf.PI), 0.03f);
+                }
+                if (nb < 4 && ahead > -3f && ahead < reach) beacons[nb++] = new Vector4(b.foot.x, b.foot.y, b.foot.z, show * 1.1f);
+            }
             Shader.SetGlobalVectorArray("_Beacons", beacons);
             mesh.Clear();
             mesh.SetVertices(verts);
@@ -272,7 +445,7 @@ namespace AntGarden
             mesh.SetUVs(0, uvs);
             mesh.SetUVs(1, uv2s);
             mesh.SetTriangles(tris, 0);
-            mesh.bounds = new Bounds(ant.position, Vector3.one * (reach * 2 + 20));
+            mesh.bounds = new Bounds(ant.position, Vector3.one * (beamReach * 2 + 40));
             Graphics.DrawMesh(mesh, Matrix4x4.identity, mat, 0, null, 0, null, ShadowCastingMode.Off, false);
         }
 
@@ -282,9 +455,14 @@ namespace AntGarden
             Vector3 mid = (a + b) * 0.5f, tangent = (b - a).normalized;
             Vector3 view = mid - cam.transform.position;
             float dist = view.magnitude;
-            Vector3 across = Vector3.Cross(tangent, view / Mathf.Max(dist, 1e-4f)).normalized;
+            Vector3 cross = Vector3.Cross(tangent, view / Mathf.Max(dist, 1e-4f));
+            float sideways = cross.magnitude;
+            Vector3 across = sideways > 1e-5f ? cross / sideways : cam.transform.right;
             float pixel = 2f * dist * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, cam.pixelHeight);
             float w = Mathf.Max(halfWidth, pixel * 2.5f), thin = Mathf.Lerp(0.35f, 1f, halfWidth / w);
+            // seen end-on its light would pile up into one glaring line, and right at the lens it would be a smear
+            thin *= Mathf.SmoothStep(0f, 1f, sideways / 0.35f) * Mathf.SmoothStep(0f, 1f, (dist - 0.3f) / 1.2f);
+            if (thin <= 0.001f) return;
             int v = verts.Count;
             verts.Add(a - across * w); verts.Add(a + across * w); verts.Add(b + across * w); verts.Add(b - across * w);
             var ca = new Color(1, 1, 1, aa * thin);
@@ -296,11 +474,13 @@ namespace AntGarden
             tris.Add(v); tris.Add(v + 2); tris.Add(v + 3);
         }
 
-        /// <summary>A small round knot of light at p, where a filament turns.</summary>
+        /// <summary>A small round bead of light at p.</summary>
         void Knot(Vector3 p, float alpha, float size)
         {
             Vector3 right = cam.transform.right, up = cam.transform.up;
             float dist = (p - cam.transform.position).magnitude;
+            alpha *= Mathf.SmoothStep(0f, 1f, (dist - 0.4f) / 1.6f);   // right at the lens a bead would be a big blur
+            if (alpha <= 0.002f) return;
             float pixel = 2f * dist * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, cam.pixelHeight);
             float s = Mathf.Max(size, pixel * 3f);
             int v = verts.Count;

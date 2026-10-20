@@ -68,6 +68,7 @@ namespace AntGarden
             // stretched
             public Color baseTint, tipTint, glow;
             public float keepOwn, contrast, mottle, mottleScale, mottleSeed, band, bandFreq, glowGain;
+            public float faint;             // a faint light of its own in its lightest parts (veins, rims, pale spots)
             public Vector2 bendDir;
             public float bend, twist, sy, sxz;
             public bool rigid;              // a thing (relic): neither bent nor recoloured
@@ -581,6 +582,7 @@ namespace AntGarden
                 mottle = 0.06f + 0.16f * R(), mottleScale = 2.5f + 7f * R(), mottleSeed = R() * 97f,
                 band = R() < 0.3f ? 0.1f + 0.15f * R() : 0f, bandFreq = 8f + 22f * R(),
                 glowGain = 0.45f + 0.9f * R(),
+                faint = pi.relic ? 0f : 0.1f + 0.14f * R(),
                 bendDir = new Vector2(Mathf.Cos(R() * 6.283f), 0), bend = 0, twist = 0, sy = 1, sxz = 1,
             };
             if (!pi.relic && !pi.far)
@@ -681,7 +683,8 @@ namespace AntGarden
             float mot = Noise(p.x * s.mottleScale + s.mottleSeed, p.z * s.mottleScale + p.y * s.mottleScale * 0.7f);
             col *= 1f + s.mottle * (mot * 2f - 1f) + (s.band > 0 ? s.band * Mathf.Sin(p.y * s.bandFreq + s.mottleSeed) : 0f);
             Color albedo = col * (solidAlbedo * shade);
-            float glow = glows ? Mathf.Clamp01(s.glowGain * (0.55f + 0.4f * Mathf.Clamp01(rel * 0.8f))) : 0f;
+            float glow = glows ? Mathf.Clamp01(s.glowGain * (0.55f + 0.4f * Mathf.Clamp01(rel * 0.8f)))
+                : s.faint * Mathf.SmoothStep(0f, 1f, (rel - 1.05f) / 1.2f);   // its own faint light, in its lightest parts
             if (s.glass && glows)
             {
                 // glass: a thin, broken shell, darker, lit only faintly by the light inside (its outline still

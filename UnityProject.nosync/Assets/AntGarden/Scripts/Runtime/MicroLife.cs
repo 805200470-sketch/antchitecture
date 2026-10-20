@@ -13,7 +13,8 @@ namespace AntGarden
     /// </summary>
     public class MicroLife : MonoBehaviour
     {
-        public int springtails = 150, mites = 90, swarms = 16, perSwarm = 9, fluff = 80;
+        // none crawling on the floor: chains of beads there read as caterpillars (the ants are the floor's life)
+        public int springtails = 0, mites = 0, swarms = 16, perSwarm = 9, fluff = 80;
         public float maxDistance = 26f;      // not drawn further from the camera than this
         public float gain = 1f;
 

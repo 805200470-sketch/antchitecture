@@ -58,7 +58,7 @@ namespace AntGarden
                 float dist = Mathf.Sqrt(d2);
                 float breathe = 0.6f + 0.4f * Mathf.Sin(t * (0.35f + 0.25f * Mathf.Repeat(l.seed, 1f)) + l.seed);
                 float fade = (1 - Mathf.SmoothStep(0, 1, (dist - reach * 0.6f) / (reach * 0.4f))) * Mathf.SmoothStep(0.3f, 1.2f, dist);
-                float a = breathe * fade;
+                float a = breathe * fade * (1f + 2f * (WalkLight.Instance != null ? WalkLight.Instance.LitAt(l.pos) : 0f));
                 if (a < 0.01f) continue;
                 float s = Mathf.Max(l.size * spread, dist * pixelK * 3f);
                 int i = verts.Count;

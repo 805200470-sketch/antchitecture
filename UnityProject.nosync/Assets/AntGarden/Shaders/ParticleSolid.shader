@@ -5,7 +5,8 @@
 // lying tilted between its surface and the camera, so surfaces foreshorten without breaking into gaps. Each splat is
 // lit from its normal: a cool moonlight from above, a soft fill, a thin rim, and the ant's own nearness (as if its
 // antennae felt the things round it). Glowing parts (mushroom gills, plants' glowing parts) breathe slowly, each
-// thing at its own pace; a plant an antenna has lit flares far brighter while its flare lasts.
+// thing at its own pace; a plant an antenna has lit flares far brighter while its flare lasts, and what stands up
+// beside the ant's way lights up gently as it walks past, then slowly goes back (WalkLight.cs).
 // Far away the things thin out splat by splat (the rest a little larger), so the count stays bounded. And it is all
 // a little alive (NestField.cginc): what stands up sways in a slow wind, low things part round the ant, rings from its
 // steps run over the floor, a thin silvery rim outlines every form, a few splats glint, and the guiding threads cast
@@ -46,6 +47,8 @@ Shader "AntGarden/ParticleSolid"
             float4 _Flares[16], _FlareInfo[16];
             float4 _RimColor;                           // the thin silvery light along every form's outline
             float4 _GlintColor;                         // a few splats catch the light now and then
+            float4 _WalkTrail[16];                      // where the ant has just been (xz) and when (w, as _Time.y)
+            float _WalkLit, _WalkRadius;                // how much what it walked past lights up, and how near it must be
 
             struct v2f
             {
@@ -146,6 +149,24 @@ Shader "AntGarden/ParticleSolid"
                     float4 F = _Flares[f], I = _FlareInfo[f];
                     float inside = (1 - smoothstep(I.x * 0.75, I.x * 1.2, length(pos.xz - F.xz))) * step(F.y - 0.5, pos.y) * step(pos.y, F.y + I.y + 0.5);
                     flare = max(flare, inside * I.z);
+                }
+                // what stands up beside the way lights up as the ant walks past: rising over a moment, staying a
+                // little, going back slowly
+                if (_WalkLit > 0 && above > 0.05)
+                {
+                    float2 toAnt = pos.xz - _TrailPlayer.xz;
+                    if (dot(toAnt, toAnt) < 100)
+                    {
+                        float walk = 0, r2 = _WalkRadius * _WalkRadius;
+                        for (int w = 0; w < 16; w++)
+                        {
+                            float4 W = _WalkTrail[w];
+                            float age = _Time.y - W.w;
+                            float2 dv = pos.xz - W.xz;
+                            walk = max(walk, exp(-dot(dv, dv) / r2) * smoothstep(0, 0.8, age) * (1 - smoothstep(2.5, 8, age)));
+                        }
+                        flare = max(flare, walk * _WalkLit);
+                    }
                 }
                 lit = lit * (1 + 3 * flare) + flare * albedo * (0.6 + 2.5 * glow) * float3(0.95, 1.0, 1.05);
                 // each splat a little lighter or darker than its neighbours, as the points of a capture are

@@ -86,7 +86,7 @@ Shader "AntGarden/ParticleAnt"
                 float lodK = saturate((_Count - i) / max(1, _Count * 0.15));
                 if (Hash(i + 31337u) > _Fade || lodK <= 0) { o.pos = float4(0, 0, 0, 1); return o; }
                 // most beads small, some middling, a few large; large only where the surface faces the camera
-                float grow = kind == 2 ? 0.55 : hs < 0.05 ? 1.9 : hs < 0.2 ? 1.35 : 0.65 + 0.5 * h;
+                float grow = kind == 2 ? 0.55 : hs < 0.05 ? 1.5 : hs < 0.2 ? 1.2 : 0.65 + 0.5 * h;
                 grow = lerp(min(grow, 0.9), grow, smoothstep(0.35, 0.75, facing));
                 float dist = distance(pos, _WorldSpaceCameraPos);
                 float pixel = 2 * dist / (unity_CameraProjection._m11 * _ScreenParams.y);
@@ -94,7 +94,7 @@ Shader "AntGarden/ParticleAnt"
                 float size = max(want, pixel * _MinPixels);
                 float2 c = corners[id % 3];
                 float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
-                o.pos = mul(UNITY_MATRIX_VP, float4(pos + n * 0.004 + (right * c.x + up * c.y) * size, 1));
+                o.pos = mul(UNITY_MATRIX_VP, float4(pos + n * 0.0012 + (right * c.x + up * c.y) * size, 1));
                 o.uv = c;
                 // the texture's colour, its light and dark a little exaggerated
                 float3 rgb = GammaToLinearSpace(float3(p.col & 255, (p.col >> 8) & 255, (p.col >> 16) & 255) / 255.0);

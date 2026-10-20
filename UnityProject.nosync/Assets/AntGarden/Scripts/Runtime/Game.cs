@@ -606,6 +606,7 @@ namespace AntGarden
             if (Lab && particleLook.On)
             {
                 gameObject.AddComponent<SolidThings>().Init(world, particleLook, refs.particleSolid, player.transform);
+                gameObject.AddComponent<WalkLight>().Init(player.transform);   // what the ant walks past lights up
                 if (particleLook.glassLamps.Count > 0)   // a light inside every glass bulb, through its broken shell
                     gameObject.AddComponent<GlassLamps>().Init(particleLook.glassLamps, refs.lightThread);
                 gameObject.AddComponent<MicroLife>().Init(world, particleLook, refs.microLife);   // the small life

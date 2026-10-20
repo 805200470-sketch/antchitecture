@@ -42,6 +42,8 @@ namespace AntGarden
         public bool Done => beat >= 2;
         public GuideTrail.Route Route => route;
         public float WalkHeight(Vector2 p) => world.WalkHeight(p.x, p.y);
+        /// <summary>True when p is on the open floor of the nest, at least margin from its walls.</summary>
+        public bool OnFloor(Vector2 p, float margin) => world.HexDist(p.x, p.y) < -1f && world.Dist(p.x, p.y) < -margin;
         /// <summary>The things left beside the way (id, where on the floor, and the point of the way beside it).</summary>
         public readonly List<(string id, Vector2 at, Vector2 from)> Objects = new List<(string, Vector2, Vector2)>();
 

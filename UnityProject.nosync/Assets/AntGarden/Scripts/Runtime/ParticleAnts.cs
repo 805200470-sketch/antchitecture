@@ -17,11 +17,12 @@ namespace AntGarden
     [DefaultExecutionOrder(1000)]   // after the ants have moved and been posed
     public class ParticleAnts : MonoBehaviour
     {
-        public float size = 0.0052f;    // a point's radius (units)
+        public float size = 0.003f;     // a point's radius (units): fine, so thin legs stay thin and the waist narrow
         public float gain = 1.15f;
-        public float pale = 0.12f;      // how far colours go from the ant's own toward a pale glow
-        public float contrast = 1.5f;   // how much the texture's light and dark are exaggerated
+        public float pale = 0.06f;      // how far colours go from the ant's own toward a pale glow
+        public float contrast = 1.2f;   // how much the texture's light and dark are exaggerated
         public Color bodyColour = new Color(0.02f, 0.05f, 0.06f);   // the ant's own mesh, dark, under its points
+        public float bodyTexture = 0.5f;   // and its own texture on it, dim: the gaps show the ant, not black stripes
         public float fullUntil = 6f;    // all its points this close to the camera
         public float fewBeyond = 18f;   // a third of them from here on
 
@@ -57,7 +58,11 @@ namespace AntGarden
         {
             mat = refs.particleAnt;
             if (mat == null) return;
-            if (refs.antOccluder != null) refs.antOccluder.SetColor("_Color", bodyColour);
+            if (refs.antOccluder != null)
+            {
+                refs.antOccluder.SetColor("_Color", bodyColour);
+                refs.antOccluder.SetFloat("_TexLight", bodyTexture);
+            }
             int slots = 0;
             var all = new List<AntController>();
             if (player != null) all.Add(player);

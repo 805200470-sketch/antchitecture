@@ -83,7 +83,7 @@ namespace AntGarden
                     for (int i = 0; i < mats.Length; i++)
                     {
                         string n = mats[i] != null ? mats[i].name.ToLowerInvariant() : "";
-                        mats[i] = n.Contains("wing") || n.Contains("vein") ? none : body;
+                        mats[i] = n.Contains("wing") || n.Contains("vein") ? none : BodyFor(body, mats[i]);
                     }
                     r.sharedMaterials = mats;
                     r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -94,6 +94,23 @@ namespace AntGarden
             ShowBody();
         }
         public bool PointsOnly => pointsOnly;
+
+        static readonly Dictionary<Material, Material> bodies = new Dictionary<Material, Material>();
+        /// <summary>The dim body for one of the ant's own materials: the body material with that material's texture
+        /// (shared by every ant of a kind).</summary>
+        static Material BodyFor(Material body, Material own)
+        {
+            if (own == null) return body;
+            if (bodies.TryGetValue(own, out Material m) && m != null) return m;
+            Texture tex = null;
+            foreach (string prop in new[] { "_MainTex", "_BaseMap", "_BaseColorMap" })
+                if (tex == null && own.HasProperty(prop)) tex = own.GetTexture(prop);
+            m = new Material(body) { name = "AntOccluder_" + own.name };
+            if (tex != null) m.SetTexture("_MainTex", tex);
+            else m.SetFloat("_TexLight", 0);
+            bodies[own] = m;
+            return m;
+        }
 
         Transform lean;
         Transform model;
