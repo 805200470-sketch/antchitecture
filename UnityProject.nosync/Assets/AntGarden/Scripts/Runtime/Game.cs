@@ -590,6 +590,7 @@ namespace AntGarden
                 // the floor's things are solid (SolidThings): leaves, twigs, moss, mushrooms... at ant scale; and the
                 // plants, drawn the same way, with the same grain
                 particleLook.solidPlants = true;
+                if (Arg("-glass") == "0") particleLook.glassKinds = null;   // test: glass-bulbed plants drawn as plain ones
                 particleLook.shellPlantArea = 0f;
                 particleLook.splatShare = 0.24f;   // like a splat capture: soft larger splats under the fine points
                 // the walls and floor become points too, densest along the glowing ways
@@ -605,6 +606,8 @@ namespace AntGarden
             if (Lab && particleLook.On)
             {
                 gameObject.AddComponent<SolidThings>().Init(world, particleLook, refs.particleSolid, player.transform);
+                if (particleLook.glassLamps.Count > 0)   // a light inside every glass bulb, through its broken shell
+                    gameObject.AddComponent<GlassLamps>().Init(particleLook.glassLamps, refs.lightThread);
                 gameObject.AddComponent<MicroLife>().Init(world, particleLook, refs.microLife);   // the small life
             }
             if (Lab && lab != null)

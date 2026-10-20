@@ -5,6 +5,14 @@
 //
 //   node Tools/tripo.mjs balance
 //   node Tools/tripo.mjs image <front.png> <out.glb> [--model P1-20260311] [--faces 20000] [--quality standard|detailed|extreme]
+//                              [--geometry standard|detailed] [--texture-version v3.5-20260815]
+//   node Tools/tripo.mjs splat <front.png> <out.splat>
+//
+// Models: P1-20260311 is Tripo's LOW-POLY line (at most 20,000 faces, clean game topology: thin hairs, frills and
+// beads are smoothed away). v3.1-20260211 is the high-precision line (up to 1,500,000 faces); with
+// --geometry detailed ("Ultra") it keeps finer geometry. Price per model, API pricing page 2026-10: P1 with detailed
+// texture 60; v3.x 30 with texture, +10 detailed texture, +20 detailed geometry (so also 60). splat = image to
+// Gaussian splat (.splat), 30.
 //
 // Every run appends a line to tripo_log.jsonl next to the output model (task id, model, file, credits consumed).
 // API reference: https://developers.tripo3d.ai/en/docs/generation-image-to-model/p.md
@@ -100,6 +108,8 @@ async function imageToModel(img, out, opts) {
   const fileToken = await upload(img);
   // v3: the uploaded image goes in `input` (a file token, an image URL or an earlier image task id)
   const body = { input: fileToken, model: opts.model, face_limit: opts.faces, texture: true, pbr: true, texture_quality: opts.quality };
+  if (opts.geometry) body.geometry_quality = opts.geometry; // v3.x only: 'detailed' is the finer "Ultra" geometry
+  if (opts.textureVersion) body.texture_version = opts.textureVersion;
   const { task_id: taskId } = await call('POST', '/generation/image-to-model', body);
   console.log(`task ${taskId} (${opts.model})`);
   const data = await waitFor(taskId);
@@ -108,7 +118,24 @@ async function imageToModel(img, out, opts) {
   const res = await fetch(url); // signed URL, expires in minutes: download right away
   if (!res.ok) throw new Error(`download failed: HTTP ${res.status}`);
   writeFileSync(out, Buffer.from(await res.arrayBuffer()));
-  const entry = { time: new Date().toISOString(), task: taskId, model: opts.model, faces: opts.faces, quality: opts.quality, image: img, out, credits: data.credits_consumed ?? data.consumed_credit ?? null };
+  const entry = { time: new Date().toISOString(), task: taskId, model: opts.model, faces: opts.faces, quality: opts.quality, geometry: opts.geometry ?? null, image: img, out, credits: data.credits_consumed ?? data.consumed_credit ?? null };
+  appendFileSync(join(dirname(out), 'tripo_log.jsonl'), JSON.stringify(entry) + '\n');
+  console.log(`saved ${out}${entry.credits !== null ? `  (credits: ${entry.credits})` : ''}`);
+}
+
+/** Image to Gaussian splat: a .splat file (the common 32-byte-per-splat layout) for Tools/splat_to_points. */
+async function imageToSplat(img, out) {
+  console.log(`upload ${img}`);
+  const fileToken = await upload(img);
+  const { task_id: taskId } = await call('POST', '/generation/image-to-splat', { input: fileToken });
+  console.log(`task ${taskId} (splat)`);
+  const data = await waitFor(taskId);
+  const url = data.output?.model_url ?? data.output?.model;
+  if (!url) throw new Error(`no splat url in ${JSON.stringify(data.output).slice(0, 300)}`);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`download failed: HTTP ${res.status}`);
+  writeFileSync(out, Buffer.from(await res.arrayBuffer()));
+  const entry = { time: new Date().toISOString(), task: taskId, model: 'splat', image: img, out, credits: data.credits_consumed ?? data.consumed_credit ?? null };
   appendFileSync(join(dirname(out), 'tripo_log.jsonl'), JSON.stringify(entry) + '\n');
   console.log(`saved ${out}${entry.credits !== null ? `  (credits: ${entry.credits})` : ''}`);
 }
@@ -136,9 +163,13 @@ try {
   } else if (cmd === 'image') {
     const [img, out] = rest;
     if (!img || !out) throw new Error('usage: node Tools/tripo.mjs image <image> <out.glb>');
-    await imageToModel(resolve(img), resolve(out), { model: flag('--model', 'P1-20260311'), faces: Number(flag('--faces', 20000)), quality: flag('--quality', 'standard') });
+    await imageToModel(resolve(img), resolve(out), { model: flag('--model', 'P1-20260311'), faces: Number(flag('--faces', 20000)), quality: flag('--quality', 'standard'), geometry: flag('--geometry'), textureVersion: flag('--texture-version') });
+  } else if (cmd === 'splat') {
+    const [img, out] = rest;
+    if (!img || !out) throw new Error('usage: node Tools/tripo.mjs splat <image> <out.splat>');
+    await imageToSplat(resolve(img), resolve(out));
   } else {
-    console.log('usage: node Tools/tripo.mjs balance | image <image> <out.glb> [--model P1-20260311] [--faces 20000] [--quality standard|detailed|extreme]');
+    console.log('usage: node Tools/tripo.mjs balance | image <image> <out.glb> [--model P1-20260311] [--faces 20000] [--quality standard|detailed|extreme] [--geometry standard|detailed] [--texture-version v3.5-20260815] | splat <image> <out.splat>');
   }
 } catch (err) {
   console.error(`\n${err.message}`);

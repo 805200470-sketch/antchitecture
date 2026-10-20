@@ -79,7 +79,7 @@ def log(*a):
 
 def plant_name(glb):
     base = os.path.splitext(os.path.basename(glb))[0]
-    return re.sub(r'_p\d+$', '', base)
+    return re.sub(r'_(p\d+|v\d+)$', '', base)   # _p1 (low-poly line), _v31 (high-precision line)
 
 
 def load_config():

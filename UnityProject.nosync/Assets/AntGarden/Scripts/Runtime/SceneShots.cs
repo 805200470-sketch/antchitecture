@@ -86,26 +86,27 @@ namespace AntGarden
                 int m = t.Count / 2;
                 if (m + 6 < t.Count) spots.Add(("lab_halfway", t[m], t[m + 6]));
                 if (Approach(game, r, game.LabNest.Heart, 7f, out Vector2 at)) spots.Add(("lab_heart", at, game.LabNest.Heart));
-                // a curled plant close up, seen from the way (for judging the plants' detail)
+                // a curled plant and a glass-bulbed one close up, seen from the way (for judging the plants' detail)
+                void CloseUp(string kind, string name, float back)
                 {
                     float bestD = float.MaxValue;
                     Vector2 plant = Vector2.zero, onWay = Vector2.zero;
                     Vector2 aim = t[Mathf.Min(t.Count - 1, t.Count / 3)];
                     foreach (Placement pl in game.world.placements)
                     {
-                        if (pl.plant != "curl_glow") continue;
+                        if (pl.plant != kind) continue;
                         var pp = new Vector2(pl.x, pl.z);
                         float d = (pp - aim).sqrMagnitude;
                         if (d < bestD) { bestD = d; plant = pp; }
                     }
-                    if (bestD < float.MaxValue)
-                    {
-                        float nearest = float.MaxValue;
-                        foreach (Vector2 q in t) { float d = (q - plant).sqrMagnitude; if (d < nearest) { nearest = d; onWay = q; } }
-                        Vector2 dir = (plant - onWay).sqrMagnitude > 1e-4f ? (plant - onWay).normalized : Vector2.right;
-                        spots.Add(("lab_curl", plant - dir * 2.6f, plant));
-                    }
+                    if (bestD == float.MaxValue) return;
+                    float nearest = float.MaxValue;
+                    foreach (Vector2 q in t) { float d = (q - plant).sqrMagnitude; if (d < nearest) { nearest = d; onWay = q; } }
+                    Vector2 dir = (plant - onWay).sqrMagnitude > 1e-4f ? (plant - onWay).normalized : Vector2.right;
+                    spots.Add((name, plant - dir * back, plant));
                 }
+                CloseUp("curl_glow", "lab_curl", 2.6f);
+                CloseUp("spore_stalk", "lab_spore", 2.2f);
                 // two of the things left beside the way, seen from the way
                 foreach (var (id, pos, from) in game.LabNest.Objects)
                     if (id == "relic_teacup" || id == "relic_key")

@@ -47,6 +47,10 @@ namespace AntGarden
         public float solidFine = 1500f;     // and in the fine one, round the ant
         public int solidFineCap = 42000;    // at most this many for one plant
         public float solidAlbedo = 0.5f;    // how bright a plant's splats are lit (its dots' colours were for glowing)
+        // plants whose glowing part is glass (a mesh can only make it an opaque lump): there a thin, broken shell of
+        // splats round a light of its own inside, as a capture of something translucent looks
+        public string[] glassKinds = { "spore_stalk" };
+        public int glassCore = 1400;        // splats in that light (all in the fine set, a sixth in the coarse one)
 
         /// <summary>A plant as the solid shell sees it (copied on the main thread: workers cannot touch transforms).</summary>
         public sealed class SolidSlot
@@ -67,9 +71,16 @@ namespace AntGarden
             public Vector2 bendDir;
             public float bend, twist, sy, sxz;
             public bool rigid;              // a thing (relic): neither bent nor recoloured
+            public bool glass;              // its glowing part is glass (glassKinds)
+            public Vector4[] core;          // and the light inside it: where (xyz), how far out (w, 0 middle .. 1 edge)
         }
         readonly List<SolidSlot> solidSlots = new List<SolidSlot>();
         readonly Dictionary<PlantRef, (float mean, float top)> kindStats = new Dictionary<PlantRef, (float, float)>();
+        readonly Dictionary<PlantRef, Vector4[]> glassCores = new Dictionary<PlantRef, Vector4[]>();
+        readonly Dictionary<PlantRef, Vector4> glassBulbs = new Dictionary<PlantRef, Vector4>();   // its middle (xyz), its light's radius (w)
+        /// <summary>Replace, solid plants: every glass plant's light (where in the world, how big, its colour), for
+        /// GlassLamps; filled by BuildSolidPlants.</summary>
+        public readonly List<(Vector3 pos, float size, Color col)> glassLamps = new List<(Vector3, float, Color)>();
 
         // replace: the ground as points
         public readonly List<MeshFilter> ground = new List<MeshFilter>();   // the terrain's meshes
@@ -484,6 +495,7 @@ namespace AntGarden
         {
             if (focusD2 == null) BuildFocus();
             solidSlots.Clear();
+            glassLamps.Clear();
             int start = into.Count;
             var picks = new List<(PlantInstance pi, float area, int n)>();
             var census = new Dictionary<string, int>();
@@ -509,6 +521,14 @@ namespace AntGarden
                 float radius = Mathf.Min(pi.far ? 0.6f : 0.055f, 0.62f * Mathf.Sqrt(area / n));
                 for (int k = 0; k < n && k < slot.pts.Length; k++)
                     into.Add(SolidSplat(slot, k, -radius));   // negative: coarse (left out round the ant)
+                if (slot.core != null)
+                {
+                    for (int j = 0, m = Mathf.Min(slot.core.Length, n / 6); j < m; j++) into.Add(CoreSplat(slot, j, -radius));
+                    Vector4 bulb = glassBulbs[pi.plant];
+                    Vector3 mid = bulb, up = Vector3.up;
+                    Shape(slot, ref mid, ref up);
+                    glassLamps.Add((slot.m.MultiplyPoint3x4(mid), bulb.w * pi.t.lossyScale.y * slot.sxz, slot.glow));
+                }
                 if (!pi.far) solidSlots.Add(slot);
             }
             var top = new List<KeyValuePair<string, int>>(census);
@@ -572,7 +592,44 @@ namespace AntGarden
                 slot.sy = 0.82f + 0.4f * R();
                 slot.sxz = 0.85f + 0.3f * R();
             }
+            if (!pi.relic && glassKinds != null && System.Array.IndexOf(glassKinds, plant.name) >= 0)
+            {
+                slot.glass = true;
+                slot.core = GlassCore(plant);
+            }
             return slot;
+        }
+
+        /// <summary>
+        /// A glass plant's light: splats inside its glowing part, packed towards the middle of it (the glowing points'
+        /// centre, out to about half their mean distance from it). The same for every plant of a kind.
+        /// </summary>
+        Vector4[] GlassCore(PlantRef plant)
+        {
+            if (glassCores.TryGetValue(plant, out var core)) return core;
+            Vector3 sum = Vector3.zero;
+            int n = 0;
+            for (int k = 0; k < plant.points.Length; k += 3)
+                if (plant.pointColors[k].a > 127) { sum += plant.points[k]; n++; }
+            if (n < 20 || glassCore <= 0) return glassCores[plant] = null;
+            Vector3 c = sum / n;
+            float rad = 0;
+            for (int k = 0; k < plant.points.Length; k += 3)
+                if (plant.pointColors[k].a > 127) rad += (plant.points[k] - c).magnitude;
+            rad = 0.55f * rad / n;
+            glassBulbs[plant] = new Vector4(c.x, c.y, c.z, rad);
+            core = new Vector4[glassCore];
+            var rng = new Rng(4099u);
+            for (int j = 0; j < core.Length;)
+            {
+                var d = new Vector3(rng.Next() * 2 - 1, rng.Next() * 2 - 1, rng.Next() * 2 - 1);
+                float d2 = d.sqrMagnitude;
+                if (d2 > 1 || d2 < 1e-4f) continue;
+                float f = Mathf.Pow(rng.Next(), 0.9f);   // evenly out from the middle: denser there
+                Vector3 q = c + d / Mathf.Sqrt(d2) * (rad * f);
+                core[j++] = new Vector4(q.x, q.y, q.z, f);
+            }
+            return glassCores[plant] = core;
         }
 
         /// <summary>
@@ -589,6 +646,8 @@ namespace AntGarden
                 int n = Mathf.Min(Mathf.Min(solidFineCap, slot.pts.Length), Mathf.RoundToInt(slot.area * solidFine));
                 float radius = Mathf.Max(0.004f, 0.62f * Mathf.Sqrt(slot.area / Mathf.Max(1, n)));
                 for (int k = 0; k < n; k++) into.Add(SolidSplat(slot, k, radius));
+                if (slot.core != null)
+                    for (int j = 0, m = Mathf.Min(slot.core.Length, n / 3); j < m; j++) into.Add(CoreSplat(slot, j, radius));
             }
         }
 
@@ -606,20 +665,7 @@ namespace AntGarden
             Vector3 p = s.pts[k];
             Vector3 n = s.nrms != null ? ThingPen.DecodeNormal(s.nrms[k]) : Vector3.up;
             float y01 = Mathf.Clamp01(p.y / s.top);
-            if (!s.rigid && (s.bend != 0 || s.twist != 0 || s.sy != 1 || s.sxz != 1))
-            {
-                float y = Mathf.Max(0, p.y);
-                // stretched, twisted about its stem, bent over (the higher, the more)
-                p.x *= s.sxz; p.z *= s.sxz; p.y *= s.sy;
-                n.x /= s.sxz; n.z /= s.sxz; n.y /= s.sy;
-                float a = s.twist * y, ca = Mathf.Cos(a), sa = Mathf.Sin(a);
-                p = new Vector3(p.x * ca - p.z * sa, p.y, p.x * sa + p.z * ca);
-                n = new Vector3(n.x * ca - n.z * sa, n.y, n.x * sa + n.z * ca);
-                float yy = y * s.sy, b = s.bend;
-                p.x += s.bendDir.x * b * yy * yy;
-                p.z += s.bendDir.y * b * yy * yy;
-                n.y -= 2 * b * yy * (s.bendDir.x * n.x + s.bendDir.y * n.z);
-            }
+            Shape(s, ref p, ref n);
             float open = s.open != null ? s.open[k] / 255f : 1f;
             float shade = 0.3f + 0.7f * Mathf.Pow(open, 1.1f);
             // the texture's light and dark against the plant's own mean (a little exaggerated), some of its own colour,
@@ -636,9 +682,48 @@ namespace AntGarden
             col *= 1f + s.mottle * (mot * 2f - 1f) + (s.band > 0 ? s.band * Mathf.Sin(p.y * s.bandFreq + s.mottleSeed) : 0f);
             Color albedo = col * (solidAlbedo * shade);
             float glow = glows ? Mathf.Clamp01(s.glowGain * (0.55f + 0.4f * Mathf.Clamp01(rel * 0.8f))) : 0f;
+            if (s.glass && glows)
+            {
+                // glass: a thin, broken shell, darker, lit only faintly by the light inside (its outline still
+                // catches the silvery rim light)
+                albedo *= 0.7f;
+                glow *= 0.15f;
+                radius *= 0.42f;
+            }
             float dens = s.density != null ? s.density[k] : 1f;
             float vary = (0.72f + 0.56f * PointHash(k)) / Mathf.Sqrt(Mathf.Clamp(dens, 0.25f, 9f));
             return ThingPen.Splat(s.m.MultiplyPoint3x4(p), s.m.MultiplyVector(n), albedo, radius * vary, glow);
+        }
+
+        /// <summary>Splat j of the light inside a glass plant: fine, in its glow colour, paler and brightest in the
+        /// middle; all facing up, so the moonlight lights them evenly and the light reads as one glow, not as grains.
+        /// Plain arithmetic only.</summary>
+        SolidPoint CoreSplat(SolidSlot s, int j, float radius)
+        {
+            Vector4 c = s.core[j];
+            Vector3 p = c, n = Vector3.up;
+            Shape(s, ref p, ref n);
+            float f = c.w;
+            Color col = Color.Lerp(s.glow, Color.white, 0.45f * (1 - f)) * (1f - 0.45f * f);
+            float glow = Mathf.Clamp01(1.25f - 0.6f * f);
+            return ThingPen.Splat(s.m.MultiplyPoint3x4(p), s.m.MultiplyVector(n), col, radius * (0.35f + 0.3f * PointHash(j + 77)), glow);
+        }
+
+        /// <summary>A point of a plant (and its normal) stretched, twisted about its stem and bent over (the higher, the
+        /// more) as this plant is.</summary>
+        static void Shape(SolidSlot s, ref Vector3 p, ref Vector3 n)
+        {
+            if (s.rigid || (s.bend == 0 && s.twist == 0 && s.sy == 1 && s.sxz == 1)) return;
+            float y = Mathf.Max(0, p.y);
+            p.x *= s.sxz; p.z *= s.sxz; p.y *= s.sy;
+            n.x /= s.sxz; n.z /= s.sxz; n.y /= s.sy;
+            float a = s.twist * y, ca = Mathf.Cos(a), sa = Mathf.Sin(a);
+            p = new Vector3(p.x * ca - p.z * sa, p.y, p.x * sa + p.z * ca);
+            n = new Vector3(n.x * ca - n.z * sa, n.y, n.x * sa + n.z * ca);
+            float yy = y * s.sy, b = s.bend;
+            p.x += s.bendDir.x * b * yy * yy;
+            p.z += s.bendDir.y * b * yy * yy;
+            n.y -= 2 * b * yy * (s.bendDir.x * n.x + s.bendDir.y * n.z);
         }
 
         /// <summary>A stored point's own random number (0..1), the same for every plant of a kind.</summary>
