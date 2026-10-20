@@ -17,6 +17,7 @@ and updates <out>/plants.json. Preview renders go to <glb folder>/<name>_lods_pr
 Usage:
   Tools/plants_to_unity.sh 03_Models/Plants/*_p1.glb            # all defaults (paths below)
   Tools/plants_to_unity.sh new_plant_p1.glb --facing -Z --jobs 2
+  Tools/plants_to_unity.sh dense_v31.glb --keep-uv --tex 4096   # a dense high-precision model keeps its own atlas
   Per-plant settings (glow-part rules, forced front axis) live in Tools/plants_to_unity.json.
   Re-running for a subset updates only those entries in plants.json. Intermediate files go to
   $TMPDIR/plants_to_unity_work (logs, per-plant entry/verify JSON, preview tiles).
@@ -2073,7 +2074,19 @@ def build_stage(args):
         f'({time.time() - t1:.1f}s)')
     att = me.attributes.new('hidden', 'BOOLEAN', 'FACE')
     att.data.foreach_set('value', hidden)
-    atlas = make_atlas(obj, hidden)
+    if args.keep_uv:
+        # a dense high-precision model keeps its own atlas: a new one would pack its many small islands into a
+        # few percent of the texture (LOD1/2 may drag a little texture across islands; the particle look samples LOD0)
+        src = me.uv_layers['UV_src']
+        buf = np.empty(len(me.loops) * 2, np.float32)
+        src.data.foreach_get('uv', buf)
+        uv = me.uv_layers.new(name='UVMap')
+        uv.data.foreach_set('uv', buf)
+        me.uv_layers.active = uv
+        atlas = dict(method='SOURCE', attempt=0, fallback_faces=0, uv_coverage=float('nan'), hidden_islands=0,
+                     density_spread_p95_p5=float('nan'))
+    else:
+        atlas = make_atlas(obj, hidden)
     log(f'{name}: new atlas ({atlas["method"]}, attempt {atlas["attempt"]}): {atlas["uv_coverage"]:.1%} of the texture '
         f'used, texel density spread p95/p5 {atlas["density_spread_p95_p5"]}, fallback faces {atlas["fallback_faces"]}, '
         f'never-visible islands shrunk {atlas["hidden_islands"]}')
@@ -2532,7 +2545,7 @@ def run_stage(args):
                # '=' form: a value like '-X' would otherwise be read as an option and fail to parse
                '--out', args.out, '--work', args.work, '--python', sys.executable, f'--front-axis={front}',
                f'--front-how={how}', f'--facing={args.facing}', '--tex', str(args.tex),
-               '--ratios', ','.join(str(r) for r in args.ratios)]
+               '--ratios', ','.join(str(r) for r in args.ratios)] + (['--keep-uv'] if args.keep_uv else [])
         jobs.append((name, cmd, os.path.join(args.work, f'{name}_build.log')))
 
     def run_parallel(jobs, n):
@@ -2611,11 +2624,13 @@ def main(argv):
     r.add_argument('--name', default=None, help='output name (single GLB only)')
     r.add_argument('--jobs', type=int, default=max(1, min(5, (os.cpu_count() or 4) // 3)))
     r.add_argument('--no-verify', action='store_true')
+    r.add_argument('--keep-uv', action='store_true', help="keep the model's own UVs and texture layout (dense models)")
     b = sub.add_parser('build')
     for k in ('--glb', '--name', '--out', '--work', '--python', '--front-axis', '--front-how', '--facing'):
         b.add_argument(k, required=k not in ('--front-how',), default='')
     b.add_argument('--tex', type=int, default=2048)
     b.add_argument('--ratios', type=lambda s: [float(x) for x in s.split(',')], default=[0.30, 0.08])
+    b.add_argument('--keep-uv', action='store_true')
     v = sub.add_parser('verify')
     for k in ('--name', '--out', '--work', '--python', '--preview-dir'):
         v.add_argument(k, required=True)

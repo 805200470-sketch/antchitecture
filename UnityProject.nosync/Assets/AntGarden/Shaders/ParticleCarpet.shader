@@ -150,8 +150,8 @@ Shader "AntGarden/ParticleCarpet"
                 o.uv = c;
                 o.shape = Hash(cell + 13);
                 o.col = rgb * soft;
-                // a few grains glow faintly, breathing with the plants: more of them in some patches, none in others
-                if (_GrainGlow.a > 0 && Hash(cell + 5167) < 0.045 * smoothstep(0.45, 0.85, NestNoise2(xz * 0.27 + 5.1)))
+                // a few small grains glow faintly, breathing with the plants: more of them in some patches, none in others
+                if (_GrainGlow.a > 0 && big < 0.1 && Hash(cell + 5167) < 0.045 * smoothstep(0.45, 0.85, NestNoise2(xz * 0.27 + 5.1)))
                 {
                     float b = NestBreath(pos);
                     o.col += _GrainGlow.rgb * _GrainGlow.a * (0.25 + 0.75 * b * b) * (0.6 + 0.8 * Hash(cell + 5171)) * soft;

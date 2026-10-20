@@ -107,6 +107,8 @@ namespace AntGarden
                 }
                 CloseUp("curl_glow", "lab_curl", 2.6f);
                 CloseUp("spore_stalk", "lab_spore", 2.2f);
+                CloseUp("curl_a_crozier", "lab_crozier", 2.4f);
+                CloseUp("puff_b_lantern", "lab_lantern", 2.6f);
                 // two of the things left beside the way, seen from the way
                 foreach (var (id, pos, from) in game.LabNest.Objects)
                     if (id == "relic_teacup" || id == "relic_key")

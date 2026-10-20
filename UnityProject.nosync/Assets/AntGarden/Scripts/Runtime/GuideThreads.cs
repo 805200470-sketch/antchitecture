@@ -309,22 +309,26 @@ namespace AntGarden
             }
             var footAt = new Vector3(foot.x, lab.WalkHeight(foot), foot.y);
             beams.Add(new Beam { foot = footAt, height = U(11f, 16f), d = d, seed = R() * 100f });
-            int n = 8 + (int)(R() * 7);
+            // the vines keep to the beam's far side from the way, leaning away from it, so the ant (and the camera
+            // behind it) walks past them, not through them
+            Vector2 away = (foot - p).sqrMagnitude > 1e-4f ? (foot - p).normalized : nrm * sideSign;
+            float awayAngle = Mathf.Atan2(away.y, away.x);
+            int n = 6 + (int)(R() * 5);
             for (int i = 0; i < n; i++)
             {
-                float a = R() * 6.283f, rad = U(0.15f, 1.3f);
+                float a = awayAngle + U(-1.4f, 1.4f), rad = U(0.15f, 1.2f);
                 var at = new Vector2(foot.x + Mathf.Cos(a) * rad, foot.y + Mathf.Sin(a) * rad);
-                if (!lab.OnFloor(at, 0.05f)) continue;
+                if (!lab.OnFloor(at, 0.05f) || (at - p).magnitude < 0.9f) continue;
                 var outward = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a));
                 Vector3 dir0 = (Vector3.up + outward * U(0.1f, 0.6f) + Rand3() * 0.3f).normalized;
                 float len = R() < 0.25f ? U(4f, 7f) : U(1.2f, 4f);
                 Walk(new Vector3(at.x, lab.WalkHeight(at) + 0.02f, at.y), dir0, len, Vector3.up * U(0.3f, 0.9f) + outward * U(-0.1f, 0.25f),
-                    1f, U(0.03f, 0.06f), d, 0, true, 0.5f);
+                    1f, U(0.025f, 0.05f), d, 0, true, 0.5f);
             }
             for (int i = 0; i < 3; i++)
             {
                 // the tangle on the floor at its foot
-                float a = R() * 6.283f;
+                float a = awayAngle + U(-1.6f, 1.6f);
                 Vector2 at = foot + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * U(0.05f, 0.5f);
                 Walk(new Vector3(at.x, lab.WalkHeight(at) + 0.03f, at.y), new Vector3(Mathf.Cos(a + 1.6f), 0.15f, Mathf.Sin(a + 1.6f)),
                     U(0.8f, 2f), Vector3.up * 0.05f, 1f, U(0.018f, 0.03f), d, 1, true, 0f);
