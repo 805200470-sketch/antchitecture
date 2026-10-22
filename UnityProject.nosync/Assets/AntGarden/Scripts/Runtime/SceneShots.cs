@@ -43,6 +43,8 @@ namespace AntGarden
                     // at a relic, look at the relic itself; elsewhere, wherever the view runs furthest
                     bool relic = name.StartsWith("relic") || name.StartsWith("temple") || name.StartsWith("amber");
                     yield return AntEye(game, Path.Combine(dir, $"r{r}_{k}_eye_{name}.png"), relic ? toward : (Vector2?)null);
+                    // a plant's close-up: a photograph of the plant itself too
+                    if (PlantShots.Contains(name)) yield return PlantPhoto(game, Path.Combine(dir, $"r{r}_{k}_photo_{name}.png"), at, toward);
                 }
                 yield return Aerial(game, r, Path.Combine(dir, $"r{r}_9_aerial.png"));
             }
@@ -89,26 +91,37 @@ namespace AntGarden
                 // a curled plant and a glass-bulbed one close up, seen from the way (for judging the plants' detail)
                 void CloseUp(string kind, string name, float back)
                 {
-                    float bestD = float.MaxValue;
-                    Vector2 plant = Vector2.zero, onWay = Vector2.zero;
-                    Vector2 aim = t[Mathf.Min(t.Count - 1, t.Count / 3)];
+                    // the one of its kind nearest the way (not on it), seen from the way's open floor: so the camera
+                    // stands where the ant walks, with nothing between it and the plant
+                    var cands = new List<(float dw, Vector2 plant, Vector2 onWay)>();
                     foreach (Placement pl in game.world.placements)
                     {
                         if (pl.plant != kind) continue;
                         var pp = new Vector2(pl.x, pl.z);
-                        float d = (pp - aim).sqrMagnitude;
-                        if (d < bestD) { bestD = d; plant = pp; }
+                        float nearest = float.MaxValue;
+                        Vector2 q0 = pp;
+                        foreach (Vector2 q in t) { float d = (q - pp).sqrMagnitude; if (d < nearest) { nearest = d; q0 = q; } }
+                        float dw = Mathf.Sqrt(nearest);
+                        if (dw >= 0.9f) cands.Add((dw, pp, q0));
                     }
-                    if (bestD == float.MaxValue) return;
-                    float nearest = float.MaxValue;
-                    foreach (Vector2 q in t) { float d = (q - plant).sqrMagnitude; if (d < nearest) { nearest = d; onWay = q; } }
-                    Vector2 dir = (plant - onWay).sqrMagnitude > 1e-4f ? (plant - onWay).normalized : Vector2.right;
-                    spots.Add((name, plant - dir * back, plant));
+                    cands.Sort((a, b) => a.dw.CompareTo(b.dw));
+                    foreach (var (dw, plant, onWay) in cands)
+                    {
+                        Vector2 dir = (plant - onWay).normalized;
+                        Vector2 at = plant - dir * Mathf.Max(back, dw);
+                        if (!game.LabNest.OnFloor(at, 0.2f) || !InSight(game, at, plant)) continue;
+                        spots.Add((name, at, plant));
+                        return;
+                    }
                 }
                 CloseUp("curl_glow", "lab_curl", 2.6f);
                 CloseUp("spore_stalk", "lab_spore", 2.2f);
                 CloseUp("curl_a_crozier", "lab_crozier", 2.4f);
                 CloseUp("puff_b_lantern", "lab_lantern", 2.6f);
+                CloseUp("curl_c_hook", "lab_hook", 2.4f);
+                CloseUp("coral_b_branching", "lab_coral", 2.2f);
+                CloseUp("frond_a_feather", "lab_frond", 2.6f);
+                CloseUp("curl_d_cluster", "lab_cluster", 2.2f);
                 // two of the things left beside the way, seen from the way
                 foreach (var (id, pos, from) in game.LabNest.Objects)
                     if (id == "relic_teacup" || id == "relic_key")
@@ -211,6 +224,67 @@ namespace AntGarden
             game.hud.canvas.enabled = true;
             game.SetRingVisible(true);
             ant.SetVisible(true);
+            game.rig.manual = false;
+        }
+
+        /// <summary>True when nothing standing up (another plant, a rock) is in the way from a camera at from to
+        /// the plant at plant.</summary>
+        static bool InSight(Game game, Vector2 from, Vector2 plant)
+        {
+            Vector2 d = plant - from;
+            float len = d.magnitude;
+            if (len < 1e-3f) return true;
+            d /= len;
+            foreach (Placement pl in game.world.placements)
+            {
+                if (pl.height < 0.4f) continue;
+                var p = new Vector2(pl.x, pl.z);
+                if ((p - plant).sqrMagnitude < 0.04f) continue;   // the plant itself
+                float along = Vector2.Dot(p - from, d);
+                if (along < 0.2f || along > len - 0.3f) continue;
+                float off = Mathf.Abs(d.x * (p.y - from.y) - d.y * (p.x - from.x));
+                if (off < Mathf.Max(0.35f, pl.height * 0.3f)) return false;
+            }
+            return true;
+        }
+
+        static readonly HashSet<string> PlantShots = new HashSet<string>
+            { "lab_curl", "lab_spore", "lab_crozier", "lab_lantern", "lab_hook", "lab_coral", "lab_frond", "lab_cluster" };
+
+        /// <summary>
+        /// A plant close up, as a photograph: from the way, raised to about half the plant's height and aimed at its
+        /// middle, the lens just wide enough for the whole plant; the ant, its ring and the screen's text left out, and
+        /// ants near the lens stepped out of the picture.
+        /// </summary>
+        static IEnumerator PlantPhoto(Game game, string path, Vector2 from, Vector2 plant)
+        {
+            float h = 1.5f, best = float.MaxValue;
+            foreach (Placement pl in game.world.placements)
+            {
+                float d = (new Vector2(pl.x, pl.z) - plant).sqrMagnitude;
+                if (d < best) { best = d; h = pl.height; }
+            }
+            Camera cam = game.rig.cam;
+            float fov = cam.fieldOfView;
+            var eye = new Vector3(from.x, game.world.WalkHeight(from.x, from.y) + Mathf.Clamp(h * 0.55f, 0.45f, 2f), from.y);
+            var target = new Vector3(plant.x, game.world.WalkHeight(plant.x, plant.y) + h * 0.5f, plant.y);
+            float dist = Mathf.Max(0.5f, (target - eye).magnitude);
+            var hidden = new List<GameObject>();
+            foreach (NpcAnt n in game.npcs)
+                if ((n.ant.Position - eye).magnitude < 3f && n.ant.gameObject.activeSelf) { n.ant.gameObject.SetActive(false); hidden.Add(n.ant.gameObject); }
+            game.rig.manual = true;
+            game.player.SetVisible(false);
+            game.SetRingVisible(false);
+            game.hud.canvas.enabled = false;
+            cam.fieldOfView = Mathf.Clamp(2f * Mathf.Atan(h * 0.65f / dist) * Mathf.Rad2Deg, 32f, 75f);
+            cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(target - eye));
+            for (int f = 0; f < 3; f++) yield return null;
+            yield return Grab(path);
+            foreach (GameObject a in hidden) a.SetActive(true);
+            cam.fieldOfView = fov;
+            game.hud.canvas.enabled = true;
+            game.SetRingVisible(true);
+            game.player.SetVisible(true);
             game.rig.manual = false;
         }
 
