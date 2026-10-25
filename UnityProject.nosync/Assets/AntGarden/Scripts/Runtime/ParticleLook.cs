@@ -701,12 +701,16 @@ namespace AntGarden
             // the rest this plant's tints from base to tip; its glowing parts lean to its glow colour but keep the
             // pattern, and glow most where the texture is lightest (veins, rims)
             float lum = Mathf.Max(1e-4f, Lum(lin));
-            float rel = Mathf.Clamp(Mathf.Pow(lum / s.meanLum, s.contrast), 0.05f, 3.2f);
+            // (a plant whose head glows: its texture's light and dark softened, so its pale head and dark stalk do not
+            // read as two parts)
+            float rel = Mathf.Clamp(Mathf.Pow(lum / s.meanLum, s.glowFrom > 0 ? s.contrast * 0.55f : s.contrast), 0.05f, 3.2f);
             // how much of the glowing part this point is: its texture's glowing parts; a plant whose head alone glows
             // grows into it over a soft band round where the head begins, not at a line; and a part glowing only in
             // this nest (a mushroom's gills), where its texture is light
-            float head = s.glowFrom > 0 ? Mathf.SmoothStep(0f, 1f, (y01 - s.glowFrom + 0.14f) / 0.28f) : 1f;
-            float gw = c.a > 127 && !s.building ? head : 0f;   // (a building's texture flags are ignored: its glow parts say)
+            // its head: over a wide soft band from well down the stalk, not at the line where the texture's glow flags
+            // start (those switch on at one height; a plant with a head glows by the band alone)
+            float head = s.glowFrom > 0 ? Mathf.SmoothStep(0f, 1f, (y01 - s.glowFrom + 0.32f) / 0.52f) : 1f;
+            float gw = s.glowFrom > 0 ? head : c.a > 127 && !s.building ? 1f : 0f;   // (a building's texture flags are ignored: its glow parts say)
             if (s.partAmount > 0)
             {
                 float band = Mathf.SmoothStep(0f, 1f, (y01 - s.partFrom) / 0.08f) * (1f - Mathf.SmoothStep(0f, 1f, (y01 - s.partTo) / 0.08f));
@@ -723,13 +727,13 @@ namespace AntGarden
             if (!s.rigid)
             {
                 // a lollipop's stick is darker, brightening up into its head
-                if (s.glowFrom > 0) col *= Mathf.Lerp(0.72f, 1f, head);
+                if (s.glowFrom > 0) col *= Mathf.Lerp(0.86f, 1f, head);
                 if (gw > 0)
                 {
                     // the glowing part leans to the glow colour, paler toward a head's tip, its pattern kept
                     float tipward = s.glowFrom > 0 ? Mathf.Clamp01((y01 - s.glowFrom) / Mathf.Max(0.05f, 1f - s.glowFrom)) : 0f;
                     Color light = Color.Lerp(s.glowDeep, s.glow, 0.4f * tipward);
-                    col = Color.Lerp(col, light * Mathf.Clamp(s.meanLum * rel * 2.4f, 0.22f, 0.55f), (s.glowFrom > 0 ? 0.62f : 0.8f) * Mathf.Min(1f, gw));
+                    col = Color.Lerp(col, light * Mathf.Clamp(s.meanLum * rel * 2.4f, 0.22f, 0.55f), (s.glowFrom > 0 ? 0.45f : 0.8f) * Mathf.Min(1f, gw));
                 }
             }
             // mottling in this plant's own pattern, and now and then faint bands along its height

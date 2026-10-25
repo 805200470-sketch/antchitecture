@@ -124,6 +124,7 @@ namespace AntGarden
                 CloseUp("coral_b_branching", "lab_coral", 2.2f);
                 CloseUp("frond_a_feather", "lab_frond", 2.6f);
                 CloseUp("curl_d_cluster", "lab_cluster", 2.2f);
+                CloseUp("curl_b_double", "lab_double", 2.4f);
                 CloseUp("dry_mushroom", "lab_mushroom", 4.5f);
                 CloseUp("amber_resin", "lab_resin", 2.4f);
                 CloseUp("thorn_succulent", "lab_thorn", 2.4f);
@@ -279,7 +280,7 @@ namespace AntGarden
         static readonly Dictionary<string, float> Tall = new Dictionary<string, float>();
 
         static readonly HashSet<string> PlantShots = new HashSet<string>
-            { "lab_curl", "lab_spore", "lab_crozier", "lab_lantern", "lab_hook", "lab_coral", "lab_frond", "lab_cluster", "lab_mushroom", "lab_resin", "lab_thorn" };
+            { "lab_curl", "lab_spore", "lab_crozier", "lab_lantern", "lab_hook", "lab_coral", "lab_frond", "lab_cluster", "lab_double", "lab_mushroom", "lab_resin", "lab_thorn" };
 
         /// <summary>
         /// A plant close up, as a photograph: from the way, raised to about half the plant's height and aimed at its
@@ -309,7 +310,7 @@ namespace AntGarden
             game.player.SetVisible(false);
             game.SetRingVisible(false);
             game.hud.canvas.enabled = false;
-            cam.fieldOfView = Mathf.Clamp(2f * Mathf.Atan(h * 0.65f / dist) * Mathf.Rad2Deg, 32f, 75f);
+            cam.fieldOfView = Mathf.Clamp(2f * Mathf.Atan(h * 0.65f / dist) * Mathf.Rad2Deg, 14f, 75f);
             cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(target - eye));
             for (int f = 0; f < 3; f++) yield return null;
             yield return Grab(path);

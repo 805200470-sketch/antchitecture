@@ -77,7 +77,77 @@ namespace AntGarden
         public static NestTheme Current;
 
         /// <summary>The theme for a region's biome (the blue forest's for any it does not know).</summary>
-        public static NestTheme For(string biome) => biome == "amber" ? Orange : biome == "kiln" ? Red : Cyan;
+        public static NestTheme For(string biome) => biome == "amber" ? Orange : biome == "kiln" ? Red
+            : biome == "honey" ? Yellow : biome == "leafcut" ? Chartreuse : biome == "moss" ? Green : biome == "verdigris" ? SpringGreen : Cyan;
+
+        /// <summary>
+        /// A first look at a segment that has only its effect images so far (02_Concepts/Particle_Styles_v2): the blue
+        /// nest's way in that segment's colours (its effect images' plant and glow palettes, floor and fog) with the
+        /// plants of our own whose colours fall in it (labPlants; the rest of its plants' colours folded into its band).
+        /// Its other colours are worked out from those, as the built themes relate theirs. No things or heart of its own.
+        /// </summary>
+        static NestTheme Preview(string id, float hue, string seg, string segEn, string zh, string en, Color[] body, Color[] glow4,
+            Color floor, Color fog, string[] lab, string[] scatter)
+        {
+            Color Mul(Color c, float k) => new Color(c.r * k, c.g * k, c.b * k);
+            Color g = glow4[0];
+            var glow = new Color[8];
+            for (int i = 0; i < 4; i++) { glow[i] = glow4[i]; glow[i + 4] = Color.Lerp(glow4[i], Color.white, 0.35f); }
+            var micro = new Color[8];
+            for (int i = 0; i < 8; i++) micro[i] = Mul(body[i], 0.85f);
+            Color.RGBToHSV(g, out float gh, out _, out _);
+            return new NestTheme
+            {
+                id = id, hue = hue, segmentZh = seg, segmentEn = segEn, nameZh = zh, nameEn = en,
+                body = body, glow = glow, scan = Color.Lerp(body[7], Color.white, 0.5f),
+                ground = floor, floor = floor, bank = Color.Lerp(floor, body[3], 0.3f), plateau = Mul(floor, 0.8f), edge = Color.Lerp(floor, Color.white, 0.6f),
+                fog = fog, skyTop = Mul(fog, 0.18f), skyHorizon = Mul(fog, 0.85f),
+                motes = Color.Lerp(new Color(1.6f, 1.6f, 1.6f), Mul(g, 1.7f), 0.4f),
+                threadCore = Color.Lerp(g, Color.white, 0.75f), threadHalo = g, beacon = Color.Lerp(g, Color.white, 0.15f),
+                grainGlow = Mul(g, 0.9f), lampCore = Color.Lerp(g, Color.white, 0.85f), ring = g, trail = Color.Lerp(g, Color.white, 0.3f),
+                moon = Color.Lerp(new Color(0.74f, 0.74f, 0.72f), g, 0.15f), fill = Mul(fog, 1.45f), rim = Mul(fog, 0.5f),
+                glint = Mul(body[5], 0.75f), dew = Mul(Color.Lerp(body[4], Color.white, 0.2f), 0.85f),
+                vineDark = Mul(body[1], 0.25f), vineLeaf = Mul(body[2], 0.6f),
+                microLife = micro,
+                antBody = Mul(fog, 0.3f), antTint = new Color(g.r, g.g, g.b, 0.8f), antRim = Color.Lerp(g, Color.white, 0.3f),
+                antPale = Color.Lerp(body[4], Color.white, 0.4f), glowDeep = Color.HSVToRGB(gh, 0.82f, 0.85f),
+                temperature = 0, bloomTint = Color.Lerp(Color.white, g, 0.12f), exposureLift = 0.3f,
+                glassKinds = new string[0], headGlowKinds = new string[0], headGlowFrom = new float[0],
+                labPlants = lab, scatterPlants = scatter, objects = "none", ownBand = new Vector2(hue, 40f),
+            };
+        }
+
+        // the previews: palettes from their effect images (Tools: the k-means of their lit surfaces and glows), the new
+        // plants (Tripo v3.1) placed by the hue of their bodies (curl_a 51°, curl_d 47°; frond 84°; curl_b 107°,
+        // curl_c 112°; coral_b 134°; puff_b 28° is the amber nest's)
+        public static readonly NestTheme Yellow = Preview("yellow", 60, "黄", "Yellow", "蜜罐粮仓", "The Honeypot Granary",
+            new[] { new Color(0.62f, 0.42f, 0.12f), new Color(0.58f, 0.42f, 0.16f), new Color(0.66f, 0.50f, 0.14f), new Color(0.62f, 0.48f, 0.26f),
+                    new Color(0.74f, 0.60f, 0.16f), new Color(0.84f, 0.70f, 0.14f), new Color(0.80f, 0.66f, 0.32f), new Color(0.88f, 0.78f, 0.30f) },
+            new[] { new Color(1.00f, 0.92f, 0.20f), new Color(1.00f, 0.95f, 0.30f), new Color(1.00f, 0.90f, 0.42f), new Color(0.98f, 0.96f, 0.55f) },
+            new Color(0.62f, 0.42f, 0.20f), new Color(0.15f, 0.10f, 0.04f),
+            new[] { "curl_d_cluster", "curl_a_crozier" },
+            new[] { "seed_pile", "seed_husk", "dry_grass_tuft", "pebble_cluster", "root_arch", "fallen_leaf", "fungus_garden" });
+        public static readonly NestTheme Chartreuse = Preview("chartreuse", 90, "黄绿", "Chartreuse", "切叶蚁菌圃", "The Leafcutters' Garden",
+            new[] { new Color(0.52f, 0.66f, 0.20f), new Color(0.58f, 0.62f, 0.42f), new Color(0.46f, 0.66f, 0.14f), new Color(0.60f, 0.64f, 0.46f),
+                    new Color(0.56f, 0.68f, 0.32f), new Color(0.62f, 0.84f, 0.20f), new Color(0.66f, 0.72f, 0.54f), new Color(0.78f, 0.88f, 0.56f) },
+            new[] { new Color(0.66f, 1.00f, 0.22f), new Color(0.78f, 1.00f, 0.40f), new Color(0.86f, 1.00f, 0.52f), new Color(0.72f, 1.00f, 0.30f) },
+            new Color(0.56f, 0.52f, 0.24f), new Color(0.10f, 0.11f, 0.04f),
+            new[] { "frond_a_feather" },
+            new[] { "fungus_garden", "tiny_mushrooms", "sponge_mound", "fallen_leaf", "pebble_cluster", "root_arch", "boulder_moss" });
+        public static readonly NestTheme Green = Preview("green", 120, "绿", "Green", "苔藓森林", "The Moss Forest",
+            new[] { new Color(0.34f, 0.70f, 0.22f), new Color(0.56f, 0.62f, 0.30f), new Color(0.42f, 0.68f, 0.40f), new Color(0.32f, 0.66f, 0.24f),
+                    new Color(0.46f, 0.70f, 0.42f), new Color(0.40f, 0.84f, 0.34f), new Color(0.54f, 0.74f, 0.50f), new Color(0.62f, 0.88f, 0.62f) },
+            new[] { new Color(0.42f, 1.00f, 0.38f), new Color(0.56f, 1.00f, 0.52f), new Color(0.66f, 1.00f, 0.62f), new Color(0.50f, 1.00f, 0.46f) },
+            new Color(0.42f, 0.54f, 0.22f), new Color(0.05f, 0.11f, 0.05f),
+            new[] { "curl_b_double", "curl_c_hook" },
+            new[] { "boulder_moss", "tiny_mushrooms", "fallen_leaf", "pebble_cluster", "root_arch", "cup_fungus" });
+        public static readonly NestTheme SpringGreen = Preview("springgreen", 150, "青绿", "Spring green", "铜绿机城", "The Verdigris City",
+            new[] { new Color(0.34f, 0.66f, 0.52f), new Color(0.56f, 0.66f, 0.46f), new Color(0.32f, 0.66f, 0.54f), new Color(0.40f, 0.66f, 0.52f),
+                    new Color(0.56f, 0.66f, 0.50f), new Color(0.40f, 0.72f, 0.60f), new Color(0.56f, 0.80f, 0.66f), new Color(0.64f, 0.86f, 0.74f) },
+            new[] { new Color(0.58f, 1.00f, 0.80f), new Color(0.56f, 1.00f, 0.70f), new Color(0.50f, 1.00f, 0.84f), new Color(0.60f, 1.00f, 0.90f) },
+            new Color(0.30f, 0.56f, 0.48f), new Color(0.05f, 0.12f, 0.11f),
+            new[] { "coral_b_branching" },
+            new[] { "pebble_cluster", "root_arch", "boulder_moss", "fallen_leaf", "glass_sponge", "anemone_fungus" });
 
         /// <summary>Cyan, 180°: the blue fungal forest (the first particle nest, v15).</summary>
         public static readonly NestTheme Cyan = new NestTheme

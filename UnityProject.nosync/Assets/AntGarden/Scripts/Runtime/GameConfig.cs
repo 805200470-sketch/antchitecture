@@ -101,6 +101,50 @@ namespace AntGarden
                 landmarkPlant = "soil_spire",
                 surroundings = "soil_spire,trunk_night",
             },
+            new Biome
+            {
+                // a preview of the The Honeypot Granary segment (NestTheme.Honey): only colours and plants of its own so far
+                id = "honey", displayName = "蜜罐粮仓（预览）", displayNameEn = "The Honeypot Granary",
+                groundSet = "amber", terrainHue = 12, terrainSaturation = 1f, mapHue = 12, mapSaturation = 1f,
+                speckColor = new Color(1.00f, 0.92f, 0.35f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(1.00f, 0.92f, 0.35f), groundColor = new Color(0.15f, 0.10f, 0.04f),
+                antHue = 0, antSaturation = 1f,
+                fogColor = new Color(0.15f, 0.10f, 0.04f), ambientSky = new Color(0.40f, 0.32f, 0.12f), ambientEquator = new Color(0.40f, 0.32f, 0.12f), ambientGround = new Color(0.15f, 0.10f, 0.04f),
+                moonColor = new Color(1.00f, 0.95f, 0.75f), skyTop = new Color(0.15f, 0.10f, 0.04f), skyHorizon = new Color(0.40f, 0.32f, 0.12f),
+                rimColor = new Color(1.00f, 0.92f, 0.35f), gateColor = new Color(1.00f, 0.92f, 0.35f),
+            },
+            new Biome
+            {
+                // a preview of the The Leafcutters' Garden segment (NestTheme.Leafcut): only colours and plants of its own so far
+                id = "leafcut", displayName = "切叶蚁菌圃（预览）", displayNameEn = "The Leafcutters' Garden",
+                groundSet = "blue", terrainHue = -80, terrainSaturation = 1f, mapHue = -80, mapSaturation = 1f,
+                speckColor = new Color(0.75f, 1.00f, 0.35f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(0.75f, 1.00f, 0.35f), groundColor = new Color(0.10f, 0.11f, 0.04f),
+                antHue = 0, antSaturation = 1f,
+                fogColor = new Color(0.10f, 0.11f, 0.04f), ambientSky = new Color(0.30f, 0.36f, 0.12f), ambientEquator = new Color(0.30f, 0.36f, 0.12f), ambientGround = new Color(0.10f, 0.11f, 0.04f),
+                moonColor = new Color(0.90f, 1.00f, 0.70f), skyTop = new Color(0.10f, 0.11f, 0.04f), skyHorizon = new Color(0.30f, 0.36f, 0.12f),
+                rimColor = new Color(0.75f, 1.00f, 0.35f), gateColor = new Color(0.75f, 1.00f, 0.35f),
+            },
+            new Biome
+            {
+                // a preview of the The Moss Forest segment (NestTheme.Moss): only colours and plants of its own so far
+                id = "moss", displayName = "苔藓森林（预览）", displayNameEn = "The Moss Forest",
+                groundSet = "blue", terrainHue = -55, terrainSaturation = 1f, mapHue = -55, mapSaturation = 1f,
+                speckColor = new Color(0.50f, 1.00f, 0.50f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(0.50f, 1.00f, 0.50f), groundColor = new Color(0.05f, 0.11f, 0.05f),
+                antHue = 0, antSaturation = 1f,
+                fogColor = new Color(0.05f, 0.11f, 0.05f), ambientSky = new Color(0.16f, 0.34f, 0.16f), ambientEquator = new Color(0.16f, 0.34f, 0.16f), ambientGround = new Color(0.05f, 0.11f, 0.05f),
+                moonColor = new Color(0.80f, 1.00f, 0.80f), skyTop = new Color(0.05f, 0.11f, 0.05f), skyHorizon = new Color(0.16f, 0.34f, 0.16f),
+                rimColor = new Color(0.50f, 1.00f, 0.50f), gateColor = new Color(0.50f, 1.00f, 0.50f),
+            },
+            new Biome
+            {
+                // a preview of the The Verdigris City segment (NestTheme.Verdigris): only colours and plants of its own so far
+                id = "verdigris", displayName = "铜绿机城（预览）", displayNameEn = "The Verdigris City",
+                groundSet = "blue", terrainHue = -25, terrainSaturation = 1f, mapHue = -25, mapSaturation = 1f,
+                speckColor = new Color(0.55f, 1.00f, 0.82f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(0.55f, 1.00f, 0.82f), groundColor = new Color(0.05f, 0.12f, 0.11f),
+                antHue = 0, antSaturation = 1f,
+                fogColor = new Color(0.05f, 0.12f, 0.11f), ambientSky = new Color(0.14f, 0.34f, 0.30f), ambientEquator = new Color(0.14f, 0.34f, 0.30f), ambientGround = new Color(0.05f, 0.12f, 0.11f),
+                moonColor = new Color(0.80f, 1.00f, 0.92f), skyTop = new Color(0.05f, 0.12f, 0.11f), skyHorizon = new Color(0.14f, 0.34f, 0.30f),
+                rimColor = new Color(0.55f, 1.00f, 0.82f), gateColor = new Color(0.55f, 1.00f, 0.82f),
+            },
         };
 
         /// <summary>True when <paramref name="id"/> is in the comma-separated <paramref name="list"/>.</summary>
