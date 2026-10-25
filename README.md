@@ -5,9 +5,10 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
 - **引擎**：Unity 2022.3.62f3c1（国内版 Hub 的 "c1" 版本），Built-in 渲染管线 + Post Processing v2
 - **语言**：C#；工具脚本用 Python / Node / zsh
 - **演示平台**：Windows 电脑（Mac 上开发和测试）
-- **当前状态（2026-10-22）**：
+- **当前状态（2026-10-25）**：
   - **`main` 分支**：可玩的演示（2026-10-16）。13 个蚁穴加 2 处遗迹拼成一整块蜂巢；两处遗迹是窄隧道，地上的光点引路；蚁穴之间的接缝用粒子和土色渗透过渡；支持键盘鼠标和 Xbox 手柄；有音效，没有背景音乐。
-  - **`experiment/particle-look` 分支**：粒子蚁穴实验，还没合进 `main`。一个蚁穴（第一章 · 入口）整个用粒子来画：植物、墙、地面、蚂蚁都是点；光柱和光丝引路，光柱脚下长着藤蔓；植物带会呼吸的微光，走过时会亮；新加了 7 种高精度建模的植物。
+  - **`experiment/particle-look` 分支**：粒子蚁穴实验，还没合进 `main`。蚁穴整个用粒子来画：植物、墙、地面、蚂蚁都是点；光柱和一到三条光丝引路，其余是实体藤蔓；植物带会呼吸的微光，走过时会亮；NPC 蚂蚁会让路；新加了 7 种高精度建模的植物。
+  - **灯光色轮**：装置的灯在色轮上选颜色，色轮分 12 段，**每段对应一个蚁穴场景**（见实验分支的 [`02_Concepts/Particle_Styles_v1/mapping.md`](https://github.com/805200470-sketch/antchitecture/blob/experiment/particle-look/02_Concepts/Particle_Styles_v1/mapping.md)）。已做成游戏场景的：青 180° 蓝色真菌林（第一章）、橙 30° 暖琥珀蚁穴；已定位、还没做的：红 0° 古蚁圣殿、天蓝 210° 巨人遗物；其余 8 段待定。
 
 > **只想玩一下**：去 [Releases](https://github.com/805200470-sketch/antchitecture/releases) 下载 Windows 或 Mac 版（目前是 10-16 的 `main` 版本），说明在 [`07_Outputs/`](07_Outputs/)。
 >
@@ -112,7 +113,7 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
 | 分支 | 是什么 | 怎么看 |
 |---|---|---|
 | `main` | 10-16 的可玩演示，最稳定 | 默认分支；Releases 里的游戏包就是它 |
-| `experiment/particle-look` | 粒子蚁穴实验，还没合进 `main` | 仓库首页左上角的分支下拉菜单里切换，或者本地 `git checkout experiment/particle-look`。在 Unity 里运行后按 `M` 打开大地图，点 **Lab · Particle Nest（实验 · 粒子蚁穴）**；打包好的游戏可以加启动参数 `-world "lab:path-012@blue"` 直接进入 |
+| `experiment/particle-look` | 粒子蚁穴实验，还没合进 `main` | 仓库首页左上角的分支下拉菜单里切换，或者本地 `git checkout experiment/particle-look`。在 Unity 里运行后按 `M` 打开大地图，点 **Particle Nest · Cyan（粒子蚁穴 · 青）** 或 **Particle Nest · Orange（粒子蚁穴 · 橙）**；打包好的游戏可以加启动参数 `-world "lab:path-012@blue"`（青）或 `-world "lab:path-010@amber"`（橙）直接进入 |
 
 粒子蚁穴用到的脚本、着色器和 7 种新植物，**只在实验分支上有**（见第 5 节"粒子蚁穴"那几行）。两个分支的 README 是同一份。
 
@@ -156,6 +157,7 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
 | **粒子蚁穴**：光柱、光丝、藤蔓的范围、亮度、疏密 | `Scripts/Runtime/GuideThreads.cs` 开头的公开字段（`reach`、`beamReach`、`gain`、`vineDensity`、颜色） | 同上 |
 | **粒子蚁穴**：哪些植物只有头发光、哪些是玻璃泡 | `Scripts/Runtime/ParticleLook.cs` 的 `glowFrom` 和 `glassKinds` | 同上 |
 | **粒子蚁穴**：走过时植物亮多少、离多近才亮 | `Scripts/Runtime/WalkLight.cs`（`strength`、`radius`） | 同上 |
+| **粒子蚁穴的颜色**（每个色段一套） | `Scripts/Runtime/NestTheme.cs`：植物、地面、雾、引导光、藤蔓、蚂蚁、调色温度和泛光色 | 新做一个色段就加一套主题，再在 `GameConfig.cs` 的 `labWorld` 里加 `lab:path-NNN@<biome>`；做好后用 `Tools/colour_wheel/measure_hue.py` 量游戏截图，确认落在自己的段里 |
 | **粒子蚁穴**：种哪些植物、有多密 | `Scripts/Runtime/Game.cs` 的 `LabPlants()` | 同上 |
 | **粒子蚁穴**：空中的小飞虫、飘的种絮 | `Scripts/Runtime/MicroLife.cs` 开头的数量 | 同上 |
 
@@ -168,7 +170,9 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
 | **路径识别的记录** | 🟡 预留，等负责的同学补 | [1.1](#11-预留--前期路径识别)、`04_Paths/` |
 | **用户上传 / 访客故事** | 🟡 预留：故事是占位文字，上传功能还没做 | [1.2](#12-预留--后期用户上传)、`Voices.cs` 的 `Stories`、`Game.cs` 的 `OpenSlot` |
 | **装置资料** | 从装置到路径线稿这一步没有记录 | [项目地图 1](Docs/项目地图/1_从装置到资产与动画.md) |
-| **粒子蚁穴的去留** | 实验分支上已经做到第十四版；要在 Windows 演示机上试帧率（第十二版在 Mac M3 Max 上约 57 帧，第十四版还没重新测），再决定要不要合进 `main`、其他蚁穴要不要也做成粒子 | `experiment/particle-look` |
+| **粒子蚁穴的去留** | 实验分支上已经做到第十六版，暖琥珀蚁穴是第一个换色段的场景；要在 Windows 演示机上试帧率（第十二版在 Mac M3 Max 上约 57 帧，之后还没重新测），再决定要不要合进 `main` | `experiment/particle-look` |
+| **其余色段的场景** | 红 古蚁圣殿、天蓝 巨人遗物有效果图，还没做成场景；其余 8 段只有主题建议 | `02_Concepts/Particle_Styles_v1/`、`NestTheme.cs` |
+| **硬件灯光和游戏联动** | 色轮分段已定；灯的颜色怎么传给游戏（切换到对应的蚁穴）还没做 | 待定 |
 | **粒子蚁穴的通道宽度** | 现在 0.55（约 5 只蚂蚁宽），改窄到 0.40 还在考虑 | `GameConfig.cs` 的 `labWidth`，或启动参数 `-labwidth` |
 | **背景音乐** | 还没做（音效已有，全部由程序合成） | `Scripts/Runtime/Sfx.cs`；试听 `Docs/音效试听/` |
 | **蜂巢细节** | 接缝已改成粒子 + 土色渗透（2026-10-16）；琥珀格怎么分布、外圈出口现在是死路，还没定 | `Docs/报告/2026-10-13_蜂巢拼接/` |
@@ -218,7 +222,7 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
 | 音效 | `Scripts/Runtime/Sfx.cs`；音量在 `GameConfig.cs` 的 `audio` |
 | 地图、小地图 | `Scripts/Runtime/MapPainter.cs`、`BigMap.cs` |
 | 光门（蚁穴之间的门） | `Scripts/Runtime/Gates.cs` |
-| **粒子蚁穴**（实验分支） | `LabNest.cs`（蚁穴本身：路线、章节、地面波纹、路边遗物）、`ParticleLook.cs`（植物、墙、地面变成粒子）、`SolidThings.cs` + `NestThings*.cs`（地上的小东西：落叶、苔藓、蘑菇……）、`GuideThreads.cs`（光柱、光丝、藤蔓）、`WalkLight.cs`（走过点亮）、`GlassLamps.cs`（玻璃泡里的光）、`MicroLife.cs`（小飞虫、种絮）、`ParticleAnts.cs`（粒子蚂蚁）；着色器 `ParticleSolid`、`ParticleLook`、`ParticleCarpet`、`LightThread`、`NestField.cginc` |
+| **粒子蚁穴**（实验分支） | `NestTheme.cs`（每个色段的颜色）、`LabNest.cs`（蚁穴本身：路线、章节、地面波纹、路边遗物）、`ParticleLook.cs`（植物、墙、地面变成粒子）、`SolidThings.cs` + `NestThings*.cs`（地上的小东西：落叶、苔藓、蘑菇……）、`GuideThreads.cs`（光柱、光丝、藤蔓）、`WalkLight.cs`（走过点亮）、`GlassLamps.cs`（玻璃泡里的光）、`MicroLife.cs`（小飞虫、种絮）、`ParticleAnts.cs`（粒子蚂蚁）；着色器 `ParticleSolid`、`ParticleLook`、`ParticleCarpet`、`LightThread`、`NestField.cginc` |
 | 自动测试 / 截图模式 | `CamCheck.cs`（镜头）、`LegCheck.cs`（腿）、`PadCheck.cs`（手柄）、`SceneShots.cs`（每个场景的截图；实验分支上还会拍植物近景）、`TrailFilm.cs`（沿引路光点走一遍录像）、`LookCheck.cs`、`NpcCheck.cs`；用法见[改动影响表](Docs/项目地图/3_改动影响表.md)最后一节 |
 | 植物模型从 Tripo 到游戏 | `Tools/tripo_batch.sh` → `Tools/plants_to_unity.sh` → Unity 菜单 **AntGarden → Build Assets**。高精度模型（实验分支）：`TRIPO_HI=1 Tools/tripo_batch.sh <名字…>`，导入时加 `--keep-uv --tex 4096` |
 | 用 Codex 出图 | `Tools/codex_image.sh`、`Tools/codex_batch.py`；提示词在 `02_Concepts/Prompts/` |
