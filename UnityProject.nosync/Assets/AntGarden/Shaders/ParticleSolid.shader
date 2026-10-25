@@ -49,6 +49,7 @@ Shader "AntGarden/ParticleSolid"
             float4 _GlintColor;                         // a few splats catch the light now and then
             float4 _WalkTrail[16];                      // where the ant has just been (xz) and when (w, as _Time.y)
             float _WalkLit, _WalkRadius;                // how much what it walked past lights up, and how near it must be
+            float _ScatterRadius;                       // what the ant walks through scatters this far round it (0: no)
 
             struct v2f
             {
@@ -104,6 +105,33 @@ Shader "AntGarden/ParticleSolid"
                 float low = 1 - smoothstep(0.15, 0.6, above);
                 float rip = NestRipple(pos.xz) * low;
                 pos.y += 0.03 * rip;
+                // where the ant is and has just been: what stands up there lights up as it passes (walk), and what it
+                // walks through scatters outward and shrinks away, gathering again over a couple of seconds after it
+                // has gone (scatter)
+                float walk = 0, scatter = 0;
+                float3 away = float3(0, 1, 0);
+                if (above > 0.03 && _ScatterRadius > 0)
+                {
+                    float2 toAnt = pos.xz - _TrailPlayer.xz;
+                    if (dot(toAnt, toAnt) < 100)
+                    {
+                        float r2 = _WalkRadius * _WalkRadius;
+                        float3 dv0 = pos - (_TrailPlayer.xyz + float3(0, 0.25, 0));
+                        scatter = saturate(1 - length(dv0) / _ScatterRadius);
+                        away = dv0;
+                        for (int w = 0; w < 16; w++)
+                        {
+                            float4 W = _WalkTrail[w];
+                            float age = _Time.y - W.w;
+                            float2 dh = pos.xz - W.xz;
+                            walk = max(walk, exp(-dot(dh, dh) / r2) * smoothstep(0, 0.8, age) * (1 - smoothstep(2.5, 8, age)));
+                            float3 dv = pos - (W.xyz + float3(0, 0.25, 0));
+                            float sc = saturate(1 - length(dv) / _ScatterRadius) * (1 - smoothstep(0.3, 2.2, age));
+                            if (sc > scatter) { scatter = sc; away = dv; }
+                        }
+                    }
+                }
+                if (scatter > 0) pos += normalize(away + float3(0, 1e-4, 0)) * (0.3 * scatter) + float3(0, 0.08 * scatter, 0);
                 float3 n = DecodeNormal(p.nrm);
                 float3 V = normalize(_WorldSpaceCameraPos - pos);
                 if (dot(n, V) < 0) n = -n;
@@ -116,6 +144,22 @@ Shader "AntGarden/ParticleSolid"
                 float stretch = 1 + 0.6 * Hash(i + 104729u);
                 float pixel = 2 * dist / (unity_CameraProjection._m11 * _ScreenParams.y);
                 float size = max(rad / sqrt(max(keep, 0.05)), pixel * _MinPixels);
+                // shrunk away where it is scattered, on the line between the camera and the ant (the ant is never
+                // hidden behind a vine), and right at the lens
+                float sight = 0;
+                if (_ScatterRadius > 0)
+                {
+                    float3 ac = _TrailPlayer.xyz + float3(0, 0.25, 0) - _WorldSpaceCameraPos;
+                    float al2 = dot(ac, ac);
+                    if (al2 > 0.25)
+                    {
+                        float t = saturate(dot(pos - _WorldSpaceCameraPos, ac) / al2);
+                        float3 off = pos - (_WorldSpaceCameraPos + ac * t);
+                        sight = (1 - smoothstep(0.25, 0.45, length(off))) * smoothstep(0.02, 0.12, t) * (1 - smoothstep(0.82, 0.95, t));
+                    }
+                }
+                size *= saturate(1 - max(max(scatter, sight), 1 - smoothstep(0.25, 0.8, dist)));
+                if (size < 1e-5) return o;
                 float2 c = corners[id % 3];
                 o.pos = mul(UNITY_MATRIX_VP, float4(pos + (A1 * (c.x * stretch) + A2 * (c.y / stretch)) * size, 1));
                 o.uv = c;
@@ -151,22 +195,7 @@ Shader "AntGarden/ParticleSolid"
                 }
                 // what stands up beside the way lights up as the ant walks past: rising over a moment, staying a
                 // little, going back slowly
-                if (_WalkLit > 0 && above > 0.05)
-                {
-                    float2 toAnt = pos.xz - _TrailPlayer.xz;
-                    if (dot(toAnt, toAnt) < 100)
-                    {
-                        float walk = 0, r2 = _WalkRadius * _WalkRadius;
-                        for (int w = 0; w < 16; w++)
-                        {
-                            float4 W = _WalkTrail[w];
-                            float age = _Time.y - W.w;
-                            float2 dv = pos.xz - W.xz;
-                            walk = max(walk, exp(-dot(dv, dv) / r2) * smoothstep(0, 0.8, age) * (1 - smoothstep(2.5, 8, age)));
-                        }
-                        flare = max(flare, walk * _WalkLit);
-                    }
-                }
+                if (_WalkLit > 0 && above > 0.05) flare = max(flare, walk * _WalkLit);
                 lit = lit * (1 + 3 * flare) + flare * albedo * (0.6 + 2.5 * glow) * float3(0.95, 1.0, 1.05);
                 // each splat a little lighter or darker than its neighbours, as the points of a capture are
                 o.col = lit * _Gain * (0.76 + 0.48 * Hash(i + 999u));

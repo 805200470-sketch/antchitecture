@@ -14,6 +14,7 @@ namespace AntGarden
         public float spacing = 0.35f;        // a point every this far the ant walks
         public float radius = 1.4f;          // how near something must be to the ant's way to light up
         public float strength = 0.3f;        // how much it lights up (an antenna's touch is 1)
+        public float scatter = 0.7f;         // what the ant walks through (a vine, a leaf) scatters this far round it, and gathers again
 
         public static WalkLight Instance { get; private set; }
 
@@ -31,6 +32,7 @@ namespace AntGarden
             for (int i = 0; i < N; i++) trail[i] = new Vector4(0, 0, 0, -1000f);
             Shader.SetGlobalFloat("_WalkLit", strength);
             Shader.SetGlobalFloat("_WalkRadius", radius);
+            Shader.SetGlobalFloat("_ScatterRadius", scatter);
             Shader.SetGlobalVectorArray("_WalkTrail", trail);
         }
 
@@ -47,6 +49,7 @@ namespace AntGarden
             }
             Shader.SetGlobalFloat("_WalkLit", strength);
             Shader.SetGlobalFloat("_WalkRadius", radius);
+            Shader.SetGlobalFloat("_ScatterRadius", scatter);
             Shader.SetGlobalVectorArray("_WalkTrail", trail);
         }
 
@@ -78,6 +81,7 @@ namespace AntGarden
         {
             if (Instance == this) Instance = null;
             Shader.SetGlobalFloat("_WalkLit", 0);
+            Shader.SetGlobalFloat("_ScatterRadius", 0);
         }
     }
 }

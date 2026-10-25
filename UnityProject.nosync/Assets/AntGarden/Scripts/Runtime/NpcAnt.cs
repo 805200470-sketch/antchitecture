@@ -49,6 +49,8 @@ namespace AntGarden
         }
         float recruit;                      // seconds of eager trail following after meeting a carrier
         float timer, greetCooldown, meetCooldown, meetCheck, flyCooldown, flightAlt, flightTime;
+        float waitCooldown;                 // after stopping to let the player's ant pass, not again for a while
+        public static bool GiveWayOn = true;   // NPCs give way to others and never push the player's ant (-giveway 0: off)
         float age, baseLane, phaseA, phaseB, phaseC;
         float stall, bestGap = float.MaxValue;   // no progress towards the current path point: give it up
         bool fast;
@@ -372,45 +374,36 @@ namespace AntGarden
             }
         }
 
-        /// <summary>Where the camera is (Game sets it every frame): an ant in the way between it and the player's
-        /// ant, or right up against the lens, is not drawn, so none ever blocks the view.</summary>
+        /// <summary>Where the camera is (Game sets it every frame). The ants keep out of the strip between it and the
+        /// player's ant (GiveWay), walking past beside the camera and out of the picture; only one the lens itself is
+        /// inside (the camera backed into it) is not drawn.</summary>
         public static Vector3? CameraAt;
 
-        static bool InTheWay(Vector3 p, Vector3 player)
-        {
-            if (CameraAt == null) return false;
-            Vector3 cam = CameraAt.Value, toPlayer = player - cam, toAnt = p - cam;
-            float dp = toPlayer.magnitude, da = toAnt.magnitude;
-            if (da < 1.3f) return true;                    // right up against the lens
-            if (da > dp - 0.9f || dp < 0.5f) return false; // beside the player's ant or beyond it
-            // nearer than the player's ant and inside the view toward it (about 37° round it), or close to the
-            // lens anywhere in view
-            float cos = Vector3.Dot(toAnt, toPlayer) / (da * dp);
-            return cos > 0.8f || (da < 2.6f && cos > 0.45f);
-        }
+        static bool AtTheLens(Vector3 p) => CameraAt.HasValue && (p - CameraAt.Value).sqrMagnitude < 0.7f * 0.7f;
 
         /// <summary>Advance one frame. Far NPCs keep walking but are not drawn or animated.</summary>
         public void Tick(float dt, AntController player)
         {
             age += dt;
             float far = Vector3.Distance(player.Position, ant.Position);
-            bool hidden = far > cfg.drawDistance, inWay = InTheWay(ant.Position, player.Position);
+            bool hidden = far > cfg.drawDistance, atLens = AtTheLens(ant.Position);
             if (ant.PointsOnly)
             {
-                // drawn as points: it dissolves out of the camera's way and back, and in and out at the edge of
-                // sight, instead of vanishing or appearing at once
-                bool gone = inWay || far > cfg.drawDistance * 0.9f;
+                // drawn as points: it dissolves in and out at the edge of sight (and if the lens is inside it),
+                // instead of vanishing or appearing at once; walking past, it stays whole and walks out of the picture
+                bool gone = atLens || far > cfg.drawDistance * 0.9f;
                 ant.FadePoints(gone ? 0 : 1, dt);
                 hidden = hidden && ant.PointFade <= 0f;
                 ant.SetVisible(!hidden);
             }
-            else ant.SetVisible(!hidden && !inWay);
+            else ant.SetVisible(!hidden && !atLens);
             ant.dormant = hidden;
             // crowd LOD: nearer ants are animated every frame and cast shadows (as points, every ant every frame:
             // a skeleton posed every few frames would make its points jump)
             ant.animInterval = ant.PointsOnly || far < cfg.lodNear ? 1 : far < cfg.lodMid ? 2 : 4;
             ant.SetShadows(far < cfg.shadowDistance);
             greetCooldown -= dt;
+            waitCooldown -= dt;
             meetCooldown -= dt;
             flyCooldown -= dt;
             recruit -= dt;
@@ -440,7 +433,53 @@ namespace AntGarden
             else if (role == Role.Chamber && chamber != null) move = Mill(dt);
             else if (pts != null) move = Follow(dt);
             if (state == State.TakeOff) return; // started this frame; TickFlight drives it from now on
+            if (GiveWayOn && move.sqrMagnitude > 1e-6f) move = GiveWay(move, player);
             ant.Tick(dt, move, fast);
+        }
+
+        /// <summary>
+        /// Gives way: another ant close ahead (the player's above all) makes it bear off to the side it is already on
+        /// and slow down, and the player's ant right in front of it makes it stop for a moment and let it pass, so it
+        /// walks round others instead of into them. (The player's ant is never pushed by the others: AntController.)
+        /// It also keeps out of the strip between the camera and the player's ant: one heading into it bears off to
+        /// the nearer side, more the nearer the camera, so it passes beside the camera and walks out of the picture
+        /// instead of through the lens or across the player's ant.
+        /// </summary>
+        Vector2 GiveWay(Vector2 move, AntController player)
+        {
+            Vector2 me = Pos, dir = move.normalized, side = new Vector2(-dir.y, dir.x), steer = Vector2.zero;
+            float slow = 1f;
+            void Consider(AntController o, bool isPlayer)
+            {
+                if (o == null || o == ant || o.altitude > 1f) return;
+                var to = new Vector2(o.Position.x - me.x, o.Position.z - me.y);
+                float dist = to.magnitude, touch = ant.Radius + o.Radius, reach = touch * (isPlayer ? 3.2f : 2.2f);
+                if (dist > reach || dist < 1e-4f) return;
+                float ahead = Vector2.Dot(to, dir) / dist;   // 1: straight ahead
+                if (ahead < 0.05f) return;
+                float k = Mathf.Clamp01(1f - dist / reach) * ahead * (isPlayer ? 1.6f : 0.8f);
+                steer += side * ((Vector2.Dot(to, side) >= 0f ? -1f : 1f) * k * 1.8f);
+                slow = Mathf.Min(slow, Mathf.Lerp(1f, 0.3f, Mathf.Clamp01(k)));
+                if (isPlayer && ahead > 0.7f && dist < touch * 1.6f && waitCooldown <= 0 && state == State.Walk)
+                {
+                    state = State.Pause;
+                    timer = Range(0.6f, 1.4f);
+                    waitCooldown = 3f;
+                }
+            }
+            if (ant.grid != null) ant.grid.Near(me.x, me.y, nearby);
+            else { nearby.Clear(); nearby.AddRange(ant.others); }
+            foreach (AntController o in nearby) if (o != player) Consider(o, false);
+            Consider(player, true);
+            if (state == State.Pause) return Vector2.zero;
+            if (CameraAt.HasValue && player != null)
+            {
+                var cam = new Vector2(CameraAt.Value.x, CameraAt.Value.z);
+                var pl = new Vector2(player.Position.x, player.Position.z);
+                // now, and a little way ahead: so it bears off before it walks into the strip, not only once in it
+                steer += OutOfView(me, cam, pl) + 0.7f * OutOfView(me + dir * 1.2f, cam, pl);
+            }
+            return (dir + steer).normalized * (move.magnitude * slow);
         }
 
         /// <summary>Walking bouts: the pace drifts, and now and then the ant stops briefly.</summary>
@@ -606,6 +645,22 @@ namespace AntGarden
                 default:
                     return false;
             }
+        }
+
+        /// <summary>A push away from the strip between the camera and the player's ant (nothing when outside it): to
+        /// the nearer side, stronger nearer its middle line and nearer the camera.</summary>
+        static Vector2 OutOfView(Vector2 p, Vector2 cam, Vector2 player)
+        {
+            Vector2 ab = player - cam;
+            float len2 = ab.sqrMagnitude;
+            if (len2 < 0.25f) return Vector2.zero;
+            float t = Vector2.Dot(p - cam, ab) / len2;
+            if (t < -0.35f || t > 0.95f) return Vector2.zero;
+            Vector2 c = cam + ab * Mathf.Clamp01(t), off = p - c;
+            float half = Mathf.Lerp(1.4f, 0.7f, Mathf.Clamp01(t)), dist = off.magnitude;
+            if (dist >= half) return Vector2.zero;
+            Vector2 away = dist > 1e-3f ? off / dist : new Vector2(-ab.y, ab.x).normalized;
+            return away * ((1f - dist / half) * Mathf.Lerp(2.2f, 0.9f, Mathf.Clamp01(t)));
         }
 
         void Nudge(float bodyLengths)

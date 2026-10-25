@@ -11,6 +11,9 @@ namespace AntGarden
     /// within 1.5 seconds), per ant-minute, plus their mean turning speed; then photographs the busiest
     /// chamber from above and quits.
     /// Run it with -colony 0 and without to compare the old wandering with the ant-colony trails.
+    /// Then encounters: 8 times the player's ant is set down still, right in front of a walking NPC, for 4 seconds;
+    /// it counts the frames an NPC touches it and how far it is pushed (run with -giveway 0 to compare with NPCs that
+    /// do not give way).
     /// </summary>
     public static class NpcCheck
     {
@@ -88,6 +91,39 @@ namespace AntGarden
                 $"  \"trails\": \"{(colony ? game.world.trails.Summary() : "off")}\"\n}}\n";
             File.WriteAllText(Path.Combine(dir, "npc_report.json"), report);
             Debug.Log("[AntGarden] npccheck " + report.Replace("\n", " "));
+
+            // encounters: the player's ant set down still in a walking NPC's way
+            int encounters = 0, touchFrames = 0, lensFrames = 0;
+            float pushed = 0, closest = float.MaxValue;
+            var rnd = new System.Random(5);
+            for (int e = 0; e < 8; e++)
+            {
+                var walking = game.npcs.FindAll(n => n.StateName == "Walk" && n.ant.speed > 0.2f && n.ant.altitude < 0.5f);
+                if (walking.Count == 0) { yield return new WaitForSeconds(1f); continue; }
+                NpcAnt pick = walking[rnd.Next(walking.Count)];
+                Vector3 fwd = new Vector3(Mathf.Sin(pick.ant.heading), 0, Mathf.Cos(pick.ant.heading));
+                Vector3 at = pick.ant.Position + fwd * 1.6f;
+                if (game.world.Dist(at.x, at.z) > -0.3f) continue;   // not on the open floor
+                game.player.Place(at.x, at.z, pick.ant.heading + Mathf.PI);
+                encounters++;
+                yield return null;
+                Vector3 p0 = game.player.Position;
+                for (float s = 0; s < 4f; s += Time.deltaTime)
+                {
+                    yield return null;
+                    foreach (NpcAnt n in game.npcs)
+                    {
+                        if (n.ant.altitude > 1f) continue;
+                        float d = Vector2.Distance(new Vector2(n.ant.Position.x, n.ant.Position.z), new Vector2(game.player.Position.x, game.player.Position.z));
+                        closest = Mathf.Min(closest, d - n.ant.Radius - game.player.Radius);
+                        if (d < n.ant.Radius + game.player.Radius) touchFrames++;
+                        if (NpcAnt.CameraAt.HasValue && (n.ant.Position - NpcAnt.CameraAt.Value).magnitude < 1.2f) lensFrames++;
+                    }
+                }
+                pushed += Vector2.Distance(new Vector2(p0.x, p0.z), new Vector2(game.player.Position.x, game.player.Position.z));
+            }
+            Debug.Log($"[AntGarden] npccheck encounters: {encounters}, touching frames {touchFrames} ({(encounters > 0 ? touchFrames / (float)encounters : 0):F1} per encounter), " +
+                      $"player pushed {pushed:F2} units in all, closest gap {closest:F2}, NPC frames within 1.2 of the lens {lensFrames}, give way {(NpcAnt.GiveWayOn ? "on" : "off")}");
 
             // the busiest place: the chamber with the most ants around it, seen from above
             WNode best = null;

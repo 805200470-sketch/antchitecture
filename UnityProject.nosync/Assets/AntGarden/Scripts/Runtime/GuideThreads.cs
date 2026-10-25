@@ -8,8 +8,9 @@ namespace AntGarden
     /// The particle nest's guiding light (Shaders/LightThread.shader), after a night forest where one straight beam of
     /// light stands in the moss with fine, wandering tendrils round it. Only what guides is light: beams standing
     /// beside the way from the way in to the heart, each lighting a pool on the floor at its foot and seen from far off
-    /// over the walls, so the ant always has the next one to walk to; and one thread of light hanging over the main
-    /// way from the way in to the heart, wandering, with now and then a sharp turn or a loop. It is made once and
+    /// over the walls, so the ant always has the next one to walk to; and a thread of light hanging over the main way
+    /// from the way in to the heart, wandering, with now and then a sharp turn or a loop, which for stretches a
+    /// second and now and then a third thread part from and join again (one, two or three lines in turn). It is made once and
     /// stays where it is: the ant follows it. It shows only ahead of the ant (coming up out of the dark far on, fading
     /// just behind it); light runs along it toward the heart, it flickers and trembles a little, and its breaks drift.
     /// At the heart the last of it stays lit.
@@ -114,7 +115,24 @@ namespace AntGarden
                         if (NearTrack(mainPts, p) < 1.6f) { dNear = d; break; }
                     }
                 }
-                if (main) Along(pts, ds, dFar, Mathf.Max(0, dNear), 0.8f, 3.4f, 1.1f, 1f);
+                if (main)
+                {
+                    var w = NewWander(1.1f, 0.8f, 3.4f);
+                    Along(pts, ds, dFar, Mathf.Max(0, dNear), w, null, 1f, U(0.014f, 0.018f));
+                    // companions: for a stretch a second thread parts from it and joins it again, now and then a
+                    // third with it, so the way is guided by one, two or three lines in turn
+                    for (float at = dFar - U(2f, 8f); at > 4f; at -= U(5f, 14f))
+                    {
+                        float len = U(6f, 18f), end = Mathf.Max(2f, at - len);
+                        Along(pts, ds, at, end, NewWander(1.1f, 0.8f, 3.4f), w, 0.75f, U(0.010f, 0.014f));
+                        if (R() < 0.45f)
+                        {
+                            float a2 = at - U(0.5f, len * 0.4f), e2 = Mathf.Max(2f, a2 - U(4f, len * 0.7f));
+                            Along(pts, ds, a2, e2, NewWander(1.1f, 0.8f, 3.4f), w, 0.6f, U(0.009f, 0.012f));
+                        }
+                        at = end;
+                    }
+                }
                 else
                 {
                     // a way in: vines along both its walls instead of light (only the main way is guided)
@@ -157,11 +175,31 @@ namespace AntGarden
         /// swings and a fine tremble over them; now and then it turns sharply (a corner it eases out of), loops once, or
         /// Some are broken into dashes.
         /// </summary>
-        void Along(List<Vector2> pts, List<float> ds, float dFrom, float dTo, float hMin, float hMax, float side, float bright)
+        /// <summary>How a thread of light wanders over a way: its own seeds, how far to either side, how high.</summary>
+        struct Wander { public float sa, sb, sc, side, hMin, hMax; }
+
+        Wander NewWander(float side, float hMin, float hMax) =>
+            new Wander { sa = R() * 100f, sb = R() * 100f, sc = R() * 100f, side = side, hMin = hMin, hMax = hMax };
+
+        /// <summary>Slow swings from side to side, smaller quicker ones and a fine tremble, at distance d.</summary>
+        static float WanderLat(in Wander w, float d) =>
+            w.side * ((Noise1(d * 0.09f + w.sa) - 0.5f) * 1.5f + (Noise1(d * 0.42f + w.sb) - 0.5f) * 0.55f) + (Noise1(d * 2.7f + w.sc) - 0.5f) * 0.07f;
+
+        /// <summary>Slow rises and falls between hMin and hMax, smaller quicker ones and a fine tremble, at distance d.</summary>
+        static float WanderHt(in Wander w, float d) =>
+            Mathf.Lerp(w.hMin, w.hMax, Noise1(d * 0.06f + w.sb + 50f)) + (Noise1(d * 0.47f + w.sc + 20f) - 0.5f) * 0.7f + (Noise1(d * 2.9f + w.sa + 7f) - 0.5f) * 0.06f;
+
+        /// <summary>
+        /// A thread along a way from distance dFrom to dTo from the heart, wandering as w does, now and then turning
+        /// sharply (a corner it eases out of) or looping once. A companion (with a parent) parts from its parent's line
+        /// at dFrom, wanders off it by up to a unit or so to a side and up or down, and joins it again at dTo, so
+        /// for a stretch the way is guided by two or three lines braiding instead of one.
+        /// </summary>
+        void Along(List<Vector2> pts, List<float> ds, float dFrom, float dTo, in Wander w, Wander? parent, float bright, float width)
         {
             if (dFrom - dTo < 1f) return;
-            var f = Thread(bright, U(0.014f, 0.018f), 0f);   // whole, not broken: it is what the ant follows
-            float sa = R() * 100f, sb = R() * 100f, sc = R() * 100f;
+            var f = Thread(bright, width, 0f);   // whole, not broken: it is what the ant follows
+            float ps = R() * 100f, bias = U(0.25f, 0.5f) * (R() < 0.5f ? -1 : 1);
             const float step = 0.08f;
             float nextLoop = dFrom - U(3f, 9f), nextKink = dFrom - U(0.8f, 3f);
             float kinkAt = float.MinValue, kinkIn = 0.2f, kinkOut = 0.6f;
@@ -183,10 +221,20 @@ namespace AntGarden
                 }
                 // the corner: straight out to it, then slowly back
                 float k = d >= kinkAt ? Mathf.Clamp01((kinkAt + kinkIn - d) / kinkIn) : Mathf.Clamp01(1f - (kinkAt - d) / kinkOut);
-                float lat = side * ((Noise1(d * 0.09f + sa) - 0.5f) * 1.5f + (Noise1(d * 0.42f + sb) - 0.5f) * 0.55f)
-                            + (Noise1(d * 2.7f + sc) - 0.5f) * 0.07f + kink.x * k;
-                float ht = Mathf.Lerp(hMin, hMax, Noise1(d * 0.06f + sb + 50f)) + (Noise1(d * 0.47f + sc + 20f) - 0.5f) * 0.7f
-                           + (Noise1(d * 2.9f + sa + 7f) - 0.5f) * 0.06f + kink.y * k;
+                float lat, ht;
+                if (parent.HasValue)
+                {
+                    // a companion: off its parent's line by a wandering amount that grows from nothing where it
+                    // parts and goes back to nothing where it joins again
+                    float env = Mathf.SmoothStep(0f, 1f, (dFrom - d) / 2.2f) * Mathf.SmoothStep(0f, 1f, (d - dTo) / 2.2f);
+                    lat = WanderLat(parent.Value, d) + env * (bias + (Noise1(d * 0.21f + ps) - 0.5f) * 1.6f + kink.x * k);
+                    ht = WanderHt(parent.Value, d) + env * ((Noise1(d * 0.17f + ps + 9f) - 0.5f) * 1.4f + kink.y * k);
+                }
+                else
+                {
+                    lat = WanderLat(w, d) + kink.x * k;
+                    ht = WanderHt(w, d) + kink.y * k;
+                }
                 Vector2 q = p + nrm * lat;
                 var v = new Vector3(q.x, lab.WalkHeight(q) + Mathf.Max(0.25f, ht), q.y);
                 if (!first) s += (v - last).magnitude;

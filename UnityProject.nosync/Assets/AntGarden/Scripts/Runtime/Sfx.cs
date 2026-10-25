@@ -3,8 +3,8 @@ using UnityEngine;
 namespace AntGarden
 {
     /// <summary>
-    /// The small sounds of the garden, all synthesised at start-up (no audio files): the patter of the player's
-    /// feet (softer on moss, crisper on dry clay), a murmur when two ants touch antennae, a shimmer when a glowing
+    /// The small sounds of the garden, all synthesised at start-up (no audio files): the faint rustle of the
+    /// player's feet (softer on moss, drier on clay), a murmur when two ants touch antennae, a shimmer when a glowing
     /// plant flares, a breath of air through a gate, paper for the map, and under everything a quiet bed of night
     /// air: wind and far crickets in the open, a low hum and the odd drip in a tunnel. Quiet on purpose: the world
     /// should sound alive, not busy. Levels in GameConfig.audio.
@@ -28,12 +28,12 @@ namespace AntGarden
             if (voices == null)
             {
                 rng = new System.Random(11);
-                stepsSoft = new AudioClip[6];
-                stepsDry = new AudioClip[6];
-                for (int i = 0; i < 6; i++)
+                stepsSoft = new AudioClip[8];
+                stepsDry = new AudioClip[8];
+                for (int i = 0; i < 8; i++)
                 {
-                    stepsSoft[i] = Make($"StepSoft{i}", Patter(1900, 0.6f));
-                    stepsDry[i] = Make($"StepDry{i}", Patter(4600, 1f));
+                    stepsSoft[i] = Make($"StepSoft{i}", Rustle(1100, 2600));
+                    stepsDry[i] = Make($"StepDry{i}", Rustle(1900, 4200));
                 }
                 murmur = Make("Murmur", Murmur());
                 shimmer = Make("Shimmer", Shimmer(1f));
@@ -92,12 +92,13 @@ namespace AntGarden
             bedB.volume += ((tunnel ? 1f : 0f) * cfg.ambience * cfg.master - bedB.volume) * k;
         }
 
-        /// <summary>The patter of one step: three feet of a tripod landing a few milliseconds apart.</summary>
+        /// <summary>The faint rustle of a few of its feet on the ground, never twice the same or quite as loud.</summary>
         public static void Step(Vector3 at, bool dryGround, bool sprint)
         {
             if (cfg == null) return;
             AudioClip[] set = dryGround ? stepsDry : stepsSoft;
-            Play(set[rng.Next(set.Length)], at, cfg.steps * (sprint ? 1.25f : 1f), 0.9f + (float)rng.NextDouble() * 0.25f);
+            float loud = (0.55f + 0.45f * (float)rng.NextDouble()) * (sprint ? 1.2f : 1f);
+            Play(set[rng.Next(set.Length)], at, cfg.steps * loud, 0.92f + (float)rng.NextDouble() * 0.16f);
         }
 
         /// <summary>Two ants touching antennae. Quieter when the player only overhears it.</summary>
@@ -191,31 +192,33 @@ namespace AntGarden
             for (int i = 0; i < x.Length; i++) x[i] *= peak / m;
         }
 
-        /// <summary>Three tiny clicks of claws on ground, 8-16 ms apart, with a faint body thump.</summary>
-        static float[] Patter(float centre, float crisp)
+        /// <summary>
+        /// A few of its feet brushing the ground: two to four soft grains of noise, each a few tens of milliseconds
+        /// long and rising and falling smoothly (no clicks), at irregular gaps, through a broad band (centre) with the
+        /// highs above lowPass taken off. No tone in it: it should sound like soil and litter, not like a clock.
+        /// </summary>
+        static float[] Rustle(float centre, float lowPass)
         {
-            int n = (int)(Rate * 0.07f);
+            int n = (int)(Rate * 0.16f);
             var x = new float[n];
-            float t0 = 0;
-            for (int k = 0; k < 3; k++)
+            float t0 = 0.004f;
+            int grains = 2 + rng.Next(3);
+            for (int k = 0; k < grains; k++)
             {
-                t0 += k == 0 ? 0.002f : 0.008f + (float)rng.NextDouble() * 0.008f;
-                float amp = 0.6f + (float)rng.NextDouble() * 0.4f, tau = 0.0015f + 0.0015f * (1 - crisp);
-                for (int i = (int)(t0 * Rate); i < n; i++)
+                float len = 0.012f + (float)rng.NextDouble() * 0.03f, amp = 0.35f + (float)rng.NextDouble() * 0.65f;
+                int a = (int)(t0 * Rate), m = (int)(len * Rate);
+                for (int i = 0; i < m && a + i < n; i++)
                 {
-                    float t = i / (float)Rate - t0;
-                    if (t > tau * 8) break;
-                    x[i] += Noise() * amp * Mathf.Exp(-t / tau) * Mathf.Min(1, t * 3000);
+                    float u = i / (float)m;
+                    float env = Mathf.Pow(Mathf.Sin(Mathf.PI * u), 1.5f) * (1 - 0.4f * u);   // smooth rise, a softer tail
+                    x[a + i] += Noise() * amp * env;
                 }
+                t0 += len * (0.4f + (float)rng.NextDouble() * 0.9f) + 0.004f + (float)rng.NextDouble() * 0.02f;
             }
-            Filter(x, centre * (0.85f + (float)rng.NextDouble() * 0.3f), 1.1f);
-            Filter(x, crisp < 1 ? 3500 : 7000, 0.7f, true);   // moss swallows the highs
-            for (int i = 0; i < n; i++)
-            {
-                float t = i / (float)Rate;
-                x[i] += 0.2f * Mathf.Sin(2 * Mathf.PI * 170 * t) * Mathf.Exp(-t / 0.006f);
-            }
-            Normalise(x, 0.8f);
+            Filter(x, centre * (0.8f + (float)rng.NextDouble() * 0.4f), 0.55f);
+            Filter(x, lowPass, 0.6f, true);
+            Filter(x, lowPass * 0.8f, 0.6f, true);
+            Normalise(x, 0.5f);
             return x;
         }
 

@@ -60,6 +60,7 @@ namespace AntGarden
         ParticleLook particleLook;
         int currentNest = -1, currentRegion = -1;
         float stepRun;              // ground walked since the last footstep sound
+        float stepNext = 0.2f;      // and how far until the next one (uneven)
         Vector3 lastStep;
         bool dryGround;             // the warm nest's clay sounds crisper underfoot than the moss
         string lastPrompt;
@@ -106,6 +107,7 @@ namespace AntGarden
             cfg.ant.playerSpecies = Arg("-player") ?? cfg.ant.playerSpecies;
             if (Arg("-colony") != null) cfg.npcs.colony.enabled = Arg("-colony") != "0";
             if (Arg("-proclegs") != null) cfg.ant.proceduralLegs = Arg("-proclegs") != "0";
+            if (Arg("-giveway") != null) NpcAnt.GiveWayOn = Arg("-giveway") != "0";   // test: NPCs that do not give way
             Loc.Init(Arg("-lang"));
             // frames are paced by the game, never by the display: a sleeping or covered screen cannot stall
             // the loop, and a 120 Hz laptop screen does not drive the GPU flat out (which overheated a
@@ -1017,10 +1019,12 @@ namespace AntGarden
             float stepped = new Vector2(player.Position.x - lastStep.x, player.Position.z - lastStep.z).magnitude;
             lastStep = player.Position;
             stepRun = stepped > 1f ? 0 : stepRun + stepped;
-            if (stepRun > (player.sprinting ? 0.3f : 0.22f) && player.speed > 0.1f)
+            if (stepRun > stepNext && player.speed > 0.1f)
             {
+                // at uneven gaps, and now and then not at all: six legs make no beat
                 stepRun = 0;
-                Sfx.Step(player.Position, dryGround, player.sprinting);
+                stepNext = (player.sprinting ? 0.26f : 0.2f) * (0.7f + 0.7f * UnityEngine.Random.value);
+                if (UnityEngine.Random.value > 0.15f) Sfx.Step(player.Position, dryGround, player.sprinting);
             }
             Sfx.Tick(dt);
             world.glow?.Tick(dt, player);

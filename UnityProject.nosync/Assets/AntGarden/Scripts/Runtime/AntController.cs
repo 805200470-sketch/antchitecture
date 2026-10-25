@@ -407,12 +407,16 @@ namespace AntGarden
             foreach (var o in crowd)
             {
                 if (o == this || o.altitude > 1f) continue;
+                // the player's ant is never pushed by the others: they give way to it (NpcAnt.GiveWay), and one that
+                // still bumps it steps aside the whole way itself
+                if (NpcAnt.GiveWayOn && npc == null && o.npc != null) continue;
+                bool fromPlayer = NpcAnt.GiveWayOn && npc != null && o.npc == null;
                 float dx = p.x - o.transform.position.x, dz = p.z - o.transform.position.z;
                 float min = o.Radius + r, d2 = dx * dx + dz * dz;
                 if (d2 < min * min && d2 > 1e-8f)
                 {
                     float dist = Mathf.Sqrt(d2);
-                    float push = Mathf.Min((min - dist) * 0.5f, maxPush);
+                    float push = Mathf.Min((min - dist) * (fromPlayer ? 1f : 0.5f), maxPush * (fromPlayer ? 2f : 1f));
                     p.x += dx / dist * push;
                     p.z += dz / dist * push;
                 }
