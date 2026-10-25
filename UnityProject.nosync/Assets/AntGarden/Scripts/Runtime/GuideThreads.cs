@@ -6,17 +6,17 @@ namespace AntGarden
 {
     /// <summary>
     /// The particle nest's guiding light (Shaders/LightThread.shader), after a night forest where one straight beam of
-    /// light stands in the moss with fine, wandering tendrils round it. Beams stand beside the way from the way in to
-    /// the heart, each lighting a pool on the floor at its foot and seen from far off over the walls, so the ant always
-    /// has the next one to walk to. Between the beams, threads of light hang over the way and run along it toward the
-    /// heart at different heights, two or three in places, braiding and parting, each wandering its own way, with now
-    /// and then a sharp turn, a loop or a short branch ending in a hook. All are made once and stay where they are:
-    /// the ant follows them. The threads show only ahead of the ant (coming up out of the dark far on, fading just
-    /// behind it); light runs along them toward the heart, they flicker and tremble a little, and their breaks drift.
-    /// At the heart the last of them stays lit.
-    /// Round the foot of each beam, vines rise from a low tangle on the floor: solid things, not light (VineSplats,
-    /// drawn with the floor's things), so the ant can tell what guides it from what grows there: wandering, kinking,
-    /// curling into hooks, branching; a glowing vein or glowing pores on most, their tips glowing more.
+    /// light stands in the moss with fine, wandering tendrils round it. Only what guides is light: beams standing
+    /// beside the way from the way in to the heart, each lighting a pool on the floor at its foot and seen from far off
+    /// over the walls, so the ant always has the next one to walk to; and one thread of light hanging over the main
+    /// way from the way in to the heart, wandering, with now and then a sharp turn or a loop. It is made once and
+    /// stays where it is: the ant follows it. It shows only ahead of the ant (coming up out of the dark far on, fading
+    /// just behind it); light runs along it toward the heart, it flickers and trembles a little, and its breaks drift.
+    /// At the heart the last of it stays lit.
+    /// Everything else that wanders like it is a vine, solid, not light (VineSplats, drawn with the floor's things),
+    /// so the ant can tell what guides it from what grows there: vines rising round the foot of each beam from a low
+    /// tangle on the floor, and vines climbing along the walls of the ways, now and then sending a tendril out into the
+    /// air; wandering, kinking, curling into hooks; a glowing vein or glowing pores on most, their tips glowing more.
     /// </summary>
     public class GuideThreads : MonoBehaviour
     {
@@ -92,9 +92,9 @@ namespace AntGarden
             return a.sqrMagnitude > 1e-6f ? a.normalized : Vector3.Cross(v, Vector3.right).normalized;
         }
 
-        /// <summary>The light, once: threads along every way (the main one whole, with a second braiding with it; the
-        /// others until they come near it), higher ones over the main way for a stretch, and the beams, from the way in
-        /// to the heart, with the vines round their feet.</summary>
+        /// <summary>The light, once: the one thread along the main way and the beams beside it, from the way in to the
+        /// heart; and the vines: round the beams' feet, and climbing the walls along the main way (in stretches, on
+        /// either side) and along the other ways (until they come near the main one).</summary>
         void Build()
         {
             List<Vector2> mainPts = null;
@@ -114,16 +114,22 @@ namespace AntGarden
                         if (NearTrack(mainPts, p) < 1.6f) { dNear = d; break; }
                     }
                 }
-                Along(pts, ds, dFar, Mathf.Max(0, dNear), 0.8f, 3.4f, 1.1f, 0.85f);
-                if (main) Along(pts, ds, dFar - U(2f, 6f), Mathf.Max(0, dNear), 0.5f, 2.4f, 0.8f, 0.55f);
+                if (main) Along(pts, ds, dFar, Mathf.Max(0, dNear), 0.8f, 3.4f, 1.1f, 1f);
+                else
+                {
+                    // a way in: vines along both its walls instead of light (only the main way is guided)
+                    WallVine(pts, ds, dFar, Mathf.Max(0, dNear), 1, U(0.02f, 0.035f));
+                    WallVine(pts, ds, dFar - U(1f, 4f), Mathf.Max(0, dNear), -1, U(0.02f, 0.035f));
+                }
             }
             if (mainPts != null)
             {
                 float dFar = Mathf.Max(mainDs[0], mainDs[mainDs.Count - 1]);
-                for (float at = dFar - U(4f, 14f); at > 6f; at -= U(10f, 24f))
+                int side = R() < 0.5f ? 1 : -1;
+                for (float at = dFar - U(3f, 8f); at > 4f; at -= U(9f, 18f))
                 {
-                    float len = U(8f, 26f);
-                    Along(mainPts, mainDs, at, Mathf.Max(1f, at - len), 2.2f, 6.5f, 1.6f, 0.5f);
+                    WallVine(mainPts, mainDs, at, Mathf.Max(1f, at - U(8f, 18f)), side, U(0.02f, 0.035f));
+                    side = -side;
                 }
                 for (float at = dFar - 7f; at > 9f; at -= U(16f, 24f)) Station(mainPts, mainDs, at);
                 Station(mainPts, mainDs, 2.5f);
@@ -149,15 +155,15 @@ namespace AntGarden
         /// A thread along a way from distance dFrom to dTo from the heart, between hMin and hMax over the floor and never
         /// much further to a side than side: it swings slowly from side to side and up and down, with smaller quicker
         /// swings and a fine tremble over them; now and then it turns sharply (a corner it eases out of), loops once, or
-        /// sends off a short branch that ends in a curl. Some are broken into dashes.
+        /// Some are broken into dashes.
         /// </summary>
         void Along(List<Vector2> pts, List<float> ds, float dFrom, float dTo, float hMin, float hMax, float side, float bright)
         {
             if (dFrom - dTo < 1f) return;
-            var f = Thread(bright, U(0.010f, 0.016f), R() < 0.35f ? U(0.3f, 0.5f) : 0f);
+            var f = Thread(bright, U(0.014f, 0.018f), 0f);   // whole, not broken: it is what the ant follows
             float sa = R() * 100f, sb = R() * 100f, sc = R() * 100f;
             const float step = 0.08f;
-            float nextLoop = dFrom - U(3f, 9f), nextBranch = dFrom - U(1.5f, 5f), nextKink = dFrom - U(0.8f, 3f);
+            float nextLoop = dFrom - U(3f, 9f), nextKink = dFrom - U(0.8f, 3f);
             float kinkAt = float.MinValue, kinkIn = 0.2f, kinkOut = 0.6f;
             Vector2 kink = Vector2.zero;   // the corner's push (to the side, up)
             float s = 0;
@@ -200,12 +206,6 @@ namespace AntGarden
                         s += turn * r / n;
                         Add(f, lp, d, s);
                     }
-                }
-                if (!first && d < nextBranch)
-                {
-                    nextBranch = d - U(2f, 7f);
-                    Vector3 bdir = Quaternion.AngleAxis(U(35f, 80f), Across(travel)) * travel;
-                    Walk(v, bdir, U(0.5f, 2.2f), Vector3.up * U(-0.2f, 0.5f), bright * 0.7f, f.width * 0.7f, d, 1, false, 0.35f);
                 }
                 last = v;
                 first = false;
@@ -294,6 +294,62 @@ namespace AntGarden
             vines.Add(v);
         }
 
+        /// <summary>
+        /// A vine climbing along one wall of a way (side +1 or -1) from distance dFrom to dTo from the heart: from the
+        /// foot of the wall a little way up its slope, wandering up and down it, now and then sending a tendril out
+        /// into the air that ends in a hook. Where the wall falls away (an opening, a junction) the vine stops, and a
+        /// new one starts where the wall comes back.
+        /// </summary>
+        void WallVine(List<Vector2> pts, List<float> ds, float dFrom, float dTo, int side, float radius)
+        {
+            if (dFrom - dTo < 2f) return;
+            const float step = 0.08f;
+            float sa = R() * 100f, sb = R() * 100f, sc = R() * 100f;
+            float nextTendril = dFrom - U(1.2f, 3.5f);
+            Vine v = null;
+            Vector3 last = Vector3.zero;
+            float s = 0;
+            void Finish()
+            {
+                if (v != null && v.pts.Count >= 12) vines.Add(v);
+                v = null;
+            }
+            for (float d = dFrom; d > dTo; d -= step)
+            {
+                Vector2 p = OnTrack(pts, ds, d, out Vector2 dir);
+                Vector2 nrm = new Vector2(-dir.y, dir.x) * side;
+                float edge = -1f;
+                for (float off = 0.2f; off < 4f; off += 0.1f)
+                    if (!lab.OnFloor(p + nrm * off, 0f)) { edge = off; break; }
+                if (edge < 0) { Finish(); continue; }
+                // up the slope: a slow wander, a quicker one and a fine tremble
+                float up = 0.04f + 0.6f * Noise1(d * 0.22f + sa) + 0.18f * (Noise1(d * 1.1f + sb) - 0.5f) + 0.03f * (Noise1(d * 4.3f + sc) - 0.5f);
+                Vector2 q = p + nrm * (edge + Mathf.Max(0.02f, up));
+                var at = new Vector3(q.x, lab.WalkHeight(q) + 0.03f, q.y);
+                if (v == null)
+                {
+                    v = new Vine { r0 = radius, r1 = radius * 0.35f };
+                    s = 0;
+                }
+                else
+                {
+                    if ((at - last).sqrMagnitude > 0.36f) { Finish(); v = new Vine { r0 = radius, r1 = radius * 0.35f }; s = 0; }
+                    else s += (at - last).magnitude;
+                }
+                v.pts.Add(at);
+                v.s.Add(s);
+                last = at;
+                // a tendril out into the air now and then, curling at its end
+                if (d < nextTendril)
+                {
+                    nextTendril = d - U(1.2f, 4f);
+                    Vector3 outDir = (new Vector3(-nrm.x, 0, -nrm.y) * U(0.3f, 0.8f) + Vector3.up * U(0.6f, 1.2f) + Rand3() * 0.25f).normalized;
+                    Walk(at, outDir, U(0.4f, 1.4f), Vector3.up * U(0.1f, 0.4f), 1f, radius * U(0.45f, 0.65f), d, 1, true, 0.7f);
+                }
+            }
+            Finish();
+        }
+
         /// <summary>A beam beside the way at distance d from the heart (to one side, as far as the floor allows), and
         /// the vines rising round its foot from a low tangle on the floor.</summary>
         void Station(List<Vector2> pts, List<float> ds, float d)
@@ -330,7 +386,7 @@ namespace AntGarden
                 // the tangle on the floor at its foot
                 float a = awayAngle + U(-1.6f, 1.6f);
                 Vector2 at = foot + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * U(0.05f, 0.5f);
-                Walk(new Vector3(at.x, lab.WalkHeight(at) + 0.03f, at.y), new Vector3(Mathf.Cos(a + 1.6f), 0.15f, Mathf.Sin(a + 1.6f)),
+                Walk(new Vector3(at.x, lab.WalkHeight(at) + 0.03f, at.y), new Vector3(Mathf.Cos(a), 0.15f, Mathf.Sin(a)),
                     U(0.8f, 2f), Vector3.up * 0.05f, 1f, U(0.018f, 0.03f), d, 1, true, 0f);
             }
         }
@@ -358,7 +414,8 @@ namespace AntGarden
                 stem = Color.Lerp(stem, new Color(0.1f, 0.16f, 0.15f), 0.5f + 0.25f * V());   // darker than the plants
                 Color light = glowPal != null && glowPal.Length >= 8 ? glowPal[cool[(int)(V() * 4) % 4]].linear : new Color(0.4f, 0.85f, 0.85f);
                 bool vein = V() < 0.55f, leaves = V() < 0.45f;
-                float pores = V() < 0.5f ? 0.012f + 0.025f * V() : 0.003f, tip = 0.1f + 0.15f * V();
+                // the glowing tip: its last stretch, never more than the last 0.8 units of a long vine
+                float pores = V() < 0.5f ? 0.012f + 0.025f * V() : 0.003f, tip = Mathf.Min(0.1f + 0.15f * V(), 0.8f / len);
                 float veinAt = V() * 6.283f, veinTwist = (V() - 0.5f) * 14f, grooves = 5 + (int)(V() * 5), grooveTwist = (V() - 0.5f) * 6f;
                 float nodes = 0.25f + 0.35f * V(), mot = 2f + 5f * V(), motSeed = V() * 50f;
                 float nextLeaf = leaves ? 0.3f + 0.4f * V() : float.MaxValue;
@@ -578,8 +635,9 @@ namespace AntGarden
             Vector3 across = sideways > 1e-5f ? cross / sideways : cam.transform.right;
             float pixel = 2f * dist * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, cam.pixelHeight);
             float w = Mathf.Max(halfWidth, pixel * 2.5f), thin = Mathf.Lerp(0.35f, 1f, halfWidth / w);
-            // seen end-on its light would pile up into one glaring line, and right at the lens it would be a smear
-            thin *= Mathf.SmoothStep(0f, 1f, sideways / 0.35f) * Mathf.SmoothStep(0f, 1f, (dist - 0.3f) / 1.2f);
+            // seen end-on its light would pile up into one glaring line (dimmed, but never out: the guiding thread
+            // runs along the view when the ant looks down the way), and right at the lens it would be a smear
+            thin *= Mathf.Lerp(0.35f, 1f, Mathf.SmoothStep(0f, 1f, sideways / 0.3f)) * Mathf.SmoothStep(0f, 1f, (dist - 0.3f) / 1.2f);
             if (thin <= 0.001f) return;
             int v = verts.Count;
             verts.Add(a - across * w); verts.Add(a + across * w); verts.Add(b + across * w); verts.Add(b - across * w);
