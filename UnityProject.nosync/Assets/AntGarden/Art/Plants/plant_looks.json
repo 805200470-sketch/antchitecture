@@ -38,5 +38,8 @@
   "relic_button": {"strength": 0.3, "glow": [0.0, 1.1], "lumMin": 0.7, "sway": 0, "roughMin": 0.45, "ground": 0.0},
   "temple_spire": {"strength": 0.3, "glow": [0.0, 1.1], "lumMin": 0.78, "sway": 0, "roughMin": 0.8, "ground": 0.06},
   "temple_arch": {"strength": 0.3, "glow": [0.0, 1.1], "lumMin": 0.78, "sway": 0, "roughMin": 0.8, "ground": 0.05},
-  "temple_cells": {"strength": 0.3, "glow": [0.0, 1.1], "lumMin": 0.78, "sway": 0, "roughMin": 0.8, "ground": 0.08}
+  "temple_cells": {"strength": 0.3, "glow": [0.0, 1.1], "lumMin": 0.78, "sway": 0, "roughMin": 0.8, "ground": 0.08},
+  "temple_spire_v2": {"strength": 0.3, "glow": [0.0, 1.1], "lumMin": 0.95, "sway": 0, "roughMin": 0.8, "ground": 0.06},
+  "temple_arch_v2": {"strength": 0.3, "glow": [0.0, 1.1], "lumMin": 0.95, "sway": 0, "roughMin": 0.8, "ground": 0.05},
+  "temple_cells_v2": {"strength": 0.3, "glow": [0.0, 1.1], "lumMin": 0.95, "sway": 0, "roughMin": 0.8, "ground": 0.08}
 }

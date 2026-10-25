@@ -355,11 +355,18 @@ namespace AntGarden
             if ((p - route.goal).sqrMagnitude < (route.goalRadius + 1f) * (route.goalRadius + 1f)) return 0;
             float best = 9f, d = -1;   // within 3 units of a track
             foreach (var (pts, ds, _) in route.tracks)
-                for (int k = 0; k < pts.Count; k++)
+            {
+                if (pts.Count == 1 && (pts[0] - p).sqrMagnitude < best) { best = (pts[0] - p).sqrMagnitude; d = ds[0]; }
+                // the nearest point on each stretch, and the distance there (between its two ends'): it runs on as the ant
+                // walks instead of stepping from one track point to the next (they are about a unit apart)
+                for (int k = 0; k + 1 < pts.Count; k++)
                 {
-                    float q = (pts[k] - p).sqrMagnitude;
-                    if (q < best) { best = q; d = ds[k]; }
+                    Vector2 a = pts[k], ab = pts[k + 1] - a;
+                    float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / Mathf.Max(1e-6f, ab.sqrMagnitude));
+                    float q = (a + ab * t - p).sqrMagnitude;
+                    if (q < best) { best = q; d = Mathf.Lerp(ds[k], ds[k + 1], t); }
                 }
+            }
             return d;
         }
 

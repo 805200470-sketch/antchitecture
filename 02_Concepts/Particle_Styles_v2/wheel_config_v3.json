@@ -1,0 +1,211 @@
+{
+ "overview_title": "粒子风格 · 效果图总览（第三版：色轮其余 8 段）",
+ "overview_sub": "每段一个蚁穴，内容各不相同：蚁群的房间（粮仓、菌圃、育儿室）、自然的小世界（苔藓、雨水、黏菌）、遗迹（机城、骸谷）。画法按粒子蚁穴 v15。",
+ "rows": [
+  {
+   "key": "y60_honey",
+   "title": "蜜罐粮仓",
+   "segment": 60,
+   "images": [
+    [
+     "02_Concepts/Particle_Styles_v2/y60_honey_way_in_v2.png",
+     "入口 · 墙上塞满种子的小龛，顶上倒挂的蜜罐蚁"
+    ],
+    [
+     "02_Concepts/Particle_Styles_v2/y60_honey_heart_v2.png",
+     "中心 · 十几只蜜罐蚁成簇倒挂，像一盏吊灯"
+    ]
+   ]
+  },
+  {
+   "key": "c90_fungus_garden",
+   "title": "切叶蚁菌圃",
+   "segment": 90,
+   "images": [
+    [
+     "02_Concepts/Particle_Styles_v2/c90_fungus_garden_way_in_v2.png",
+     "入口 · 路边竖着的切叶片，墙上鼓出的菌圃"
+    ],
+    [
+     "02_Concepts/Particle_Styles_v2/c90_fungus_garden_heart_v2.png",
+     "中心 · 填满小室的海绵菌圃，小菌球发光"
+    ]
+   ]
+  },
+  {
+   "key": "g120_moss",
+   "title": "苔藓森林",
+   "segment": 120,
+   "images": [
+    [
+     "02_Concepts/Particle_Styles_v2/g120_moss_way_in_v2.png",
+     "入口 · 苔垫、星状苔和孢蒴杆，路边一颗露珠"
+    ],
+    [
+     "02_Concepts/Particle_Styles_v2/g120_moss_heart_v2.png",
+     "中心 · 孢蒴杆围成的空地，中间一颗大露珠"
+    ]
+   ]
+  },
+  {
+   "key": "s150_machine",
+   "title": "铜绿机城",
+   "segment": 150,
+   "images": [
+    [
+     "02_Concepts/Particle_Styles_v2/s150_machine_way_in.png",
+     "入口 · 半埋的黄铜齿轮和长了铜绿的铜线"
+    ],
+    [
+     "02_Concepts/Particle_Styles_v2/s150_machine_heart.png",
+     "中心 · 半埋的破怀表，里面的游丝发微光"
+    ]
+   ]
+  },
+  {
+   "key": "b240_cistern",
+   "title": "雨水潭",
+   "segment": 240,
+   "images": [
+    [
+     "02_Concepts/Particle_Styles_v2/b240_cistern_way_in_v2.png",
+     "入口 · 垂根挂着水珠，地上的水洼映着光丝"
+    ],
+    [
+     "02_Concepts/Particle_Styles_v2/b240_cistern_heart_v2.png",
+     "中心 · 一潭静水，根尖的大水滴快要落下"
+    ]
+   ]
+  },
+  {
+   "key": "v270_carapace",
+   "title": "王虫骸谷",
+   "segment": 270,
+   "images": [
+    [
+     "02_Concepts/Particle_Styles_v2/v270_carapace_way_in_v2.png",
+     "入口 · 从甲虫的腿下穿过，路边一片透光的蜻蜓翅"
+    ],
+    [
+     "02_Concepts/Particle_Styles_v2/v270_carapace_heart_v2.png",
+     "中心 · 鞘翅半开的巨大甲虫空壳"
+    ]
+   ]
+  },
+  {
+   "key": "m300_slime",
+   "title": "黏菌花期",
+   "segment": 300,
+   "images": [
+    [
+     "02_Concepts/Particle_Styles_v2/m300_slime_way_in_v2.png",
+     "入口 · 一丛丛带柄的小圆头，地上的扇形脉网"
+    ],
+    [
+     "02_Concepts/Particle_Styles_v2/m300_slime_heart_v2.png",
+     "中心 · 铺满地面的脉网，中间最高的一丛"
+    ]
+   ]
+  },
+  {
+   "key": "r330_nursery",
+   "title": "育儿室 · 蚁后寝宫",
+   "segment": 330,
+   "images": [
+    [
+     "02_Concepts/Particle_Styles_v2/r330_nursery_way_in_v2.png",
+     "入口 · 墙边的卵堆和丝茧，一个茧透出蛹的轮廓"
+    ],
+    [
+     "02_Concepts/Particle_Styles_v2/r330_nursery_heart_v2.png",
+     "中心 · 躺在卵床上的蚁后，腹部透出玫瑰色微光"
+    ]
+   ]
+  }
+ ],
+ "styles": [
+  {
+   "key": "blue",
+   "name": "蓝色真菌林",
+   "thumb": "07_Outputs/particle_nest/v15_template/v15_r0_1_eye_lab_way_in.png",
+   "note": "游戏实测 181° · 已做成场景"
+  },
+  {
+   "key": "amber",
+   "name": "暖琥珀蚁穴",
+   "thumb": "07_Outputs/particle_nest/amber_v1/amber_r0_1_eye_lab_way_in.png",
+   "note": "游戏实测 33° · 已做成场景"
+  },
+  {
+   "key": "temple",
+   "name": "古蚁圣殿 · 窑火",
+   "thumb": "07_Outputs/particle_nest/kiln_v1/kiln_r0_1_eye_lab_way_in.png",
+   "note": "游戏实测 12° · 初版场景"
+  },
+  {
+   "key": "relics",
+   "name": "巨人遗物",
+   "segment": 210,
+   "thumb": "02_Concepts/Particle_Styles_v1/relics_way_in.png",
+   "note": "效果图 193° → 光推到约 205–215°"
+  },
+  {
+   "key": "y60_honey",
+   "name": "蜜罐粮仓",
+   "thumb": "02_Concepts/Particle_Styles_v2/y60_honey_heart_v2.png",
+   "note": "效果图 50°"
+  },
+  {
+   "key": "c90_fungus_garden",
+   "name": "切叶蚁菌圃",
+   "thumb": "02_Concepts/Particle_Styles_v2/c90_fungus_garden_heart_v2.png",
+   "note": "效果图 78°"
+  },
+  {
+   "key": "g120_moss",
+   "name": "苔藓森林",
+   "thumb": "02_Concepts/Particle_Styles_v2/g120_moss_heart_v2.png",
+   "note": "效果图 116°"
+  },
+  {
+   "key": "s150_machine",
+   "name": "铜绿机城",
+   "thumb": "02_Concepts/Particle_Styles_v2/s150_machine_heart.png",
+   "note": "效果图 157°"
+  },
+  {
+   "key": "b240_cistern",
+   "name": "雨水潭",
+   "thumb": "02_Concepts/Particle_Styles_v2/b240_cistern_heart_v2.png",
+   "note": "效果图 233°"
+  },
+  {
+   "key": "v270_carapace",
+   "name": "王虫骸谷",
+   "thumb": "02_Concepts/Particle_Styles_v2/v270_carapace_heart_v2.png",
+   "note": "效果图 268°"
+  },
+  {
+   "key": "m300_slime",
+   "name": "黏菌花期",
+   "thumb": "02_Concepts/Particle_Styles_v2/m300_slime_heart_v2.png",
+   "note": "效果图 301°"
+  },
+  {
+   "key": "r330_nursery",
+   "name": "育儿室 · 蚁后寝宫",
+   "thumb": "02_Concepts/Particle_Styles_v2/r330_nursery_heart_v2.png",
+   "note": "效果图 340°"
+  }
+ ],
+ "suggestions": {},
+ "wheel_title": "粒子风格 · 色轮对应（第三版：12 段全部有场景）",
+ "wheel_sub": [
+  "灯光用的 HSV 色相环，分 12 段，每段 30°，每段对应一个蚁穴场景。白色三角是测得的主光色相。",
+  "青、橙、红已经做成游戏场景（游戏截图实测）；其余 9 段是效果图（第一版、第三版），做场景时再用游戏截图测一次。"
+ ],
+ "wheel_foot": [
+  "测法：只看亮而饱和的像素（HSV 的 V ≥ 0.6、S ≥ 0.3），按 S·V² 加权做色相直方图，取最高峰 ±20° 内的加权平均。",
+  "效果图测得的色相如果落在邻段，三角标在段中心，下面写测得值和要推到的位置。"
+ ]
+}

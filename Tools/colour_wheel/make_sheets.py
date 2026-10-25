@@ -214,7 +214,10 @@ def wheel(cfg, meas):
         kx = min(tw / 2 / max(abs(vx), 1e-6), th / 2 / max(abs(vy), 1e-6))
         end = (tx + vx * kx, ty + vy * kx)
         if ty + vy * kx >= ty + th / 2 - 1:
-            end = (tx, ty + th / 2 + 96)   # the wheel is below: from under the name and the note, not across them
+            if abs(vx) > 0.35 * L:
+                end = (tx + math.copysign(tw / 2, vx), ty + th * 0.25)   # below and to the side: from the side, above the name
+            else:
+                end = (tx, ty + th / 2 + 96)   # the wheel is below: from under the name and the note, not across them
         d.line([(ex, ey), end], fill=(118, 120, 124), width=2)
     for st, hue, tx, ty, tw, th in placed:
         tri = [pol(hue, R_OUT + 4), pol(hue - 2.2, R_OUT + 34), pol(hue + 2.2, R_OUT + 34)]

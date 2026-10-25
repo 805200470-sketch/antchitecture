@@ -1,0 +1,26 @@
+[
+ {
+  "out": "02_Concepts/Fronts_for_3D/temple_spire_v2.png",
+  "refs": [
+   "02_Concepts/Fronts_for_3D/ruins/temple_spire.png",
+   "02_Concepts/Particle_Styles_v1/temple_way_in_v2.png"
+  ],
+  "prompt": "Attached image 1 is our earlier, simpler version of this object: keep its overall shape and idea, and make it much more detailed and architectural. Attached image 2 is a concept frame of the temple it stands in: take its carved, layered clay character, not its lighting. Square image of ONE object for 3D modelling: a tall temple spire built long ago by ants from packed clay, about three times as tall as it is wide, tapering to a blunt tip. A narrow spiral ramp winds up around it from the base to the tip in three turns, a ledge with tiny steps; the ramp's outer edge is inlaid with a thin continuous line of pale bone-white clay, so the path reads clearly all the way up. The body is built of stacked courses of terracotta clay, each course slightly bulging, with fine horizontal layer lines; four or five small round windows open along the ramp, dark inside; a short carved groove like an ant trail runs beside each window. Weathered: edges a little chipped, a few hairline cracks, a few crumbs of clay at the foot. Terracotta red, rust and ochre clay; the inlay pale bone. Three-quarter view from slightly above, the whole object fully visible and centred with margin. Realistic and finely crafted, like a detailed museum miniature: crisp forms and a clear structure; the detail sits in the paths, openings and layer lines, the large surfaces stay calm. Even, soft studio light, no strong shadows. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow, glitter, sparkles, noisy micro-texture, extra objects, plants, moss, ants."
+ },
+ {
+  "out": "02_Concepts/Fronts_for_3D/temple_arch_v2.png",
+  "refs": [
+   "02_Concepts/Fronts_for_3D/ruins/temple_arch.png",
+   "02_Concepts/Particle_Styles_v1/temple_way_in_v2.png"
+  ],
+  "prompt": "Attached image 1 is our earlier, simpler version of this object: keep its overall shape and idea, and make it much more detailed and architectural. Attached image 2 is a concept frame of the temple it stands in: take its carved, layered clay character, not its lighting. Square image of ONE object for 3D modelling: a pointed temple arch built long ago by ants from packed clay, a free-standing gateway about twice as tall as it is wide, on a low stepped base. Its two piers are thick and lightly buttressed, built of stacked courses of terracotta clay with fine layer lines. Carved relief bands wind up both piers and over the point like ant trails, each band inlaid with a thin line of pale bone-white clay; a row of small round niches runs along the inner edge of the opening; a small carved ant sits at the apex. Weathered: chipped edges, a few hairline cracks. Terracotta red, rust and ochre clay; the inlay pale bone. Three-quarter view from slightly above, the whole object fully visible and centred with margin. Realistic and finely crafted, like a detailed museum miniature: crisp forms and a clear structure; the detail sits in the paths, openings and layer lines, the large surfaces stay calm. Even, soft studio light, no strong shadows. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow, glitter, sparkles, noisy micro-texture, extra objects, plants, moss, ants."
+ },
+ {
+  "out": "02_Concepts/Fronts_for_3D/temple_cells_v2.png",
+  "refs": [
+   "02_Concepts/Fronts_for_3D/ruins/temple_cells.png",
+   "02_Concepts/Particle_Styles_v1/temple_way_in_v2.png"
+  ],
+  "prompt": "Attached image 1 is our earlier, simpler version of this object: keep its overall shape and idea, and make it much more detailed and architectural. Attached image 2 is a concept frame of the temple it stands in: take its carved, layered clay character, not its lighting. Square image of ONE object for 3D modelling: a cluster of seven hexagonal clay cells built by ants, like a honeycomb of packed terracotta clay, the cells of different heights (the tallest in the middle), each with thick hand-formed walls and a rounded rim; each rim is inlaid with a thin line of pale bone-white clay; two cells are broken at the top; fine layer lines on the outer walls; the cells dark inside. Weathered: chipped rims, a few hairline cracks. Terracotta red, rust and ochre clay; the inlay pale bone. Three-quarter view from slightly above, the whole object fully visible and centred with margin. Realistic and finely crafted, like a detailed museum miniature: crisp forms and a clear structure; the detail sits in the paths, openings and layer lines, the large surfaces stay calm. Even, soft studio light, no strong shadows. Background: one perfectly flat, uniform very light neutral grey (#E8ECEC). Avoid: text, labels, frame, ground plane, cast shadow, glow, glitter, sparkles, noisy micro-texture, extra objects, plants, moss, ants."
+ }
+]

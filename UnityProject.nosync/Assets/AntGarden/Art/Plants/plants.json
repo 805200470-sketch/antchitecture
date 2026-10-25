@@ -2229,6 +2229,67 @@
       "backface_visible_lod0": 0.0
     },
     {
+      "name": "temple_arch_v2",
+      "fbx": "temple_arch_v2/temple_arch_v2.fbx",
+      "material": "temple_arch_v2_Mat",
+      "textures": {
+        "baseColor": "temple_arch_v2/temple_arch_v2_BaseColor.png",
+        "normal": "temple_arch_v2/temple_arch_v2_Normal.png",
+        "orm": "temple_arch_v2/temple_arch_v2_ORM.png"
+      },
+      "lods": [
+        "temple_arch_v2_LOD0",
+        "temple_arch_v2_LOD1",
+        "temple_arch_v2_LOD2"
+      ],
+      "tris": [292739, 87822, 23418],
+      "lod_error": [0.0, 7e-05, 0.00031],
+      "size": [0.8059, 1.0, 0.291],
+      "footprint": {
+        "radius": 0.4266,
+        "slice_height": 0.15,
+        "cell": 0.1342,
+        "circles": [
+          [-0.3335, -0.1392, 0.0677],
+          [-0.3354, -0.0667, 0.0946],
+          [-0.3353, 0.0669, 0.0955],
+          [-0.3342, 0.1395, 0.0669],
+          [-0.2004, -0.1392, 0.0682],
+          [-0.2004, -0.0667, 0.0946],
+          [-0.2004, 0.067, 0.0955],
+          [-0.2004, 0.1395, 0.0681],
+          [-0.0667, -0.1392, 0.067],
+          [-0.0667, -0.0667, 0.0937],
+          [-0.0667, 0.067, 0.0946],
+          [-0.0667, 0.1395, 0.0669],
+          [0.0671, -0.1392, 0.0682],
+          [0.0671, -0.0667, 0.0946],
+          [0.0671, 0.067, 0.0955],
+          [0.0671, 0.1395, 0.0681],
+          [0.2021, -0.1392, 0.0682],
+          [0.2021, -0.0667, 0.0946],
+          [0.2021, 0.067, 0.0955],
+          [0.2021, 0.1395, 0.0681],
+          [0.3348, -0.1392, 0.0679],
+          [0.3358, -0.0667, 0.0937],
+          [0.3358, 0.067, 0.0946],
+          [0.3355, 0.1395, 0.0672]
+        ]
+      },
+      "facing": "+Z",
+      "glow": {},
+      "glow_source": {},
+      "source": {
+        "glb": "/Users/xujiafeng/Desktop/AntGarden/03_Models/Plants/temple_arch_v2_v31.glb",
+        "front_axis_gltf": "+X",
+        "front_detection": "auto vs temple_arch_v2.png: +X 0.686, -X 0.683, +Z 0.147, -Z 0.146",
+        "source_height": 0.98069,
+        "rotation_deg_about_up": -90.0
+      },
+      "double_sided": false,
+      "backface_visible_lod0": 0.0
+    },
+    {
       "name": "temple_cells",
       "fbx": "temple_cells/temple_cells.fbx",
       "material": "temple_cells_Mat",
@@ -2291,6 +2352,74 @@
         "front_detection": "auto vs temple_cells.png: +X 0.608, -X 0.660, +Z 0.481, -Z 0.455",
         "source_height": 0.7793,
         "rotation_deg_about_up": -270.0
+      },
+      "double_sided": false,
+      "backface_visible_lod0": 0.0
+    },
+    {
+      "name": "temple_cells_v2",
+      "fbx": "temple_cells_v2/temple_cells_v2.fbx",
+      "material": "temple_cells_v2_Mat",
+      "textures": {
+        "baseColor": "temple_cells_v2/temple_cells_v2_BaseColor.png",
+        "normal": "temple_cells_v2/temple_cells_v2_Normal.png",
+        "orm": "temple_cells_v2/temple_cells_v2_ORM.png"
+      },
+      "lods": [
+        "temple_cells_v2_LOD0",
+        "temple_cells_v2_LOD1",
+        "temple_cells_v2_LOD2"
+      ],
+      "tris": [295010, 88502, 23600],
+      "lod_error": [0.0, 0.00012, 0.00047],
+      "size": [1.6513, 1.0, 1.646],
+      "footprint": {
+        "radius": 0.9169,
+        "slice_height": 0.15,
+        "cell": 0.2754,
+        "circles": [
+          [-0.6669, -0.1209, 0.1973],
+          [-0.6771, 0.1286, 0.195],
+          [-0.5943, 0.3693, 0.1881],
+          [-0.5718, 0.6049, 0.0851],
+          [-0.3894, -0.4023, 0.2052],
+          [-0.4132, -0.138, 0.1945],
+          [-0.4132, 0.137, 0.1945],
+          [-0.4132, 0.4132, 0.1953],
+          [-0.402, 0.6727, 0.1937],
+          [-0.0781, -0.6061, 0.2055],
+          [-0.1382, -0.413, 0.1945],
+          [-0.1382, -0.138, 0.1945],
+          [-0.1382, 0.137, 0.1945],
+          [-0.1382, 0.4132, 0.1953],
+          [-0.1521, 0.6751, 0.1951],
+          [0.1456, -0.6733, 0.191],
+          [0.1368, -0.413, 0.1945],
+          [0.1368, -0.138, 0.1945],
+          [0.1368, 0.137, 0.1945],
+          [0.1368, 0.4132, 0.1953],
+          [0.1492, 0.641, 0.1743],
+          [0.3926, -0.6565, 0.1942],
+          [0.4126, -0.413, 0.1957],
+          [0.4131, -0.138, 0.1953],
+          [0.4131, 0.137, 0.1953],
+          [0.4131, 0.4132, 0.1962],
+          [0.3868, 0.6375, 0.1859],
+          [0.5964, -0.3459, 0.2097],
+          [0.6708, -0.1277, 0.1994],
+          [0.663, 0.1215, 0.2023],
+          [0.568, 0.4159, 0.1456]
+        ]
+      },
+      "facing": "+Z",
+      "glow": {},
+      "glow_source": {},
+      "source": {
+        "glb": "/Users/xujiafeng/Desktop/AntGarden/03_Models/Plants/temple_cells_v2_v31.glb",
+        "front_axis_gltf": "+X",
+        "front_detection": "auto vs temple_cells_v2.png: +X 0.631, -X 0.603, +Z 0.564, -Z 0.579",
+        "source_height": 0.59374,
+        "rotation_deg_about_up": -90.0
       },
       "double_sided": false,
       "backface_visible_lod0": 0.0
@@ -2365,6 +2494,75 @@
       },
       "double_sided": false,
       "backface_visible_lod0": 0.001
+    },
+    {
+      "name": "temple_spire_v2",
+      "fbx": "temple_spire_v2/temple_spire_v2.fbx",
+      "material": "temple_spire_v2_Mat",
+      "textures": {
+        "baseColor": "temple_spire_v2/temple_spire_v2_BaseColor.png",
+        "normal": "temple_spire_v2/temple_spire_v2_Normal.png",
+        "orm": "temple_spire_v2/temple_spire_v2_ORM.png"
+      },
+      "lods": [
+        "temple_spire_v2_LOD0",
+        "temple_spire_v2_LOD1",
+        "temple_spire_v2_LOD2"
+      ],
+      "tris": [281492, 84448, 22518],
+      "lod_error": [0.0, 6e-05, 0.00025],
+      "size": [0.6083, 1.0, 0.6164],
+      "footprint": {
+        "radius": 0.3121,
+        "slice_height": 0.15,
+        "cell": 0.1029,
+        "circles": [
+          [-0.2354, -0.1439, 0.0683],
+          [-0.2523, -0.0502, 0.0716],
+          [-0.2534, 0.0494, 0.0713],
+          [-0.2372, 0.1445, 0.0695],
+          [-0.1448, -0.2341, 0.0681],
+          [-0.1554, -0.1545, 0.0725],
+          [-0.1554, -0.052, 0.0725],
+          [-0.1554, 0.0505, 0.0725],
+          [-0.1554, 0.1543, 0.0734],
+          [-0.1459, 0.2375, 0.0682],
+          [-0.049, -0.2497, 0.0769],
+          [-0.0516, -0.1545, 0.0734],
+          [-0.0516, -0.052, 0.0734],
+          [-0.0516, 0.0505, 0.0734],
+          [-0.0516, 0.1543, 0.0742],
+          [-0.05, 0.2547, 0.0728],
+          [0.0505, -0.2519, 0.075],
+          [0.0521, -0.1545, 0.0725],
+          [0.0521, -0.052, 0.0725],
+          [0.0521, 0.0505, 0.0725],
+          [0.0521, 0.1543, 0.0734],
+          [0.0495, 0.2526, 0.0728],
+          [0.1443, -0.2349, 0.0682],
+          [0.1546, -0.1545, 0.0725],
+          [0.1546, -0.052, 0.0725],
+          [0.1546, 0.0505, 0.0725],
+          [0.1546, 0.1543, 0.0734],
+          [0.1478, 0.2338, 0.0654],
+          [0.2335, -0.1442, 0.0675],
+          [0.2501, -0.0506, 0.0712],
+          [0.2529, 0.0497, 0.0702],
+          [0.2369, 0.1442, 0.0699]
+        ]
+      },
+      "facing": "+Z",
+      "glow": {},
+      "glow_source": {},
+      "source": {
+        "glb": "/Users/xujiafeng/Desktop/AntGarden/03_Models/Plants/temple_spire_v2_v31.glb",
+        "front_axis_gltf": "-Z",
+        "front_detection": "auto vs temple_spire_v2.png: +X 0.836, -X 0.817, +Z 0.793, -Z 0.847",
+        "source_height": 0.97826,
+        "rotation_deg_about_up": -180.0
+      },
+      "double_sided": false,
+      "backface_visible_lod0": 0.0
     },
     {
       "name": "thorn_succulent",

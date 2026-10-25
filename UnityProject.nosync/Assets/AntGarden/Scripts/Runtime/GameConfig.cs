@@ -24,8 +24,8 @@ namespace AntGarden
         public bool seamBlend = true;       // different grounds interleave in patches across a seam (false: a line)
         public bool particleLook = false;   // experiment: plants and ground as glowing points round the ant (P toggles)
         // the particle nests, one per segment of the room lights' colour wheel (NestTheme), on the map's world row:
-        // cyan, the blue fungal forest (chapter one); orange, the warm amber nest
-        public string labWorld = "lab:path-012@blue,lab:path-010@amber";
+        // cyan, the blue fungal forest (chapter one); orange, the warm amber nest; red, the ancient temple's kiln
+        public string labWorld = "lab:path-012@blue,lab:path-010@amber,lab:path-007@kiln";
         public float labWidth = 0.55f;      // its canyons, narrowed into passages
         public string labExtraPlants = "thorn_succulent,fungus_garden,dry_grass_tuft,dry_mushroom,soil_spire,amber_resin,seed_pile";   // grown in the particle nest too
         public ScatterSettings scatter = new ScatterSettings();
@@ -80,6 +80,26 @@ namespace AntGarden
                 nativePlants = "amber_resin,soil_spire,dry_mushroom,seed_husk,fungus_garden,dry_grass_tuft,thorn_succulent,seed_pile",
                 landmarkPlant = "dry_mushroom",
                 surroundings = "soil_spire,dry_mushroom,trunk_night",
+            },
+            new Biome
+            {
+                // the particle nest's red segment: the ancient temple's kiln (NestTheme.Red); the amber nest's clay,
+                // redder, its own few dry plants
+                id = "kiln", displayName = "古蚁圣殿·窑火", displayNameEn = "The Ancient Temple",
+                groundSet = "amber", terrainHue = -8, terrainSaturation = 1.05f,
+                mapHue = 172, mapSaturation = 1.15f,
+                floorTint = new Color(0.38f, 0.31f, 0.29f), bankTint = new Color(0.52f, 0.43f, 0.41f), plateauTint = new Color(0.42f, 0.35f, 0.33f),
+                speckColor = new Color(1f, 0.55f, 0.35f),
+                plantHue = 172, plantSaturation = 1.2f, plantGlow = new Color(1f, 0.5f, 0.32f), groundColor = new Color(0.24f, 0.11f, 0.08f),
+                antHue = 172, antSaturation = 1.1f,
+                fogColor = new Color(0.22f, 0.09f, 0.07f), ambientSky = new Color(0.62f, 0.38f, 0.32f),
+                ambientEquator = new Color(0.42f, 0.2f, 0.16f), ambientGround = new Color(0.1f, 0.05f, 0.04f),
+                moonColor = new Color(1f, 0.8f, 0.7f), skyTop = new Color(0.06f, 0.025f, 0.03f), skyHorizon = new Color(0.36f, 0.12f, 0.09f),
+                rimColor = new Color(1f, 0.52f, 0.38f),
+                gateColor = new Color(1f, 0.6f, 0.42f),
+                nativePlants = "soil_spire,thorn_succulent,dry_grass_tuft,seed_pile,seed_husk,temple_spire,temple_arch,temple_cells,temple_spire_v2,temple_arch_v2,temple_cells_v2",
+                landmarkPlant = "soil_spire",
+                surroundings = "soil_spire,trunk_night",
             },
         };
 

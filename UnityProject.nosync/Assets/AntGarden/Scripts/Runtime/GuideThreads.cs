@@ -461,7 +461,8 @@ namespace AntGarden
                 float len = Mathf.Max(1e-3f, v.s[n - 1]);
                 Color stem = body != null && body.Length >= 8 ? body[(int)(V() * 6) % 6].linear : new Color(0.32f, 0.42f, 0.38f);
                 stem = Color.Lerp(stem, (NestTheme.Current ?? NestTheme.Cyan).vineDark, 0.5f + 0.25f * V());   // darker than the plants
-                Color light = glowPal != null && glowPal.Length >= 8 ? glowPal[cool[(int)(V() * 4) % 4]].linear : new Color(0.4f, 0.85f, 0.85f);
+                Color light = (glowPal != null && glowPal.Length >= 8 ? glowPal[cool[(int)(V() * 4) % 4]].linear : new Color(0.4f, 0.85f, 0.85f))
+                    * (NestTheme.Current ?? NestTheme.Cyan).vineGlow;
                 bool vein = V() < 0.55f, leaves = V() < 0.45f;
                 // the glowing tip: its last stretch, never more than the last 0.8 units of a long vine
                 float pores = V() < 0.5f ? 0.012f + 0.025f * V() : 0.003f, tip = Mathf.Min(0.1f + 0.15f * V(), 0.8f / len);

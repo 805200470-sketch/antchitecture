@@ -122,6 +122,70 @@ namespace AntGarden
             list.Add(g);
         }
 
+        /// <summary>
+        /// A glowing thing with no mesh of its own (the particle nest draws it as splats, SolidThings): an antenna lights
+        /// it as it lights a glowing plant, its light runs on to its neighbours, and now and then it keeps a story.
+        /// </summary>
+        public void AddTouchable(Vector3 pos, float radius, float height, Color glowTint)
+        {
+            Color.RGBToHSV(glowTint, out float h, out float s, out float v);
+            h = Mathf.Repeat(h + Range(-cfg.hueJitter, cfg.hueJitter) / 360f, 1);
+            var g = new Glow { pos = pos, height = height, color = Color.HSVToRGB(h, Mathf.Clamp01(s * Range(0.85f, 1.1f)), v), renderers = new MeshRenderer[0] };
+            if (Range(0, 1) < cfg.memoryShare) g.story = stories++;
+            g.reach = Mathf.Max(radius, 0.12f) + cfg.touchReach;
+            all.Add(g);
+            long k = Key(Mathf.FloorToInt(pos.x / Cell), Mathf.FloorToInt(pos.z / Cell));
+            if (!cells.TryGetValue(k, out var list)) cells[k] = list = new List<Glow>();
+            list.Add(g);
+        }
+
+        /// <summary>Checks: where the touchable glow nearest p is (within), or null.</summary>
+        public Vector3? NearestTouchable(Vector3 p, float within) => NearestTouchable(p, within, 0, out Vector3 q) ? q : (Vector3?)null;
+
+        /// <summary>Checks: where the touchable glow nearest p is (within), at least minHeight tall; false if none.</summary>
+        public bool NearestTouchable(Vector3 p, float within, float minHeight, out Vector3 pos)
+        {
+            Glow best = null;
+            float bd = within;
+            Near(p, within, near);
+            foreach (var g in near)
+            {
+                float d = FlatDist(p, g.pos);
+                if (d < bd && g.height >= minHeight) { bd = d; best = g; }
+            }
+            pos = best != null ? best.pos : default;
+            return best != null;
+        }
+
+        /// <summary>Checks: light the touchable glow nearest p (within) as an antenna touching it would. True if one was.</summary>
+        public bool TouchNearest(Vector3 p, float within)
+        {
+            Glow best = null;
+            float bd = within;
+            Near(p, within, near);
+            foreach (var g in near)
+            {
+                float d = FlatDist(p, g.pos);
+                if (d < bd) { bd = d; best = g; }
+            }
+            if (best == null) return false;
+            Touch(best);
+            return true;
+        }
+
+        /// <summary>How many touchable glows lie within dist of any of these points (on the floor plane).</summary>
+        public int CountNear(List<Vector2> pts, float dist)
+        {
+            int n = 0;
+            foreach (var g in all)
+            {
+                var q = new Vector2(g.pos.x, g.pos.z);
+                foreach (Vector2 pt in pts)
+                    if ((pt - q).sqrMagnitude < dist * dist) { n++; break; }
+            }
+            return n;
+        }
+
         void Near(Vector3 p, float r, List<Glow> result)
         {
             result.Clear();
@@ -155,6 +219,25 @@ namespace AntGarden
 
         static readonly Vector3[] tips = new Vector3[2];
 
+        /// <summary>An antenna touches a glow: it flares, says its story if it keeps one, and its light runs on to the
+        /// neighbours, a little weaker and a little later.</summary>
+        void Touch(Glow g)
+        {
+            if (!g.touching) { g.touching = true; touching.Add(g); }
+            Flare(g, 1f, 0);
+            onFlare?.Invoke(g.pos);
+            if (g.story >= 0) onStory?.Invoke(g.story, g.pos);
+            var ring = new List<Glow>();
+            Near(g.pos, cfg.ripple, ring);
+            foreach (var n in ring)
+            {
+                if (n == g) continue;
+                float d = FlatDist(g.pos, n.pos);
+                if (d > cfg.ripple) continue;
+                Flare(n, cfg.rippleAmount * (1 - 0.5f * d / cfg.ripple), d / Mathf.Max(0.1f, cfg.rippleSpeed));
+            }
+        }
+
         /// <summary>Touches by the ant's antenna tips, then advance every flare and the borrowed lights.</summary>
         public void Tick(float dt, AntController ant)
         {
@@ -175,21 +258,7 @@ namespace AntGarden
                 foreach (Vector3 tip in tips)
                     if (FlatDist(tip, g.pos) < g.reach + extra && tip.y < g.pos.y + g.height + 0.2f) hit = true;
                 if (!hit) continue;
-                g.touching = true;
-                touching.Add(g);
-                Flare(g, 1f, 0);
-                onFlare?.Invoke(g.pos);
-                if (g.story >= 0) onStory?.Invoke(g.story, g.pos);
-                // the light runs on to the neighbours, a little weaker and a little later
-                var ring = new List<Glow>();
-                Near(g.pos, cfg.ripple, ring);
-                foreach (var n in ring)
-                {
-                    if (n == g) continue;
-                    float d = FlatDist(g.pos, n.pos);
-                    if (d > cfg.ripple) continue;
-                    Flare(n, cfg.rippleAmount * (1 - 0.5f * d / cfg.ripple), d / Mathf.Max(0.1f, cfg.rippleSpeed));
-                }
+                Touch(g);
             }
 
             for (int i = active.Count - 1; i >= 0; i--)

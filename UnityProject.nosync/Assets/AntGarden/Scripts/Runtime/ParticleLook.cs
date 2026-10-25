@@ -81,6 +81,8 @@ namespace AntGarden
             public float glowFrom;          // its glowing part only from this far up (0..1 of its height)
             public Color glowDeep;          // its glow colour, deeper (the palette's glow colours are pale: as light they read white)
             public float ownHue, ownSat = 1;   // its region's turn of the texture's own colour (a blue plant in the amber nest)
+            public bool building;              // a prop that lights only in its glowing parts (NestTheme.buildingsGlowInParts)
+            public float partFrom, partTo, partRel, partAmount;   // a part that glows a little in this nest only (NestTheme.glowParts)
             public Vector4[] core;          // and the light inside it: where (xyz), how far out (w, 0 middle .. 1 edge)
         }
         readonly List<SolidSlot> solidSlots = new List<SolidSlot>();
@@ -585,6 +587,7 @@ namespace AntGarden
                 pts = plant.points, raw = plant.pointColors, nrms = plant.pointNormals, density = plant.pointDensity, open = plant.pointOpen,
                 m = pi.t.localToWorldMatrix, pos = p0, reach = pi.t.lossyScale.y * 0.8f, area = area, top = st.top, meanLum = st.mean,
                 rigid = pi.relic,
+                building = pi.relic && NestTheme.Current != null && NestTheme.Current.buildingsGlowInParts,
                 baseTint = Jitter(b0, hue, 0.8f + 0.3f * R()),
                 tipTint = Jitter(b1, hue + (R() - 0.5f) * 20f, 0.9f + 0.35f * R()),
                 glow = glowPal != null && pal != 63 ? HueShift(glowPal[(pal >> 3) & 7].linear, (R() - 0.5f) * 30f, 1f) : Color.white,
@@ -605,7 +608,14 @@ namespace AntGarden
                 slot.sy = 0.82f + 0.4f * R();
                 slot.sxz = 0.85f + 0.3f * R();
             }
-            if (glowFrom.TryGetValue(plant.name, out float from)) slot.glowFrom = from;
+            if (glowFrom.TryGetValue(plant.name, out float from))
+            {
+                slot.glowFrom = from;
+                slot.band = 0;   // no bands across a glowing head: it grows out of its stick in one sweep
+            }
+            if ((!pi.relic || slot.building) && NestTheme.Current != null)
+                foreach (NestTheme.GlowPart part in NestTheme.Current.glowParts)
+                    if (part.plant == plant.name) { slot.partFrom = part.from; slot.partTo = part.to; slot.partRel = part.lumMin; slot.partAmount = part.amount; }
             // a plant of its region's own kinds keeps its colours (the backdrop's are turned whatever they are)
             bool native = GameConfig.InList(world.RegionAt(p0.x, p0.z).biome.nativePlants, plant.name);
             slot.ownHue = native ? 0 : pi.hue;
@@ -682,7 +692,6 @@ namespace AntGarden
             Color32 c = s.raw[k];
             var lin = new Color(Linear[c.r], Linear[c.g], Linear[c.b]);
             Vector3 p = s.pts[k];
-            bool glows = c.a > 127 && p.y >= s.glowFrom * s.top;
             Vector3 n = s.nrms != null ? ThingPen.DecodeNormal(s.nrms[k]) : Vector3.up;
             float y01 = Mathf.Clamp01(p.y / s.top);
             Shape(s, ref p, ref n);
@@ -693,18 +702,49 @@ namespace AntGarden
             // pattern, and glow most where the texture is lightest (veins, rims)
             float lum = Mathf.Max(1e-4f, Lum(lin));
             float rel = Mathf.Clamp(Mathf.Pow(lum / s.meanLum, s.contrast), 0.05f, 3.2f);
+            // how much of the glowing part this point is: its texture's glowing parts; a plant whose head alone glows
+            // grows into it over a soft band round where the head begins, not at a line; and a part glowing only in
+            // this nest (a mushroom's gills), where its texture is light
+            float head = s.glowFrom > 0 ? Mathf.SmoothStep(0f, 1f, (y01 - s.glowFrom + 0.14f) / 0.28f) : 1f;
+            float gw = c.a > 127 && !s.building ? head : 0f;   // (a building's texture flags are ignored: its glow parts say)
+            if (s.partAmount > 0)
+            {
+                float band = Mathf.SmoothStep(0f, 1f, (y01 - s.partFrom) / 0.08f) * (1f - Mathf.SmoothStep(0f, 1f, (y01 - s.partTo) / 0.08f));
+                gw = Mathf.Max(gw, band * Mathf.SmoothStep(0f, 1f, (rel - s.partRel) / 0.4f) * s.partAmount);
+            }
+            bool glows = gw > 0.5f;
             Color own = lin * (1f / lum);                                   // the texture's own hue, at unit brightness
             if (s.ownHue != 0 || s.ownSat != 1) own = HueShift(own, s.ownHue, s.ownSat);   // turned as its region turns its plants
+            NestTheme th = NestTheme.Current;
+            if (th != null && th.ownBand.y > 0) own = Fold(own, th.ownBand.x, th.ownBand.y);
             Color tint = Color.Lerp(s.baseTint, s.tipTint, Mathf.SmoothStep(0.15f, 1f, y01));
-            Color col = s.rigid ? lin * 1.6f : Color.Lerp(tint, own * 0.75f, s.keepOwn) * (s.meanLum * rel * 2.2f);
-            if (glows && !s.rigid) col = Color.Lerp(col, s.glowDeep * Mathf.Clamp(s.meanLum * rel * 2.4f, 0.22f, 0.55f), 0.8f);
-            else if (s.glowFrom > 0 && !s.rigid) col *= 0.7f;   // a lollipop's stick: darker, so its head reads as a light
+            Color col = s.rigid ? (th == null ? lin * 1.6f : Color.Lerp(lin, th.body[0].linear * (lum / Mathf.Max(1e-3f, Lum(th.body[0].linear))), th.rigidTint) * (1.6f * th.rigidGain))
+                : Color.Lerp(tint, own * 0.75f, s.keepOwn) * (s.meanLum * rel * 2.2f);
+            if (!s.rigid)
+            {
+                // a lollipop's stick is darker, brightening up into its head
+                if (s.glowFrom > 0) col *= Mathf.Lerp(0.72f, 1f, head);
+                if (gw > 0)
+                {
+                    // the glowing part leans to the glow colour, paler toward a head's tip, its pattern kept
+                    float tipward = s.glowFrom > 0 ? Mathf.Clamp01((y01 - s.glowFrom) / Mathf.Max(0.05f, 1f - s.glowFrom)) : 0f;
+                    Color light = Color.Lerp(s.glowDeep, s.glow, 0.4f * tipward);
+                    col = Color.Lerp(col, light * Mathf.Clamp(s.meanLum * rel * 2.4f, 0.22f, 0.55f), (s.glowFrom > 0 ? 0.62f : 0.8f) * Mathf.Min(1f, gw));
+                }
+            }
             // mottling in this plant's own pattern, and now and then faint bands along its height
             float mot = Noise(p.x * s.mottleScale + s.mottleSeed, p.z * s.mottleScale + p.y * s.mottleScale * 0.7f);
             col *= 1f + s.mottle * (mot * 2f - 1f) + (s.band > 0 ? s.band * Mathf.Sin(p.y * s.bandFreq + s.mottleSeed) : 0f);
             Color albedo = col * (solidAlbedo * shade);
-            float glow = glows ? (s.glowFrom > 0 ? 1f : Mathf.Clamp01(s.glowGain * (0.55f + 0.4f * Mathf.Clamp01(rel * 0.8f))))
-                : s.faint * Mathf.SmoothStep(0f, 1f, (rel - 1.05f) / 1.2f);   // its own faint light, in its lightest parts
+            float bright = s.glowFrom > 0 ? 0.7f + 0.3f * Mathf.Clamp01(rel) : Mathf.Clamp01(s.glowGain * (0.55f + 0.4f * Mathf.Clamp01(rel * 0.8f)));
+            float glow = Mathf.Max(gw * bright, s.building ? 0f : s.faint * Mathf.SmoothStep(0f, 1f, (rel - 1.05f) / 1.2f));   // and its own faint light, in its lightest parts
+            if (s.building)
+            {
+                // a building glows only along its paths (its texture's glowing parts) and at a few points, embers in its
+                // pores; those lean to its glow colour
+                if (PointHash(k + 911) < 0.012f) glow = Mathf.Max(glow, 0.55f + 0.3f * PointHash(k + 913));
+                if (glow > 0) albedo = Color.Lerp(albedo, s.glowDeep * 0.55f, 0.6f * Mathf.Min(1f, glow));
+            }
             if (s.glass && glows)
             {
                 // glass: a thin, broken shell, darker, lit only faintly by the light inside (its outline still
@@ -715,7 +755,8 @@ namespace AntGarden
             }
             float dens = s.density != null ? s.density[k] : 1f;
             float vary = (0.72f + 0.56f * PointHash(k)) / Mathf.Sqrt(Mathf.Clamp(dens, 0.25f, 9f));
-            return ThingPen.Splat(s.m.MultiplyPoint3x4(p), s.m.MultiplyVector(n), albedo, radius * vary, glow);
+            SolidPoint sp = ThingPen.Splat(s.m.MultiplyPoint3x4(p), s.m.MultiplyVector(n), albedo, radius * vary, glow);
+            return s.building ? ThingPen.Building(sp) : sp;
         }
 
         /// <summary>Splat j of the light inside a glass plant: fine, in its glow colour, paler and brightest in the
@@ -1199,6 +1240,17 @@ namespace AntGarden
         static float Lum(Color c) => c.r * 0.299f + c.g * 0.587f + c.b * 0.114f;
 
         /// <summary>The hue rotation in YIQ, as AG_HueShift (degrees).</summary>
+        /// <summary>A colour whose hue lies outside the band (centre and half-width, degrees) turned to the band's nearer
+        /// edge and half as saturated: a nest keeps to its own palette what its turn of the plants' colours threw out of it
+        /// (a green moss turned pink in the red nest becomes a dull crimson-brown).</summary>
+        static Color Fold(Color c, float centre, float half)
+        {
+            Color.RGBToHSV(c, out float h, out float s, out float v);
+            float d = Mathf.DeltaAngle(centre, h * 360f);
+            if (Mathf.Abs(d) <= half || s < 0.08f) return c;
+            return Color.HSVToRGB(Mathf.Repeat((centre + Mathf.Sign(d) * half) / 360f, 1f), s * 0.5f, v, true);
+        }
+
         static Color HueShift(Color c, float deg, float sat)
         {
             if (deg == 0 && sat == 1) return c;

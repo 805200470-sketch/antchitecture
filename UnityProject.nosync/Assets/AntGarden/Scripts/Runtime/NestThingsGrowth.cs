@@ -23,7 +23,7 @@ namespace AntGarden
         /// A thing's place on the floor and the pen it is drawn with. Points and normals are local: x along ta, y up along
         /// n, z along tb, from p. Put keeps every splat at least Lift above the floor and stops at Cap.
         /// </summary>
-        struct Spot
+        internal struct Spot
         {
             readonly ThingPen pen;
             readonly Vector3 p, a, n, b;
@@ -77,17 +77,17 @@ namespace AntGarden
         }
 
         /// <summary>A palette colour as one thing has it: brightness k, warmth w (red up and blue down by w).</summary>
-        static Color Tint(Color c, float k, float w) => new Color(c.r * k * (1f + w), c.g * k, c.b * k * (1f - w), 1f);
+        internal static Color Tint(Color c, float k, float w) => new Color(c.r * k * (1f + w), c.g * k, c.b * k * (1f - w), 1f);
 
         /// <summary>Two unit vectors at right angles to unit d and to each other.</summary>
-        static void Perp(Vector3 d, out Vector3 u, out Vector3 v)
+        internal static void Perp(Vector3 d, out Vector3 u, out Vector3 v)
         {
             u = Vector3.Cross(d, Mathf.Abs(d.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
             v = Vector3.Cross(d, u);
         }
 
         /// <summary>An ellipsoid's surface area from its half-axes (Thomsen's formula, within about 1 %).</summary>
-        static float EllipsoidArea(float a, float b, float c)
+        internal static float EllipsoidArea(float a, float b, float c)
         {
             float ap = Mathf.Pow(a, 1.6075f), bp = Mathf.Pow(b, 1.6075f), cp = Mathf.Pow(c, 1.6075f);
             return 12.566371f * Mathf.Pow((ap * bp + ap * cp + bp * cp) / 3f, 1f / 1.6075f);
@@ -98,7 +98,7 @@ namespace AntGarden
         /// ey, ez. Gives the point, its outward normal, and q: where it lies on the unit sphere (q.x along ex, q.y along
         /// ey, q.z along ez), for colouring.
         /// </summary>
-        static Vector3 OnEllipsoid(Spot s, Vector3 c, Vector3 ex, Vector3 ey, Vector3 ez, out Vector3 nrm, out Vector3 q)
+        internal static Vector3 OnEllipsoid(Spot s, Vector3 c, Vector3 ex, Vector3 ey, Vector3 ez, out Vector3 nrm, out Vector3 q)
         {
             float a = ex.magnitude, b = ey.magnitude, d = ez.magnitude, m = Mathf.Min(a, Mathf.Min(b, d));
             Vector3 g = Vector3.up;
@@ -119,7 +119,7 @@ namespace AntGarden
         /// thin one (stalk, fibre) is a row of splats along its axis about a radius apart, each its own radius and facing
         /// out at its own angle round the axis. fill below 1 covers a thick one with fewer, larger splats.
         /// </summary>
-        static void Tube(Spot s, Vector3 a0, Vector3 a1, float r0, float r1, Color c0, Color c1, float glow = 0f, float fill = 1f)
+        internal static void Tube(Spot s, Vector3 a0, Vector3 a1, float r0, float r1, Color c0, Color c1, float glow = 0f, float fill = 1f)
         {
             Vector3 d = a1 - a0;
             float len = d.magnitude;

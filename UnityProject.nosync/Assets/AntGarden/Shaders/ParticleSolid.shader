@@ -169,7 +169,10 @@ Shader "AntGarden/ParticleSolid"
                 float glow = ((p.col >> 24) & 255) / 255.0;
                 float key = saturate(dot(n, _MoonDir.xyz) * 0.75 + 0.25);
                 float rim = pow(1 - saturate(dot(n, V)), 3);
-                float near = 1 + 0.9 * (1 - smoothstep(0.8, 4.5, length(pos.xz - _TrailPlayer.xz)));
+                // a building (ThingPen.Building: the kiln's spires, arches, chimneys and cells) lights only where it glows,
+                // along its paths and at a few points, when the ant comes near, walks past or touches it; not the whole of it
+                bool building = (p.nrm & 1u) != 0;
+                float near = 1 + 0.9 * (1 - smoothstep(0.8, 4.5, length(pos.xz - _TrailPlayer.xz))) * (building ? 0.3 : 1);
                 float3 lit = albedo * (_FillColor.rgb + _MoonColor.rgb * key * key) * near + rim * 0.08 * albedo * 4;
                 // a thin silvery light along the outlines, as in a scan; a few splats glint now and then
                 lit += _RimColor.rgb * rim * (0.5 + 0.5 * key);
@@ -185,7 +188,7 @@ Shader "AntGarden/ParticleSolid"
                     lit += albedo * glow * _GlowGain * (0.4 + 0.6 * b * b);
                 }
                 // a plant an antenna has lit: much brighter, and warmer, while its flare lasts
-                float flare = 0;
+                float flare = 0, part = building ? lerp(0.12, 1, saturate(glow * 3)) : 1;
                 for (int f = 0; f < 16; f++)
                 {
                     if (f >= (int)_FlareCount) break;
@@ -196,6 +199,7 @@ Shader "AntGarden/ParticleSolid"
                 // what stands up beside the way lights up as the ant walks past: rising over a moment, staying a
                 // little, going back slowly
                 if (_WalkLit > 0 && above > 0.05) flare = max(flare, walk * _WalkLit);
+                flare *= part;
                 lit = lit * (1 + 3 * flare) + flare * albedo * (0.6 + 2.5 * glow) * float3(0.95, 1.0, 1.05);
                 // each splat a little lighter or darker than its neighbours, as the points of a capture are
                 o.col = lit * _Gain * (0.76 + 0.48 * Hash(i + 999u));

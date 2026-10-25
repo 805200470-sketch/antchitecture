@@ -41,10 +41,12 @@ namespace AntGarden
                     yield return Grab(Path.Combine(dir, $"r{r}_{k}_play_{name}.png"));
                     game.demoKeys = Vector2.zero;
                     // at a relic, look at the relic itself; elsewhere, wherever the view runs furthest
-                    bool relic = name.StartsWith("relic") || name.StartsWith("temple") || name.StartsWith("amber");
+                    bool relic = name.StartsWith("relic") || name.StartsWith("temple") || name.StartsWith("amber") || name.StartsWith("lab_own_")
+                        || name.StartsWith("lab_temple") || name.StartsWith("lab_relic") || name == "lab_heart_close";
                     yield return AntEye(game, Path.Combine(dir, $"r{r}_{k}_eye_{name}.png"), relic ? toward : (Vector2?)null);
                     // a plant's close-up: a photograph of the plant itself too
-                    if (PlantShots.Contains(name)) yield return PlantPhoto(game, Path.Combine(dir, $"r{r}_{k}_photo_{name}.png"), at, toward);
+                    if (PlantShots.Contains(name) || Tall.ContainsKey(name) || name.StartsWith("lab_temple"))
+                        yield return PlantPhoto(game, Path.Combine(dir, $"r{r}_{k}_photo_{name}.png"), at, toward, Tall.TryGetValue(name, out float tall) ? tall : -1);
                 }
                 yield return Aerial(game, r, Path.Combine(dir, $"r{r}_9_aerial.png"));
             }
@@ -125,13 +127,35 @@ namespace AntGarden
                 CloseUp("dry_mushroom", "lab_mushroom", 4.5f);
                 CloseUp("amber_resin", "lab_resin", 2.4f);
                 CloseUp("thorn_succulent", "lab_thorn", 2.4f);
-                // two of the things left beside the way, seen from the way
+                // two of the things left beside the way, seen from the way (in the temple, an arch and a spire)
+                var shown = new HashSet<string>();
                 foreach (var (id, pos, from) in game.LabNest.Objects)
-                    if (id == "relic_teacup" || id == "relic_key")
+                    if ((id == "relic_teacup" || id == "relic_key" || id.StartsWith("temple_arch") || id.StartsWith("temple_spire")) && shown.Add(id))
                     {
-                        Vector2 back = from - (pos - from).normalized * 3.5f;
+                        Vector2 back = from - (pos - from).normalized * (id.StartsWith("temple") ? 2.4f : 3.5f);
                         spots.Add(("lab_" + id, back, pos));
                     }
+                // this nest's own things close up (of each kind the one nearest the way), and the thing at its heart
+                Tall.Clear();
+                var owns = new List<(float dw, string kind, Vector2 pos, float height, Vector2 onWay)>();
+                foreach (var (kind, pos, height) in SolidThings.Owned)
+                {
+                    float nearest = float.MaxValue;
+                    Vector2 q0 = pos;
+                    foreach (Vector2 q in t) { float d = (q - pos).sqrMagnitude; if (d < nearest) { nearest = d; q0 = q; } }
+                    owns.Add((Mathf.Sqrt(nearest), kind, pos, height, q0));
+                }
+                owns.Sort((a, b) => a.dw.CompareTo(b.dw));
+                foreach (var (dw, kind, pos, height, onWay) in owns)
+                {
+                    string name = kind == "Heart" ? "lab_heart_close" : "lab_own_" + kind;
+                    if (Tall.ContainsKey(name) || (kind != "Heart" && dw < 0.6f)) continue;
+                    Vector2 dir = dw > 0.1f ? (pos - onWay).normalized : (game.LabNest.Heart - t[0]).normalized;
+                    Vector2 stand = pos - dir * Mathf.Max(Mathf.Clamp(height * 1.8f, 1.5f, 3.4f), dw);
+                    if (kind == "Heart" ? !Approach(game, r, pos, 4.6f, out stand) : !game.LabNest.OnFloor(stand, 0.2f) || !InSight(game, stand, pos)) continue;
+                    Tall[name] = height;
+                    spots.Add((name, stand, pos));
+                }
                 return spots;
             }
             WEdge e = DemoMode.LongEdge(game, r);
@@ -251,6 +275,9 @@ namespace AntGarden
             return true;
         }
 
+        /// <summary>The close-ups of things that are not plants (a nest's own, its heart): how tall each is.</summary>
+        static readonly Dictionary<string, float> Tall = new Dictionary<string, float>();
+
         static readonly HashSet<string> PlantShots = new HashSet<string>
             { "lab_curl", "lab_spore", "lab_crozier", "lab_lantern", "lab_hook", "lab_coral", "lab_frond", "lab_cluster", "lab_mushroom", "lab_resin", "lab_thorn" };
 
@@ -259,22 +286,25 @@ namespace AntGarden
         /// middle, the lens just wide enough for the whole plant; the ant, its ring and the screen's text left out, and
         /// ants near the lens stepped out of the picture.
         /// </summary>
-        static IEnumerator PlantPhoto(Game game, string path, Vector2 from, Vector2 plant)
+        static IEnumerator PlantPhoto(Game game, string path, Vector2 from, Vector2 plant, float tall = -1)
         {
             float h = 1.5f, best = float.MaxValue;
-            foreach (Placement pl in game.world.placements)
-            {
-                float d = (new Vector2(pl.x, pl.z) - plant).sqrMagnitude;
-                if (d < best) { best = d; h = pl.height; }
-            }
+            if (tall > 0) h = Mathf.Max(0.5f, tall);
+            else
+                foreach (Placement pl in game.world.placements)
+                {
+                    float d = (new Vector2(pl.x, pl.z) - plant).sqrMagnitude;
+                    if (d < best) { best = d; h = pl.height; }
+                }
             Camera cam = game.rig.cam;
             float fov = cam.fieldOfView;
             var eye = new Vector3(from.x, game.world.WalkHeight(from.x, from.y) + Mathf.Clamp(h * 0.55f, 0.45f, 2f), from.y);
             var target = new Vector3(plant.x, game.world.WalkHeight(plant.x, plant.y) + h * 0.5f, plant.y);
             float dist = Mathf.Max(0.5f, (target - eye).magnitude);
+            // ants near the lens, or between it and the thing (or just past it), step out of the picture
             var hidden = new List<GameObject>();
             foreach (NpcAnt n in game.npcs)
-                if ((n.ant.Position - eye).magnitude < 3f && n.ant.gameObject.activeSelf) { n.ant.gameObject.SetActive(false); hidden.Add(n.ant.gameObject); }
+                if ((n.ant.Position - eye).magnitude < Mathf.Max(3f, dist + 1.5f) && n.ant.gameObject.activeSelf) { n.ant.gameObject.SetActive(false); hidden.Add(n.ant.gameObject); }
             game.rig.manual = true;
             game.player.SetVisible(false);
             game.SetRingVisible(false);

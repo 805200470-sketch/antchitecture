@@ -110,7 +110,15 @@ namespace AntGarden
             }
             uint a = (uint)Mathf.Clamp(Mathf.RoundToInt((x * 0.5f + 0.5f) * 65535f), 0, 65535);
             uint b = (uint)Mathf.Clamp(Mathf.RoundToInt((y * 0.5f + 0.5f) * 65535f), 0, 65535);
-            return a | (b << 16);
+            return (a & 0xFFFEu) | (b << 16);   // its lowest bit is kept for a flag (Building)
+        }
+
+        /// <summary>A splat of a building (Shaders/ParticleSolid.shader): walking past it or touching it lights only its
+        /// glowing parts (its paths, a few points), not the whole of it.</summary>
+        public static SolidPoint Building(SolidPoint p)
+        {
+            p.nrm |= 1u;
+            return p;
         }
 
         static uint Pack(Color c, float glow)

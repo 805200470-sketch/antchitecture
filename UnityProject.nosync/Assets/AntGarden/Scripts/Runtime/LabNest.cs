@@ -25,6 +25,7 @@ namespace AntGarden
         int beat;              // 0 walking in, 1 a plant lit on the way, 2 the heart reached
         float cardIn = 1.5f;   // the chapter card comes a moment after the nest appears
         bool begun;
+        float shownD = -1;   // the ant's distance to the heart along the way, as the pulses on the floor are shown
 
         public Vector2 Heart => heart;
         /// <summary>The main glowing track, from the way in to the heart.</summary>
@@ -141,18 +142,47 @@ namespace AntGarden
             var along = new List<float> { 0 };
             for (int i = 1; i < track.Count; i++) along.Add(length += (track[i] - track[i - 1]).magnitude);
             // (id, size: its longest side, where along the way, which side; walkable: ants climb onto it)
-            var plan = new (string id, float size, float at, int side, bool walk, bool flat)[]
-            {
-                ("relic_coins", 1.5f, 0.1f, 1, true, false),
-                ("temple_cells", 1.3f, 0.2f, -1, false, false),
-                ("relic_teacup", 2.8f, 0.32f, 1, false, false),
-                ("relic_coins", 1.2f, 0.44f, -1, true, false),
-                ("relic_key", 2.8f, 0.56f, 1, true, false),
-                ("temple_spire", 4.6f, 0.68f, -1, false, false),
-                ("temple_cells", 1.1f, 0.78f, 1, false, false),
-                ("relic_button", 2.2f, 0.88f, -1, true, true),
-            };
             var rng = new System.Random(5150);
+            float U(float a, float b) => a + (b - a) * (float)rng.NextDouble();
+            string what = (NestTheme.Current ?? NestTheme.Cyan).objects;
+            var plan = new List<(string id, float size, float at, int side, bool walk, bool flat)>();
+            if (what == "relics")
+                plan.AddRange(new (string, float, float, int, bool, bool)[]
+                {
+                    ("relic_coins", 1.5f, 0.1f, 1, true, false),
+                    ("temple_cells", 1.3f, 0.2f, -1, false, false),
+                    ("relic_teacup", 2.8f, 0.32f, 1, false, false),
+                    ("relic_coins", 1.2f, 0.44f, -1, true, false),
+                    ("relic_key", 2.8f, 0.56f, 1, true, false),
+                    ("temple_spire", 4.6f, 0.68f, -1, false, false),
+                    ("temple_cells", 1.1f, 0.78f, 1, false, false),
+                    ("relic_button", 2.2f, 0.88f, -1, true, true),
+                });
+            else if (what == "temple")
+            {
+                // the temple: clay spires in pairs down both sides of the way, a carved arch between each pair facing
+                // it, and clay cells at the foot of the banks (02_Concepts/Particle_Styles_v1/temple_*_v2.png); the
+                // finer models made for it (temple_*_v2) where they are built, the ruin's otherwise
+                string Fine(string id) => refs.Plant(id + "_v2")?.prefab != null ? id + "_v2" : id;
+                string spire = Fine("temple_spire"), arch = Fine("temple_arch"), cells = Fine("temple_cells");
+                int archSide = 1;
+                for (float f = 0.06f; f <= 0.86f; f += 0.1f)
+                {
+                    plan.Add((spire, U(3.8f, 6f), f, -1, false, false));
+                    plan.Add((spire, U(3.8f, 6f), f + 0.02f, 1, false, false));
+                    plan.Add((arch, U(3.4f, 4.4f), f + 0.05f, archSide, false, false));
+                    archSide = -archSide;
+                }
+                foreach (float f in new[] { 0.12f, 0.22f, 0.33f, 0.45f, 0.57f, 0.68f, 0.8f })
+                    plan.Add((cells, U(1.0f, 1.6f), f, f < 0.5f ? 1 : -1, false, false));
+                // small spires among them, like chimneys (the same finer model, smaller)
+                int small = -1;
+                foreach (float f in new[] { 0.16f, 0.28f, 0.4f, 0.52f, 0.64f, 0.76f })
+                {
+                    plan.Add((spire, U(1.5f, 2.5f), f, small, false, false));
+                    small = -small;
+                }
+            }
             int placed = 0;
             var skipped = new List<string>();
             foreach (var o in plan)
@@ -202,7 +232,9 @@ namespace AntGarden
                     }
                 }
                 if (!found) { skipped.Add(o.id); continue; }
-                float yaw = o.id == "relic_key" ? Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg + 90f : (float)rng.NextDouble() * 360f;
+                float yaw = o.id == "relic_key" ? Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg + 90f
+                    : o.id.StartsWith("temple_arch") ? Mathf.Atan2(a.x - c.x, a.y - c.y) * Mathf.Rad2Deg   // an arch faces the way
+                    : (float)rng.NextDouble() * 360f;
                 float y = world.Height(c.x, c.y);
                 for (int q = 0; q < 6; q++)
                 {
@@ -232,6 +264,8 @@ namespace AntGarden
                 else if (o.walk) world.steps.Add(new Circle(c.x, c.y, r * 1.05f, top * 0.9f));
                 else world.colliders.Add(new Circle(c.x, c.y, r, scale));
                 Objects.Add((o.id, c, a));
+                // the temple's spires, arches and cells answer an antenna as its relics did in the ruin: they light up
+                if (what == "temple" && world.glow != null) world.glow.AddTouchable(new Vector3(c.x, y, c.y), r, top, (NestTheme.Current ?? NestTheme.Cyan).glow[0]);
                 placed++;
             }
             Debug.Log($"[AntGarden] particle nest: {placed} things left beside the way" + (skipped.Count > 0 ? $" (no room for {string.Join(", ", skipped)})" : ""));
@@ -352,14 +386,14 @@ namespace AntGarden
             if (!begun && (cardIn -= dt) <= 0)
             {
                 begun = true;
-                NestTheme t = NestTheme.Current ?? NestTheme.Cyan;
-                if (t == NestTheme.Cyan)
-                    hud.ShowChapter(Loc.T("第一章 · 入口", "Chapter One · The Way In"), Loc.T("跟着地上的光，找到蚁穴的心脏", "Follow the light on the ground to the heart of the nest"));
-                else
-                    hud.ShowChapter(Loc.T($"{t.nameZh} · {t.segmentZh}", $"{t.nameEn} · {t.segmentEn}"), Loc.T("跟着光，找到蚁穴的心脏", "Follow the light to the heart of the nest"));
+                // the same chapter, with the same words, in every nest (each colour of the room's lights opens its own)
+                hud.ShowChapter(Loc.T("第一章 · 入口", "Chapter One · The Way In"), Loc.T("跟着地上的光，找到蚁穴的心脏", "Follow the light on the ground to the heart of the nest"));
                 hud.SetObjective(Loc.T("跟着地上的光往深处走", "Follow the light deeper in"));
             }
             float playerD = route != null ? GuideTrail.PlayerD(route, ant) : -1;
+            // eased over a few frames (a change of track, or the heart's ring, would otherwise move the pulses at once)
+            shownD = playerD < 0 || shownD < 0 || Mathf.Abs(playerD - shownD) > 4f ? playerD : shownD + (playerD - shownD) * (1f - Mathf.Exp(-dt / 0.12f));
+            playerD = shownD;
             if (trail != null)
             {
                 trail.GetPropertyBlock(block);
@@ -376,17 +410,8 @@ namespace AntGarden
             if (begun && beat < 2 && route != null && (new Vector2(ant.x, ant.z) - heart).magnitude < HeartRadius + 1.5f)
             {
                 beat = 2;
-                NestTheme t = NestTheme.Current ?? NestTheme.Cyan;
-                if (t == NestTheme.Cyan)
-                {
-                    hud.ShowChapter(Loc.T("第一章 · 完成", "Chapter One · Done"), Loc.T("下一章：育儿室（还没有开放）", "Next: the Nursery (not open yet)"));
-                    hud.SetObjective(Loc.T("第一章完成", "Chapter one done"));
-                }
-                else
-                {
-                    hud.ShowChapter(Loc.T($"{t.nameZh} · 到达心脏", $"{t.nameEn} · The Heart"), Loc.T("换一种灯光的颜色，去另一个蚁穴", "Change the light's colour to visit another nest"));
-                    hud.SetObjective(Loc.T("到达蚁穴的心脏", "The heart of the nest"));
-                }
+                hud.ShowChapter(Loc.T("第一章 · 完成", "Chapter One · Done"), Loc.T("下一章：育儿室（还没有开放）", "Next: the Nursery (not open yet)"));
+                hud.SetObjective(Loc.T("第一章完成", "Chapter one done"));
                 Voices.Chime(ant + Vector3.up, 1.3f);
             }
         }

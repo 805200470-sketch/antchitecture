@@ -114,6 +114,7 @@ namespace AntGarden
             // MacBook on battery within minutes)
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = cfg.display.targetFps;
+            if (int.TryParse(Arg("-vsync"), out int vsync)) QualitySettings.vSyncCount = vsync;   // checks: paced by the display instead
             // open in a window unless full screen was asked for on the command line (Unity would otherwise
             // reopen in whatever mode the last session ended in)
             if (Arg("-screen-fullscreen") != "1" && Screen.fullScreenMode != FullScreenMode.Windowed && !windowChecked)
@@ -125,7 +126,7 @@ namespace AntGarden
             QualitySettings.globalTextureMipmapLimit = Preset.textureLimit;
             Debug.Log($"[AntGarden] start: world={Selection} quality={Preset.name}");
             StartCoroutine(Build());
-            string capture = Arg("-capture") ?? Arg("-demo") ?? Arg("-photos") ?? Arg("-animcheck") ?? Arg("-lookcheck") ?? Arg("-npccheck") ?? Arg("-camcheck") ?? Arg("-sceneshots") ?? Arg("-legcheck") ?? Arg("-padcheck") ?? Arg("-trailfilm");
+            string capture = Arg("-capture") ?? Arg("-demo") ?? Arg("-photos") ?? Arg("-animcheck") ?? Arg("-lookcheck") ?? Arg("-npccheck") ?? Arg("-camcheck") ?? Arg("-sceneshots") ?? Arg("-legcheck") ?? Arg("-padcheck") ?? Arg("-trailfilm") ?? Arg("-interactshots") ?? Arg("-stuttercheck");
             if (!string.IsNullOrEmpty(capture)) StartCoroutine(Watchdog(capture));
         }
 
@@ -312,7 +313,7 @@ namespace AntGarden
             ruins.Clear();
             foreach (Region r in world.regions)
             {
-                if (string.IsNullOrEmpty(r.scene)) continue;
+                if (string.IsNullOrEmpty(r.scene) || Lab) continue;   // (a particle nest's props are its theme's: LabNest)
                 var ruin = new RuinScene(world, r, refs, r.scene, 4321 + r.index);
                 ruin.Plan();
                 world.roofs.Add(ruin.roof);
@@ -344,9 +345,19 @@ namespace AntGarden
                     if (rule.plant == "curl_glow") rule.spacing *= 1.8f;
                     if (rule.plant == "spore_stalk") rule.spacing *= 1.5f;
                 }
+                // the world's plants that grow in this nest (its theme's: the amber nest has no glass bulbs or lollipop
+                // curls, the temple only a few dry things): the others are kept out of it, those it has grow in its biome
+                NestTheme theme = NestTheme.Current;
+                string biomeId = world.regions[0].biome.id;
+                if (theme.scatterPlants != null)
+                    foreach (ScatterRule rule in cfg.scatter.rules)
+                    {
+                        if (System.Array.IndexOf(theme.scatterPlants, rule.plant) < 0) rule.biomes = "none";
+                        else if (!string.IsNullOrEmpty(rule.biomes) && !GameConfig.InList(rule.biomes, biomeId)) rule.biomes += "," + biomeId;
+                    }
                 var rules = new List<ScatterRule>(cfg.scatter.rules);
                 foreach (ScatterRule rule in LabPlants())
-                    if (System.Array.IndexOf(NestTheme.Current.labPlants, rule.plant) >= 0) rules.Add(rule);
+                    if (System.Array.IndexOf(theme.labPlants, rule.plant) >= 0) rules.Add(rule);
                 cfg.scatter.rules = rules.ToArray();
             }
             int placed = 0;
@@ -460,6 +471,10 @@ namespace AntGarden
             if (!string.IsNullOrEmpty(shotDir)) StartCoroutine(SceneShots.Run(this, shotDir));
             string filmDir = Arg("-trailfilm");
             if (!string.IsNullOrEmpty(filmDir)) StartCoroutine(TrailFilm.Run(this, filmDir));
+            string interactDir = Arg("-interactshots");
+            if (!string.IsNullOrEmpty(interactDir)) StartCoroutine(InteractShots.Run(this, interactDir));
+            string stutterDir = Arg("-stuttercheck");
+            if (!string.IsNullOrEmpty(stutterDir)) StartCoroutine(StutterCheck.Run(this, stutterDir));
             string legDir = Arg("-legcheck");
             if (!string.IsNullOrEmpty(legDir)) StartCoroutine(LegCheck.Run(this, legDir));
             // check: -switchto <world> leaves for that world once ready (as the map's buttons do), and quits when
@@ -633,7 +648,7 @@ namespace AntGarden
             if (Lab && particleLook.On)
             {
                 guide?.VineSplats(particleLook.extraSolids, particleLook.bodyPalette, particleLook.glowPalette);
-                gameObject.AddComponent<SolidThings>().Init(world, particleLook, refs.particleSolid, player.transform);
+                gameObject.AddComponent<SolidThings>().Init(world, particleLook, refs.particleSolid, player.transform, lab);
                 gameObject.AddComponent<WalkLight>().Init(player.transform);   // what the ant walks past lights up
                 if (particleLook.glassLamps.Count > 0)   // a light inside every glass bulb, through its broken shell
                     gameObject.AddComponent<GlassLamps>().Init(particleLook.glassLamps, refs.lightThread);
@@ -947,7 +962,7 @@ namespace AntGarden
         /// <summary>Another app in front: drop to a low frame rate (recording and capture runs excepted).</summary>
         void OnApplicationFocus(bool focused)
         {
-            if (cfg == null || Arg("-capture") != null || Arg("-demo") != null || Arg("-photos") != null || Arg("-animcheck") != null || Arg("-lookcheck") != null || Arg("-npccheck") != null || Arg("-camcheck") != null || Arg("-sceneshots") != null || Arg("-legcheck") != null || Arg("-padcheck") != null || Arg("-trailfilm") != null) return;
+            if (cfg == null || Arg("-capture") != null || Arg("-demo") != null || Arg("-photos") != null || Arg("-animcheck") != null || Arg("-lookcheck") != null || Arg("-npccheck") != null || Arg("-camcheck") != null || Arg("-sceneshots") != null || Arg("-legcheck") != null || Arg("-padcheck") != null || Arg("-trailfilm") != null || Arg("-interactshots") != null || Arg("-stuttercheck") != null) return;
             Application.targetFrameRate = focused ? cfg.display.targetFps : cfg.display.backgroundFps;
         }
 

@@ -9,10 +9,20 @@ namespace AntGarden
     /// nest, red (0°) the ancient temple, azure (210°) the giant's relics. Everything the particle look draws takes
     /// its colours from here: the plants' bodies and glows, the floor and walls, the mist and sky, the guiding light,
     /// the vines, the small life, the dark under the ants. A nest is drawn in the theme of its region's biome
-    /// (For); the shapes and the motion are the same in every one.
+    /// (For); the shapes, the motion and every interaction are the same in every one. What grows and lies in it is
+    /// its own as well: which of the world's plants grow there (scatterPlants), which of the particle nest's own
+    /// (labPlants), the things only it has (things: NestThingsThemed), which plants glow a little there (glowParts),
+    /// what stands beside its way (objects) and what is at its heart (heart).
     /// </summary>
     public sealed class NestTheme
     {
+        /// <summary>A part of a plant that glows a little in this nest only (the plant's own material does not glow):
+        /// from..to of its height (0..1), where its texture is at least lumMin of its plant's mean brightness.</summary>
+        public struct GlowPart { public string plant; public float from, to, lumMin, amount; }
+
+        /// <summary>One of the nest's own things, and how often it is picked among them.</summary>
+        public struct Thing { public string kind; public float weight; }
+
         public string id;
         public float hue;                       // the segment's centre on the wheel (degrees)
         public string segmentZh, segmentEn;     // its name on the wheel
@@ -47,12 +57,27 @@ namespace AntGarden
         public string[] glassKinds;             // plants whose glowing head is glass: a broken shell round a light of its own
         public string[] headGlowKinds;          // and plants whose head alone glows, solid (with how far up it starts)
         public float[] headGlowFrom;
+        public string[] scatterPlants;          // the world's plants that grow in this nest (null: all of them)
+        public GlowPart[] glowParts = new GlowPart[0];
+        public Thing[] things = new Thing[0];   // the things only this nest has (SolidThings, NestThingsThemed)
+        public float ownShare;                  // how many of the floor's things are its own
+        public float dampScale = 1f;            // how much of the damp green growth (moss, clover...) a dry nest keeps
+        public string objects = "relics";       // what stands beside the way (LabNest.PlaceObjects): relics, temple, none
+        public string heart;                    // what is at the heart (SolidThings.Heart): null, shards, shrine
+        public string[] noKinds = new string[0];   // the floor's things it does not have (pink petals in a warm nest)
+        public float vineGlow = 1f;             // how much the vines' veins, pores and tips glow (a saturated light needs less)
+        public float rigidGain = 1f, rigidTint; // the props' and relics' own colours: how bright, how far toward body[0]
+        public string[] touchParts = new string[0];   // which of glowParts' plants an antenna can light (not every grass tuft)
+        public Vector2 ownBand;                  // the plants' own colours kept within this hue band (centre, half-width; 0: any)
+        public bool buildingsGlowInParts;       // the props (and own clay buildings) light only in their glowing parts, not whole
+        public string wayThing;                 // one of things that also lines the way, close enough to touch (SolidThings)
+        public float wayEvery = 5f;             // about how far apart along the way
 
         /// <summary>The theme of the particle nest now being played (set by Game before its parts start).</summary>
         public static NestTheme Current;
 
         /// <summary>The theme for a region's biome (the blue forest's for any it does not know).</summary>
-        public static NestTheme For(string biome) => biome == "amber" ? Orange : Cyan;
+        public static NestTheme For(string biome) => biome == "amber" ? Orange : biome == "kiln" ? Red : Cyan;
 
         /// <summary>Cyan, 180°: the blue fungal forest (the first particle nest, v15).</summary>
         public static readonly NestTheme Cyan = new NestTheme
@@ -132,10 +157,97 @@ namespace AntGarden
             bloomTint = new Color(1f, 0.93f, 0.84f),
             antRim = new Color(1.0f, 0.78f, 0.52f), antPale = new Color(0.95f, 0.86f, 0.72f),
             glowDeep = new Color(0.98f, 0.56f, 0.16f),
-            // the ball-stalks line the way as solid gold heads (02_Concepts/Particle_Styles_v1/amber_*_v2.png), not glass
-            glassKinds = new string[0], headGlowKinds = new[] { "spore_stalk" }, headGlowFrom = new[] { 0.6f },
-            // ferns, the hooked bell and the paper lanterns suit the clay; the blue coral and the twisted ribbons do not
-            labPlants = new[] { "curl_a_crozier", "curl_c_hook", "curl_d_cluster", "puff_b_lantern", "frond_a_feather" },
+            glassKinds = new string[0], headGlowKinds = new string[0], headGlowFrom = new float[0],
+            // its own: the clay nest's plants (resin, dry mushrooms, soil spires, thorny succulents, dry grass, seeds)
+            // and the paper lanterns; none of the blue forest's glass bulbs, lollipop curls, croziers or corals
+            scatterPlants = new[] { "amber_resin", "dry_mushroom", "soil_spire", "thorn_succulent", "fungus_garden", "dry_grass_tuft", "seed_pile",
+                "seed_husk", "pebble_cluster", "fallen_leaf", "trunk_night", "root_arch" },
+            labPlants = new[] { "puff_b_lantern" },
+            // a faint gold in the dry mushrooms' gills, the succulents' spines and the grass's seed heads
+            glowParts = new[]
+            {
+                new GlowPart { plant = "dry_mushroom", from = 0.62f, to = 0.84f, lumMin = 1.0f, amount = 0.35f },
+                new GlowPart { plant = "thorn_succulent", from = 0.55f, to = 1.05f, lumMin = 1.1f, amount = 0.45f },
+                new GlowPart { plant = "dry_grass_tuft", from = 0.65f, to = 1.05f, lumMin = 1.0f, amount = 0.4f },
+            },
+            // only here: gold ball-stalks lining the way, beads of resin lit from within, wax comb brimming with honey,
+            // amber shards; and a big cluster of them at the heart. Little damp green growth on the dry clay
+            things = new[]
+            {
+                new Thing { kind = "GoldBalls", weight = 34 }, new Thing { kind = "ResinDrops", weight = 22 },
+                new Thing { kind = "WaxComb", weight = 16 }, new Thing { kind = "AmberShards", weight = 12 },
+            },
+            ownShare = 0.42f, dampScale = 0.3f, objects = "none", heart = "shards",
+            noKinds = new[] { "Petal", "Blossom", "Clover" }, touchParts = new[] { "dry_mushroom", "thorn_succulent" }, ownBand = new Vector2(30, 40),
+        };
+
+        /// <summary>
+        /// Red, 0°: the ancient temple, its kiln (02_Concepts/Particle_Styles_v1/temple_*_v2.png). Red clay; terracotta,
+        /// umber, ash and charcoal bodies; ember-red glows (a dusty violet the rare contrast); a dark maroon night. Spiral
+        /// clay spires and carved arches beside the way, embers in the floor, the amber shrine at its heart.
+        /// </summary>
+        public static readonly NestTheme Red = new NestTheme
+        {
+            id = "red", hue = 0, segmentZh = "红", segmentEn = "Red", nameZh = "古蚁圣殿", nameEn = "The Ancient Temple",
+            body = new[]
+            {
+                new Color(0.84f, 0.48f, 0.40f), new Color(0.74f, 0.40f, 0.34f), new Color(0.62f, 0.36f, 0.31f), new Color(0.88f, 0.74f, 0.68f),
+                new Color(0.54f, 0.34f, 0.31f), new Color(0.80f, 0.44f, 0.34f), new Color(0.66f, 0.56f, 0.50f), new Color(0.86f, 0.60f, 0.48f),
+            },
+            glow = new[]
+            {
+                new Color(1.00f, 0.40f, 0.26f), new Color(1.00f, 0.46f, 0.32f), new Color(1.00f, 0.32f, 0.22f), new Color(1.00f, 0.50f, 0.38f),
+                new Color(0.94f, 0.58f, 0.44f), new Color(1.00f, 0.62f, 0.44f), new Color(1.00f, 0.50f, 0.30f), new Color(0.98f, 0.48f, 0.34f),
+            },
+            scan = new Color(0.96f, 0.86f, 0.80f),
+            ground = new Color(0.76f, 0.42f, 0.36f), floor = new Color(0.78f, 0.42f, 0.35f), bank = new Color(0.74f, 0.44f, 0.38f),
+            plateau = new Color(0.60f, 0.40f, 0.36f), edge = new Color(0.92f, 0.76f, 0.66f),
+            fog = new Color(0.16f, 0.07f, 0.06f), skyTop = new Color(0.03f, 0.012f, 0.012f), skyHorizon = new Color(0.13f, 0.055f, 0.048f),
+            motes = new Color(1.8f, 1.05f, 0.9f),
+            threadCore = new Color(1.0f, 0.90f, 0.84f), threadHalo = new Color(1.0f, 0.40f, 0.28f), beacon = new Color(0.98f, 0.44f, 0.34f),
+            grainGlow = new Color(0.98f, 0.36f, 0.22f), lampCore = new Color(1.0f, 0.90f, 0.80f), ring = new Color(1.0f, 0.48f, 0.34f),
+            trail = new Color(0.98f, 0.52f, 0.42f),
+            moon = new Color(0.96f, 0.76f, 0.70f), fill = new Color(0.30f, 0.16f, 0.14f), rim = new Color(0.09f, 0.06f, 0.05f),
+            glint = new Color(0.68f, 0.52f, 0.46f), dew = new Color(0.82f, 0.64f, 0.56f), vineDark = new Color(0.22f, 0.11f, 0.09f),
+            vineLeaf = new Color(0.42f, 0.34f, 0.24f),
+            microLife = new[]
+            {
+                new Color(0.84f, 0.72f, 0.64f), new Color(0.82f, 0.78f, 0.72f), new Color(0.60f, 0.46f, 0.38f), new Color(0.62f, 0.46f, 0.52f),
+                new Color(0.80f, 0.56f, 0.38f), new Color(0.52f, 0.38f, 0.34f), new Color(0.56f, 0.50f, 0.36f), new Color(0.78f, 0.46f, 0.42f),
+            },
+            antBody = new Color(0.06f, 0.03f, 0.025f), antTint = new Color(0.92f, 0.40f, 0.24f, 0.85f), exposureLift = 0.42f, temperature = -4,
+            bloomTint = new Color(1f, 0.84f, 0.82f),
+            antRim = new Color(1.0f, 0.62f, 0.50f), antPale = new Color(0.96f, 0.80f, 0.72f),
+            glowDeep = new Color(0.98f, 0.30f, 0.14f),
+            glassKinds = new string[0], headGlowKinds = new string[0], headGlowFrom = new float[0],
+            // a sparse kiln: soil spires, thorny succulents, dry grass and seeds; the temple's spires and arches stand
+            // beside the way (objects), the amber shrine at the heart
+            scatterPlants = new[] { "soil_spire", "thorn_succulent", "dry_grass_tuft", "seed_pile", "seed_husk", "pebble_cluster", "fallen_leaf", "trunk_night", "root_arch" },
+            labPlants = new string[0],
+            glowParts = new[]
+            {
+                new GlowPart { plant = "thorn_succulent", from = 0.55f, to = 1.05f, lumMin = 1.1f, amount = 0.45f },
+                new GlowPart { plant = "dry_grass_tuft", from = 0.65f, to = 1.05f, lumMin = 1.0f, amount = 0.35f },
+                // the temple's buildings: only the pale clay inlaid along their spiral paths and relief bands glows
+                // (the lightest of their texture), and a few points (ParticleLook, building)
+                new GlowPart { plant = "temple_spire_v2", from = 0f, to = 1.05f, lumMin = 1.7f, amount = 0.8f },
+                new GlowPart { plant = "temple_arch_v2", from = 0f, to = 1.05f, lumMin = 1.7f, amount = 0.8f },
+                new GlowPart { plant = "temple_cells_v2", from = 0f, to = 1.05f, lumMin = 1.5f, amount = 0.8f },
+                // (the ruin's simpler models, where the finer ones are not built: their palest ridges)
+                new GlowPart { plant = "temple_spire", from = 0f, to = 1.05f, lumMin = 1.7f, amount = 0.7f },
+                new GlowPart { plant = "temple_arch", from = 0f, to = 1.05f, lumMin = 1.7f, amount = 0.7f },
+                new GlowPart { plant = "temple_cells", from = 0f, to = 1.05f, lumMin = 1.7f, amount = 0.7f },
+            },
+            // only here: embers in the floor's cracks, pot shards (the temple's buildings, finer models, stand beside the
+            // way: LabNest's temple plan; the procedural clay chimneys and cells were too plain beside them)
+            things = new[]
+            {
+                new Thing { kind = "EmberCracks", weight = 30 }, new Thing { kind = "PotShards", weight = 18 },
+            },
+            ownShare = 0.35f, dampScale = 0.12f, objects = "temple", heart = "shrine",
+            noKinds = new[] { "Petal", "Blossom", "Clover" }, touchParts = new[] { "thorn_succulent", "dry_grass_tuft" },
+            vineGlow = 0.72f, rigidGain = 1.1f, rigidTint = 0.35f,
+            wayThing = "EmberCracks", wayEvery = 3.6f, ownBand = new Vector2(10, 26), buildingsGlowInParts = true,
         };
     }
 }
