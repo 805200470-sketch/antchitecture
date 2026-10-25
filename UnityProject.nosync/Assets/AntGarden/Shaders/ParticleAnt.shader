@@ -43,6 +43,8 @@ Shader "AntGarden/ParticleAnt"
             StructuredBuffer<float4x4> _Skin;
             float _SkinBase, _Size, _Gain, _MinPixels, _Pale, _Hue, _Sat, _Contrast;
             float _Count;   // how many of its points are shown (far ants fewer): the last ones shrink away
+            float4 _AntRimColor, _AntPaleColor;   // global (ParticleAnts, from the nest's theme): its rim light, and the pale it leans to
+            float4 _AntTint;                       // global: the colour its points lean to (a: how far), light and dark kept
             float _Fade;    // how much of the ant is there: it dissolves point by point (out of the camera's way)
 
             struct v2f
@@ -100,8 +102,9 @@ Shader "AntGarden/ParticleAnt"
                 float3 rgb = GammaToLinearSpace(float3(p.col & 255, (p.col >> 8) & 255, (p.col >> 16) & 255) / 255.0);
                 rgb = AG_HueShift(rgb, _Hue, _Sat);
                 float lum = max(1e-3, dot(rgb, float3(0.3, 0.55, 0.15)));
+                rgb = lerp(rgb, _AntTint.rgb * (lum / max(1e-3, dot(_AntTint.rgb, float3(0.3, 0.55, 0.15)))), _AntTint.a);
                 rgb *= pow(lum / 0.18, _Contrast - 1);
-                rgb = lerp(rgb, float3(0.80, 0.90, 0.86) * lum * 2.2, _Pale);
+                rgb = lerp(rgb, _AntPaleColor.rgb * lum * 2.2, _Pale);
                 // grains of other colours: lighter and deeper ones of its own family, now and then gold or rose
                 if (kind == 0)
                 {
@@ -117,10 +120,10 @@ Shader "AntGarden/ParticleAnt"
                 float key = saturate(dot(n, L) * 0.6 + 0.4);
                 key *= key;
                 float rim = pow(1 - facing, 4);
-                float3 lit = rgb * (0.45 + 1.4 * key) + float3(0.6, 0.85, 1.0) * rim * 0.5 * (0.3 + lum * 2);
+                float3 lit = rgb * (0.45 + 1.4 * key) + _AntRimColor.rgb * rim * 0.5 * (0.3 + lum * 2);
                 float twinkle = 0.9 + 0.1 * sin(t * (0.6 + h) + h * 23);
                 // the wing's points: pale, a little iridescent
-                if (kind == 2) lit = lerp(float3(0.55, 0.85, 1.0), float3(0.75, 0.65, 1.0), hc * 3) * (0.25 + 0.5 * key) + float3(0.6, 0.85, 1.0) * rim * 0.4;
+                if (kind == 2) lit = lerp(_AntRimColor.rgb * 0.92, _AntPaleColor.rgb * float3(0.94, 0.8, 1.15), hc * 3) * (0.25 + 0.5 * key) + _AntRimColor.rgb * rim * 0.4;
                 o.col = lit * _Gain * twinkle * (kind == 1 ? 0.35 : 1);
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;

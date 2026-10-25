@@ -1,0 +1,138 @@
+{
+ "overview_title": "粒子风格 · 效果图总览（第一版）",
+ "overview_sub": "按粒子蚁穴 v15 的画法重画现有的三种风格：窄通道，整场都是点，一条引导光丝，细光柱和脚下的光池，实体藤蔓。第一行是 v15 实机截图。",
+ "rows": [
+  {
+   "key": "blue",
+   "title": "蓝色真菌林 · 粒子蚁穴 v15",
+   "images": [
+    [
+     "07_Outputs/particle_nest/v15_template/v15_r0_1_eye_lab_way_in.png",
+     "入口 · v15 实机截图"
+    ],
+    [
+     "07_Outputs/particle_nest/v15_template/v15_r0_3_eye_lab_heart.png",
+     "中心 · v15 实机截图"
+    ]
+   ]
+  },
+  {
+   "key": "amber",
+   "title": "暖琥珀蚁穴",
+   "images": [
+    [
+     "02_Concepts/Particle_Styles_v1/amber_way_in_v2.png",
+     "入口 · 红褐土峡谷，滴树脂的干蘑菇（v2）"
+    ],
+    [
+     "02_Concepts/Particle_Styles_v1/amber_heart_v2.png",
+     "中心 · 发光的琥珀树脂簇（v2）"
+    ]
+   ]
+  },
+  {
+   "key": "temple",
+   "title": "古蚁圣殿",
+   "images": [
+    [
+     "02_Concepts/Particle_Styles_v1/temple_way_in_v2.png",
+     "入口 · 螺纹陶土尖塔和刻纹尖拱（v2）"
+    ],
+    [
+     "02_Concepts/Particle_Styles_v1/temple_heart_v2.png",
+     "中心 · 封着远古飞蚁的琥珀圣龛（v2）"
+    ]
+   ]
+  },
+  {
+   "key": "relics",
+   "title": "巨人遗物",
+   "segment": 210,
+   "images": [
+    [
+     "02_Concepts/Particle_Styles_v1/relics_way_in.png",
+     "入口 · 青花瓷茶杯、铜绿硬币、生锈钥匙"
+    ],
+    [
+     "02_Concepts/Particle_Styles_v1/relics_heart_v2.png",
+     "中心 · 四孔纽扣广场（v2）"
+    ]
+   ]
+  }
+ ],
+ "styles": [
+  {
+   "key": "blue",
+   "name": "蓝色真菌林 · 粒子蚁穴",
+   "thumb": "07_Outputs/particle_nest/v15_template/v15_r0_1_eye_lab_way_in.png",
+   "note": "游戏实测 181° · 已做成场景"
+  },
+  {
+   "key": "amber",
+   "name": "暖琥珀蚁穴",
+   "thumb": "07_Outputs/particle_nest/amber_v1/amber_r0_1_eye_lab_way_in.png",
+   "note": "游戏实测 33° · 已做成场景"
+  },
+  {
+   "key": "temple",
+   "name": "古蚁圣殿 · 窑火",
+   "segment": 0,
+   "thumb": "02_Concepts/Particle_Styles_v1/temple_heart_v2.png",
+   "note": "效果图 27° → 光推到约 0–8°（余烬红）"
+  },
+  {
+   "key": "relics",
+   "name": "巨人遗物",
+   "segment": 210,
+   "thumb": "02_Concepts/Particle_Styles_v1/relics_way_in.png",
+   "note": "效果图 193° → 光推到约 205–215°"
+  }
+ ],
+ "suggestions": {
+  "0": [
+   "窑火",
+   "古蚁圣殿更深处的陶土窑室，余烬红光"
+  ],
+  "60": [
+   "金菌田",
+   "暖琥珀的亮面：金色球菇铺满谷底"
+  ],
+  "90": [
+   "苔原",
+   "蓝色真菌林的苔藓版：苔垫和地衣，黄绿微光"
+  ],
+  "120": [
+   "蕨谷",
+   "蓝色真菌林的蕨类版：卷头蕨成林，叶绿微光"
+  ],
+  "150": [
+   "铜绿机城",
+   "遗迹方向 D：菌丝吞没的齿轮，铜绿孢子"
+  ],
+  "240": [
+   "青花瓷厅",
+   "巨人遗物深处：茶杯内壁的钴蓝釉面大厅"
+  ],
+  "270": [
+   "王虫骸谷",
+   "遗迹方向 C：甲壳、蝉蜕和蜻蜓翅，暗紫微光"
+  ],
+  "300": [
+   "孢子花期",
+   "蓝色真菌林开花：伞菌的孢子囊转成暗品红"
+  ],
+  "330": [
+   "蚁后寝宫",
+   "暖琥珀深处的卵室和蚁后，玫瑰色柔光"
+  ]
+ },
+ "wheel_title": "粒子风格 · 色轮对应（第二版：一段一个场景）",
+ "wheel_sub": [
+  "灯光用的 HSV 色相环，分 12 段，每段 30°，每段只对应一个蚁穴场景。白色三角是测得的主光色相。",
+  "青和橙已经做成游戏场景（用游戏截图实测）；红和天蓝先按效果图定位，做场景时把光推到段中心。其余 8 段写了主题建议。"
+ ],
+ "wheel_foot": [
+  "测法：只看亮而饱和的像素（HSV 的 V ≥ 0.6、S ≥ 0.3），按 S·V² 加权做色相直方图，取最高峰 ±20° 内的加权平均。",
+  "古蚁圣殿原本和暖琥珀同在橙段（27° 和 31°），现在移到红段，主题并入「窑火」；巨人遗物放天蓝，和青段的蓝色真菌林分开。"
+ ]
+}

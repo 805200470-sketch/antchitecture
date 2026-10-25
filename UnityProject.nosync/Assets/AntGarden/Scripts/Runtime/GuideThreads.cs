@@ -72,13 +72,14 @@ namespace AntGarden
             ant = player;
             mat = material;
             if (mat == null || lab == null || lab.Route == null) { enabled = false; return; }
+            if (NestTheme.Current != null) { core = NestTheme.Current.threadCore; halo = NestTheme.Current.threadHalo; }
             mat.SetFloat("_Gain", gain);
             mat.SetColor("_Core", core.linear);
             mat.SetColor("_Halo", halo.linear);
             mesh = new Mesh { name = "GuideThreads", indexFormat = IndexFormat.UInt32 };
             mesh.MarkDynamic();
             Shader.SetGlobalVectorArray("_Beacons", beacons);
-            Shader.SetGlobalColor("_BeaconColor", new Color(0.62f, 0.86f, 0.84f).linear);
+            Shader.SetGlobalColor("_BeaconColor", (NestTheme.Current != null ? NestTheme.Current.beacon : new Color(0.62f, 0.86f, 0.84f)).linear);
             Build();
         }
 
@@ -459,7 +460,7 @@ namespace AntGarden
                 if (n < 2) continue;
                 float len = Mathf.Max(1e-3f, v.s[n - 1]);
                 Color stem = body != null && body.Length >= 8 ? body[(int)(V() * 6) % 6].linear : new Color(0.32f, 0.42f, 0.38f);
-                stem = Color.Lerp(stem, new Color(0.1f, 0.16f, 0.15f), 0.5f + 0.25f * V());   // darker than the plants
+                stem = Color.Lerp(stem, (NestTheme.Current ?? NestTheme.Cyan).vineDark, 0.5f + 0.25f * V());   // darker than the plants
                 Color light = glowPal != null && glowPal.Length >= 8 ? glowPal[cool[(int)(V() * 4) % 4]].linear : new Color(0.4f, 0.85f, 0.85f);
                 bool vein = V() < 0.55f, leaves = V() < 0.45f;
                 // the glowing tip: its last stretch, never more than the last 0.8 units of a long vine
@@ -535,7 +536,7 @@ namespace AntGarden
             if (across.sqrMagnitude < 1e-6f) across = Vector3.Cross(along, Vector3.up);
             across.Normalize();
             Vector3 nrm = Vector3.Cross(across, along).normalized;
-            Color leaf = Color.Lerp(stem, new Color(0.3f, 0.42f, 0.26f), 0.5f) * 1.2f;
+            Color leaf = Color.Lerp(stem, (NestTheme.Current ?? NestTheme.Cyan).vineLeaf, 0.5f) * 1.2f;
             float w = length * 0.42f;
             int k = Mathf.Max(8, Mathf.RoundToInt(length * w * 2.4f * vineDensity));
             float rad = 0.62f * Mathf.Sqrt(length * w * 1.6f / k);

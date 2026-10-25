@@ -1,0 +1,126 @@
+{
+ "blue": {
+  "hue": 180.7,
+  "peak": 183,
+  "segment": 6,
+  "segment_name": "青",
+  "segment_share": 0.84,
+  "second_peak": 105,
+  "second_strength": 0.11,
+  "kept_fraction": 0.0189,
+  "top_segments": [
+   [
+    "青",
+    180,
+    0.84
+   ],
+   [
+    "青绿",
+    150,
+    0.075
+   ],
+   [
+    "绿",
+    120,
+    0.042
+   ]
+  ]
+ },
+ "amber": {
+  "hue": 33.2,
+  "peak": 34,
+  "segment": 1,
+  "segment_name": "橙",
+  "segment_share": 0.973,
+  "second_peak": 353,
+  "second_strength": 0.0,
+  "kept_fraction": 0.0286,
+  "top_segments": [
+   [
+    "橙",
+    30,
+    0.973
+   ],
+   [
+    "黄",
+    60,
+    0.024
+   ],
+   [
+    "红",
+    0,
+    0.003
+   ]
+  ]
+ },
+ "temple": {
+  "hue": 26.5,
+  "peak": 25,
+  "segment": 1,
+  "segment_name": "橙",
+  "segment_share": 0.997,
+  "second_peak": 66,
+  "second_strength": 0.0,
+  "kept_fraction": 0.0356,
+  "top_segments": [
+   [
+    "橙",
+    30,
+    0.997
+   ],
+   [
+    "黄",
+    60,
+    0.003
+   ],
+   [
+    "红",
+    0,
+    0.0
+   ]
+  ],
+  "range": [
+   24.9,
+   27.9
+  ],
+  "images": [
+   "02_Concepts/Particle_Styles_v1/temple_way_in_v2.png",
+   "02_Concepts/Particle_Styles_v1/temple_heart_v2.png"
+  ]
+ },
+ "relics": {
+  "hue": 192.8,
+  "peak": 193,
+  "segment": 6,
+  "segment_name": "青",
+  "segment_share": 0.654,
+  "second_peak": 152,
+  "second_strength": 0.001,
+  "kept_fraction": 0.0214,
+  "top_segments": [
+   [
+    "青",
+    180,
+    0.654
+   ],
+   [
+    "天蓝",
+    210,
+    0.345
+   ],
+   [
+    "青绿",
+    150,
+    0.001
+   ]
+  ],
+  "range": [
+   191.9,
+   194.4
+  ],
+  "images": [
+   "02_Concepts/Particle_Styles_v1/relics_way_in.png",
+   "02_Concepts/Particle_Styles_v1/relics_heart_v2.png"
+  ]
+ }
+}

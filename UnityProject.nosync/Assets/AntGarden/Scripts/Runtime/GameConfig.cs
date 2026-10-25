@@ -23,7 +23,9 @@ namespace AntGarden
         public float seamMoteDensity = 1f;  // how thickly they rise
         public bool seamBlend = true;       // different grounds interleave in patches across a seam (false: a line)
         public bool particleLook = false;   // experiment: plants and ground as glowing points round the ant (P toggles)
-        public string labWorld = "lab:path-012@blue";   // the particle nest experiment (chapter one), on the map's world row
+        // the particle nests, one per segment of the room lights' colour wheel (NestTheme), on the map's world row:
+        // cyan, the blue fungal forest (chapter one); orange, the warm amber nest
+        public string labWorld = "lab:path-012@blue,lab:path-010@amber";
         public float labWidth = 0.55f;      // its canyons, narrowed into passages
         public string labExtraPlants = "thorn_succulent,fungus_garden,dry_grass_tuft,dry_mushroom,soil_spire,amber_resin,seed_pile";   // grown in the particle nest too
         public ScatterSettings scatter = new ScatterSettings();

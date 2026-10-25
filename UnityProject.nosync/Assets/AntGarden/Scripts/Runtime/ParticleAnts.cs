@@ -58,6 +58,11 @@ namespace AntGarden
         {
             mat = refs.particleAnt;
             if (mat == null) return;
+            if (NestTheme.Current != null) bodyColour = NestTheme.Current.antBody;
+            NestTheme theme = NestTheme.Current ?? NestTheme.Cyan;
+            Shader.SetGlobalColor("_AntTint", theme.antTint);
+            Shader.SetGlobalColor("_AntRimColor", theme.antRim);
+            Shader.SetGlobalColor("_AntPaleColor", theme.antPale);
             if (refs.antOccluder != null)
             {
                 refs.antOccluder.SetColor("_Color", bodyColour);
@@ -146,7 +151,7 @@ namespace AntGarden
                 s.block.SetBuffer("_AntPoints", s.kind.points);
                 s.block.SetBuffer("_Skin", skin);
                 s.block.SetFloat("_SkinBase", s.skinBase);
-                s.block.SetFloat("_Hue", 0f);   // every kind in the nest's own colours (their own textures, no hue turn)
+                s.block.SetFloat("_Hue", 0f);   // every kind in its own colours (the theme's tint, _AntTint, leans them to the nest's)
                 s.block.SetFloat("_Sat", s.ant.Saturation);
                 s.block.SetFloat("_Size", size);
                 s.block.SetFloat("_Gain", gain);

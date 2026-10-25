@@ -29,6 +29,7 @@ Shader "AntGarden/AntOccluder"
             fixed4 _Color;
             sampler2D _MainTex;
             float _TexLight;
+            float4 _AntTint;     // global: the colour the ants lean to in this nest (a: how far; ParticleAnts)
 
             struct v2f
             {
@@ -54,7 +55,10 @@ Shader "AntGarden/AntOccluder"
                 if (_TexLight > 0)
                 {
                     float key = saturate(dot(normalize(i.nrm), normalize(float3(0.3, 0.9, 0.25))) * 0.6 + 0.4);
-                    c.rgb += tex2D(_MainTex, i.uv).rgb * _TexLight * (0.3 + 0.8 * key * key);
+                    float3 t = tex2D(_MainTex, i.uv).rgb;
+                    float tl = dot(t, float3(0.3, 0.55, 0.15));
+                    t = lerp(t, _AntTint.rgb * (tl / max(1e-3, dot(_AntTint.rgb, float3(0.3, 0.55, 0.15)))), _AntTint.a);
+                    c.rgb += t * _TexLight * (0.3 + 0.8 * key * key);
                 }
                 UNITY_APPLY_FOG(i.fogCoord, c);
                 return c;

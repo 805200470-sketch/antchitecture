@@ -122,6 +122,9 @@ namespace AntGarden
                 CloseUp("coral_b_branching", "lab_coral", 2.2f);
                 CloseUp("frond_a_feather", "lab_frond", 2.6f);
                 CloseUp("curl_d_cluster", "lab_cluster", 2.2f);
+                CloseUp("dry_mushroom", "lab_mushroom", 4.5f);
+                CloseUp("amber_resin", "lab_resin", 2.4f);
+                CloseUp("thorn_succulent", "lab_thorn", 2.4f);
                 // two of the things left beside the way, seen from the way
                 foreach (var (id, pos, from) in game.LabNest.Objects)
                     if (id == "relic_teacup" || id == "relic_key")
@@ -249,7 +252,7 @@ namespace AntGarden
         }
 
         static readonly HashSet<string> PlantShots = new HashSet<string>
-            { "lab_curl", "lab_spore", "lab_crozier", "lab_lantern", "lab_hook", "lab_coral", "lab_frond", "lab_cluster" };
+            { "lab_curl", "lab_spore", "lab_crozier", "lab_lantern", "lab_hook", "lab_coral", "lab_frond", "lab_cluster", "lab_mushroom", "lab_resin", "lab_thorn" };
 
         /// <summary>
         /// A plant close up, as a photograph: from the way, raised to about half the plant's height and aimed at its

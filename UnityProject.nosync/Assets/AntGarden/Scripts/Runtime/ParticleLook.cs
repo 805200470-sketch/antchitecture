@@ -80,6 +80,7 @@ namespace AntGarden
             public bool glass;              // its glowing part is glass (glassKinds)
             public float glowFrom;          // its glowing part only from this far up (0..1 of its height)
             public Color glowDeep;          // its glow colour, deeper (the palette's glow colours are pale: as light they read white)
+            public float ownHue, ownSat = 1;   // its region's turn of the texture's own colour (a blue plant in the amber nest)
             public Vector4[] core;          // and the light inside it: where (xyz), how far out (w, 0 middle .. 1 edge)
         }
         readonly List<SolidSlot> solidSlots = new List<SolidSlot>();
@@ -605,8 +606,12 @@ namespace AntGarden
                 slot.sxz = 0.85f + 0.3f * R();
             }
             if (glowFrom.TryGetValue(plant.name, out float from)) slot.glowFrom = from;
+            // a plant of its region's own kinds keeps its colours (the backdrop's are turned whatever they are)
+            bool native = GameConfig.InList(world.RegionAt(p0.x, p0.z).biome.nativePlants, plant.name);
+            slot.ownHue = native ? 0 : pi.hue;
+            slot.ownSat = native ? 1 : pi.sat;
             // as light, the palette's pale glow colours read white: deeper, and toward the nest's teal
-            slot.glowDeep = Color.Lerp(HueShift(slot.glow, 0f, 1.9f), new Color(0.22f, 0.78f, 0.82f), slot.glowFrom > 0 ? 0.55f : 0.3f);
+            slot.glowDeep = Color.Lerp(HueShift(slot.glow, 0f, 1.9f), (NestTheme.Current ?? NestTheme.Cyan).glowDeep, slot.glowFrom > 0 ? 0.55f : 0.3f);
             if (!pi.relic && glassKinds != null && System.Array.IndexOf(glassKinds, plant.name) >= 0)
             {
                 slot.glass = true;
@@ -689,6 +694,7 @@ namespace AntGarden
             float lum = Mathf.Max(1e-4f, Lum(lin));
             float rel = Mathf.Clamp(Mathf.Pow(lum / s.meanLum, s.contrast), 0.05f, 3.2f);
             Color own = lin * (1f / lum);                                   // the texture's own hue, at unit brightness
+            if (s.ownHue != 0 || s.ownSat != 1) own = HueShift(own, s.ownHue, s.ownSat);   // turned as its region turns its plants
             Color tint = Color.Lerp(s.baseTint, s.tipTint, Mathf.SmoothStep(0.15f, 1f, y01));
             Color col = s.rigid ? lin * 1.6f : Color.Lerp(tint, own * 0.75f, s.keepOwn) * (s.meanLum * rel * 2.2f);
             if (glows && !s.rigid) col = Color.Lerp(col, s.glowDeep * Mathf.Clamp(s.meanLum * rel * 2.4f, 0.22f, 0.55f), 0.8f);

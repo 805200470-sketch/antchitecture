@@ -241,7 +241,7 @@ namespace AntGarden
         public void Build(Transform parent, float gain, float density)
         {
             if (route == null || refs.guideTrail == null) return;
-            trail = GuideTrail.Build(world, region, route, refs.guideTrail, new Color(0.72f, 0.92f, 0.88f), gain * 1.8f, density, parent, 77);
+            trail = GuideTrail.Build(world, region, route, refs.guideTrail, (NestTheme.Current ?? NestTheme.Cyan).trail, gain * 1.8f, density, parent, 77);
             // the specks' pulses keep step with the chevrons on the floor
             trail.GetPropertyBlock(block);
             block.SetFloat("_PulseSpeed", PulseSpeed);
@@ -322,7 +322,7 @@ namespace AntGarden
             Shader.SetGlobalVectorArray("_Ripples", ripples);
             Shader.SetGlobalVector("_NestWind", new Vector4(0.045f, 0.35f, 6f, 0));
             // a few grains of the floor glow faintly and breathe (NestField.cginc), in the cool glow colour
-            Color grain = new Color(0.42f, 0.86f, 0.84f).linear;
+            Color grain = (NestTheme.Current ?? NestTheme.Cyan).grainGlow.linear;
             Shader.SetGlobalVector("_GrainGlow", new Vector4(grain.r, grain.g, grain.b, 0.35f));
         }
 
@@ -352,7 +352,11 @@ namespace AntGarden
             if (!begun && (cardIn -= dt) <= 0)
             {
                 begun = true;
-                hud.ShowChapter(Loc.T("第一章 · 入口", "Chapter One · The Way In"), Loc.T("跟着地上的光，找到蚁穴的心脏", "Follow the light on the ground to the heart of the nest"));
+                NestTheme t = NestTheme.Current ?? NestTheme.Cyan;
+                if (t == NestTheme.Cyan)
+                    hud.ShowChapter(Loc.T("第一章 · 入口", "Chapter One · The Way In"), Loc.T("跟着地上的光，找到蚁穴的心脏", "Follow the light on the ground to the heart of the nest"));
+                else
+                    hud.ShowChapter(Loc.T($"{t.nameZh} · {t.segmentZh}", $"{t.nameEn} · {t.segmentEn}"), Loc.T("跟着光，找到蚁穴的心脏", "Follow the light to the heart of the nest"));
                 hud.SetObjective(Loc.T("跟着地上的光往深处走", "Follow the light deeper in"));
             }
             float playerD = route != null ? GuideTrail.PlayerD(route, ant) : -1;
@@ -372,8 +376,17 @@ namespace AntGarden
             if (begun && beat < 2 && route != null && (new Vector2(ant.x, ant.z) - heart).magnitude < HeartRadius + 1.5f)
             {
                 beat = 2;
-                hud.ShowChapter(Loc.T("第一章 · 完成", "Chapter One · Done"), Loc.T("下一章：育儿室（还没有开放）", "Next: the Nursery (not open yet)"));
-                hud.SetObjective(Loc.T("第一章完成", "Chapter one done"));
+                NestTheme t = NestTheme.Current ?? NestTheme.Cyan;
+                if (t == NestTheme.Cyan)
+                {
+                    hud.ShowChapter(Loc.T("第一章 · 完成", "Chapter One · Done"), Loc.T("下一章：育儿室（还没有开放）", "Next: the Nursery (not open yet)"));
+                    hud.SetObjective(Loc.T("第一章完成", "Chapter one done"));
+                }
+                else
+                {
+                    hud.ShowChapter(Loc.T($"{t.nameZh} · 到达心脏", $"{t.nameEn} · The Heart"), Loc.T("换一种灯光的颜色，去另一个蚁穴", "Change the light's colour to visit another nest"));
+                    hud.SetObjective(Loc.T("到达蚁穴的心脏", "The heart of the nest"));
+                }
                 Voices.Chime(ant + Vector3.up, 1.3f);
             }
         }

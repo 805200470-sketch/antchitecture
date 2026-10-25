@@ -92,16 +92,13 @@ namespace AntGarden
             block.SetFloat("_Gain", gain);
             block.SetFloat("_MaxDistance", maxDistance);
             block.SetVector("_MoonDir", new Vector4(0.32f, 0.9f, 0.28f, 0).normalized);
-            block.SetVector("_MoonColor", new Color(0.66f, 0.72f, 0.72f));
-            block.SetVector("_FillColor", new Color(0.13f, 0.18f, 0.18f));
+            NestTheme theme = NestTheme.Current ?? NestTheme.Cyan;
+            block.SetVector("_MoonColor", theme.moon);
+            block.SetVector("_FillColor", theme.fill);
             block.SetVector("_Wind", new Vector4(0.8f, 0.6f, 0, 0));
-            // quiet colours from the card: silver-blue, bone, sage, dusty violet, ochre straw, teal-green, moss, coral
-            var pal = new Vector4[]
-            {
-                new Color(0.62f, 0.70f, 0.72f).linear, new Color(0.80f, 0.80f, 0.74f).linear, new Color(0.48f, 0.53f, 0.42f).linear,
-                new Color(0.49f, 0.43f, 0.59f).linear, new Color(0.71f, 0.60f, 0.35f).linear, new Color(0.30f, 0.45f, 0.42f).linear,
-                new Color(0.45f, 0.51f, 0.31f).linear, new Color(0.70f, 0.46f, 0.48f).linear,
-            };
+            // quiet colours from the nest's theme
+            var pal = new Vector4[8];
+            for (int i = 0; i < 8; i++) pal[i] = theme.microLife[i].linear;
             block.SetVectorArray("_Pal", pal);
             var bounds = new Bounds(new Vector3((world.minX + world.maxX) / 2, 0, (world.minZ + world.maxZ) / 2),
                 new Vector3(world.maxX - world.minX + 40, 200, world.maxZ - world.minZ + 40));

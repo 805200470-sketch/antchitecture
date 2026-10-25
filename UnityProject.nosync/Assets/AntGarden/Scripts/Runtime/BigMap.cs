@@ -101,7 +101,7 @@ namespace AntGarden
             foreach (string id in modules)
             {
                 string label = id.StartsWith("honeycomb:") ? Loc.T("蚁穴群岛", "Archipelago")
-                    : id.StartsWith("lab:") ? Loc.T("实验 · 粒子蚁穴", "Lab · Particle Nest")
+                    : id.StartsWith("lab:") ? LabLabel(id)
                     : id.Contains("#") ? RuinScene.Title(id.Substring(id.LastIndexOf('#') + 1))
                     : id.Contains("|") ? Loc.T("蚁穴群岛", "Archipelago")
                     : id.StartsWith("stitch:") ? Loc.T("拼接 ", "Stitch ") + id.Substring(id.LastIndexOf(':') + 1).Replace("path-", "").Replace(",", "+")
@@ -177,5 +177,13 @@ namespace AntGarden
             if (!cursorShown) cursorUv = uv;   // the pad's cursor starts at the ant
             marker.localRotation = Quaternion.Euler(0, 0, -player.heading * Mathf.Rad2Deg);
         }
-    }
+    
+        /// <summary>A particle nest's button: its colour segment and its name.</summary>
+        static string LabLabel(string id)
+        {
+            int at = id.LastIndexOf('@');
+            NestTheme t = NestTheme.For(at >= 0 ? id.Substring(at + 1) : "blue");
+            return Loc.T($"粒子蚁穴 · {t.segmentZh} · {t.nameZh}", $"Particle Nest · {t.segmentEn} · {t.nameEn}");
+        }
+}
 }

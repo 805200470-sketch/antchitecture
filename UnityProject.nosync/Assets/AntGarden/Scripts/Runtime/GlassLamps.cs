@@ -33,7 +33,7 @@ namespace AntGarden
             if (material == null || from == null || from.Count == 0) { enabled = false; return; }
             mat = new Material(material) { name = "GlassLamps" };   // its own: the threads set theirs
             mat.SetFloat("_Gain", gain);
-            mat.SetColor("_Core", new Color(0.95f, 0.98f, 0.96f).linear);
+            mat.SetColor("_Core", (NestTheme.Current ?? NestTheme.Cyan).lampCore.linear);
             mat.SetColor("_Halo", Color.white);
             foreach (var (pos, size, col) in from)
                 lamps.Add(new Lamp { pos = pos, size = size, col = col });

@@ -256,7 +256,7 @@ namespace AntGarden
                     Vector3 nn = ThingPen.DecodeNormal(sp.nrm);
                     if (nn.y < 0.6f) continue;
                     float r = 0.018f + 0.022f * R();
-                    pen.into.Add(ThingPen.Splat(sp.pos + nn * (Mathf.Abs(sp.radius) * 0.5f + r * 0.6f), Vector3.up, new Color(0.62f, 0.7f, 0.7f), r, 0.4f));
+                    pen.into.Add(ThingPen.Splat(sp.pos + nn * (Mathf.Abs(sp.radius) * 0.5f + r * 0.6f), Vector3.up, (NestTheme.Current ?? NestTheme.Cyan).dew, r, 0.4f));
                     b++;
                 }
             }
@@ -403,12 +403,13 @@ namespace AntGarden
             block.SetBuffer("_Solid", buffer);
             block.SetFloat("_Gain", gain);
             block.SetFloat("_GlowGain", 2f);
-            block.SetVector("_RimColor", new Color(0.05f, 0.065f, 0.065f));
-            block.SetVector("_GlintColor", new Color(0.55f, 0.62f, 0.6f));
+            NestTheme theme = NestTheme.Current ?? NestTheme.Cyan;
+            block.SetVector("_RimColor", theme.rim);
+            block.SetVector("_GlintColor", theme.glint);
             block.SetVector("_Lod", lod);
             block.SetVector("_MoonDir", new Vector4(0.32f, 0.9f, 0.28f, 0).normalized);
-            block.SetVector("_MoonColor", new Color(0.66f, 0.72f, 0.72f));
-            block.SetVector("_FillColor", new Color(0.13f, 0.18f, 0.18f));
+            block.SetVector("_MoonColor", theme.moon);
+            block.SetVector("_FillColor", theme.fill);
             block.SetVector("_NearFade", look.solidPlants ? (Vector4)nearFade : Vector4.zero);
             block.SetFloat("_Shell", 0f);
             var bounds = new Bounds(new Vector3((world.minX + world.maxX) / 2, 0, (world.minZ + world.maxZ) / 2),
@@ -422,12 +423,12 @@ namespace AntGarden
                 shellBlock.SetBuffer("_Solid", shellBuffers[shellFront]);
                 shellBlock.SetFloat("_Gain", gain);
                 shellBlock.SetFloat("_GlowGain", 2f);
-                shellBlock.SetVector("_RimColor", new Color(0.05f, 0.065f, 0.065f));
-                shellBlock.SetVector("_GlintColor", new Color(0.55f, 0.62f, 0.6f));
+                shellBlock.SetVector("_RimColor", theme.rim);
+                shellBlock.SetVector("_GlintColor", theme.glint);
                 shellBlock.SetVector("_Lod", lod);
                 shellBlock.SetVector("_MoonDir", new Vector4(0.32f, 0.9f, 0.28f, 0).normalized);
-                shellBlock.SetVector("_MoonColor", new Color(0.66f, 0.72f, 0.72f));
-                shellBlock.SetVector("_FillColor", new Color(0.13f, 0.18f, 0.18f));
+                shellBlock.SetVector("_MoonColor", theme.moon);
+                shellBlock.SetVector("_FillColor", theme.fill);
                 shellBlock.SetVector("_NearFade", nearFade);
                 shellBlock.SetFloat("_Shell", 1f);
                 Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, shellCounts[shellFront] * 3, 1, null, shellBlock, ShadowCastingMode.Off, false, 0);

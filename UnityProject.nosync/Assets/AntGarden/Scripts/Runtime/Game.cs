@@ -319,8 +319,11 @@ namespace AntGarden
                 ruins.Add(ruin);
             }
             lab = null;
+            NestTheme.Current = null;
             if (Lab)
             {
+                // the particle nest is drawn in its colour segment's theme: its region's biome picks it
+                NestTheme.Current = NestTheme.For(world.regions[0].biome.id);
                 lab = new LabNest(world, world.regions[0], refs);
                 var sp = world.SpawnPoint(0);
                 lab.Plan(new Vector2(sp.x, sp.z));
@@ -342,7 +345,8 @@ namespace AntGarden
                     if (rule.plant == "spore_stalk") rule.spacing *= 1.5f;
                 }
                 var rules = new List<ScatterRule>(cfg.scatter.rules);
-                rules.AddRange(LabPlants());
+                foreach (ScatterRule rule in LabPlants())
+                    if (System.Array.IndexOf(NestTheme.Current.labPlants, rule.plant) >= 0) rules.Add(rule);
                 cfg.scatter.rules = rules.ToArray();
             }
             int placed = 0;
@@ -386,14 +390,23 @@ namespace AntGarden
             Sfx.Init(cfg.audio, cam);
             Pad.rumble = cfg.padRumble;
             if (Arg("-sfxdump") != null) { Sfx.Dump(Arg("-sfxdump")); Application.Quit(); }
-            if (Lab) { cfg.atmosphere.exposure -= 0.28f; cfg.atmosphere.fogDensity *= 1.35f; }   // the particle nest: a darker night, still lit
+            if (Lab) { cfg.atmosphere.exposure -= 0.28f - NestTheme.Current.exposureLift; cfg.atmosphere.fogDensity *= 1.35f; }   // the particle nest: a darker night, still lit
             spores = Atmosphere.Apply(cam, refs, cfg.atmosphere, Preset);
+            if (Lab)
+            {
+                // the particle nest's white balance from its theme (a cool grade turns a warm nest's gold green)
+                var volume = FindObjectOfType<UnityEngine.Rendering.PostProcessing.PostProcessVolume>();
+                if (volume != null && volume.profile != null && volume.profile.TryGetSettings(out UnityEngine.Rendering.PostProcessing.ColorGrading grading))
+                    grading.temperature.Override(NestTheme.Current.temperature);
+                if (volume != null && volume.profile != null && volume.profile.TryGetSettings(out UnityEngine.Rendering.PostProcessing.Bloom bloom))
+                    bloom.color.Override(NestTheme.Current.bloomTint);
+            }
             if (Lab && spores != null)
             {
                 // its motes in the nest's own colour
                 var sr = spores.GetComponent<ParticleSystemRenderer>();
                 sr.material = new Material(sr.sharedMaterial);
-                sr.material.SetColor("_Color", new Color(1.5f, 1.65f, 1.5f));   // bone-white, of a piece with the nest
+                sr.material.SetColor("_Color", NestTheme.Current.motes);   // pale, in the nest's own light
             }
             // plants beyond the haze are not drawn at all (a honeycomb puts many nests in view at once)
             var cull = new float[32];
@@ -404,10 +417,10 @@ namespace AntGarden
             atmosphere = cam.GetComponent<AtmosphereController>();
             if (Lab && atmosphere != null)
             {
-                // the particle nest: a deep teal mist (the colour card's), so depth reads as haze, not as nothing
-                atmosphere.fogTint = new Color(0.075f, 0.13f, 0.13f);
-                atmosphere.skyTopTint = new Color(0.012f, 0.025f, 0.027f);
-                atmosphere.skyHorizonTint = new Color(0.06f, 0.11f, 0.11f);
+                // the particle nest: a deep mist in its theme's colour, so depth reads as haze, not as nothing
+                atmosphere.fogTint = NestTheme.Current.fog;
+                atmosphere.skyTopTint = NestTheme.Current.skyTop;
+                atmosphere.skyHorizonTint = NestTheme.Current.skyHorizon;
             }
             atmosphere?.SetBiome(world.regions[0].biome, true);
 
@@ -521,11 +534,13 @@ namespace AntGarden
 
         static string PathFile(string id) => Path.Combine(Application.streamingAssetsPath, "Paths", id + ".json");
 
-        static List<string> ListWorlds(string defaultWorld, string labWorld)
+        static List<string> ListWorlds(string defaultWorld, string labWorlds)
         {
             var list = new List<string> { defaultWorld };
             list.AddRange(RuinWorlds);
-            if (!string.IsNullOrEmpty(labWorld)) list.Add(labWorld);
+            if (!string.IsNullOrEmpty(labWorlds))
+                foreach (string w in labWorlds.Split(','))
+                    if (!string.IsNullOrWhiteSpace(w)) list.Add(w.Trim());
             string dir = Path.Combine(Application.streamingAssetsPath, "Paths");
             var singles = new List<string>();
             if (Directory.Exists(dir))
@@ -550,7 +565,7 @@ namespace AntGarden
             Gate back = ArriveFrom != null ? gates.Find(g => g.world == ArriveFrom) : null;
             if (back != null) TeleportToGate(back, false);
             // a soft ring under the player's ant tells it apart from the NPC ants
-            playerRing = new Rings.Draped("PlayerRing", 0.58f, 0.66f, refs.slotRing, new Color(0.5f, 0.9f, 0.95f) * 0.8f);
+            playerRing = new Rings.Draped("PlayerRing", 0.58f, 0.66f, refs.slotRing, (NestTheme.Current != null ? NestTheme.Current.ring : new Color(0.5f, 0.9f, 0.95f)) * 0.8f);
             ring = playerRing.go.transform;
             // experiment: the particle look (P toggles)
             particleLook = gameObject.AddComponent<ParticleLook>();
@@ -560,41 +575,32 @@ namespace AntGarden
             if (Lab)
             {
                 // the particle nest: no meshes, only dense points, as in Dream, keeping their textures' grain and
-                // some of their colour; one family of near colours (cyan, blue, periwinkle, mint, lilac), a few warm
-                // accents (sand, blush on bodies; amber, coral, pink, gold on glowing parts) beside the golden way
+                // some of their colour; one family of near colours with a few muted accents, from its theme
+                NestTheme theme = NestTheme.Current;
                 particleLook.mode = ParticleLook.Mode.Replace;
                 particleLook.pointSize = 0.011f;
                 particleLook.brightness = 0.34f;   // a fifth darker than before: the guides and lit plants stand out
                 particleLook.glowBrightness = 0.55f;   // and breathing: dim most of the time, bright when touched
                 particleLook.shimmer = 0.006f;
-                particleLook.scanOverride = new Color(0.90f, 0.94f, 0.88f, 1f);
+                particleLook.scanOverride = new Color(theme.scan.r, theme.scan.g, theme.scan.b, 1f);
                 particleLook.scanMix = 0.75f;   // the plants' own colours mostly under the one palette
                 particleLook.grain = 1f;
-                // the colour card (07_Outputs/particle_nest/palette_card.jpg): sage, moss, teal-green, silver-blue and bone
-                // for the plants' bodies; their glows mostly cyan breath and bone, a few muted coral, violet or straw
-                particleLook.bodyPalette = new[]
-                {
-                    new Color(0.72f, 0.80f, 0.64f), new Color(0.66f, 0.78f, 0.50f), new Color(0.56f, 0.78f, 0.72f), new Color(0.64f, 0.76f, 0.78f),
-                    new Color(0.76f, 0.80f, 0.72f), new Color(0.54f, 0.70f, 0.64f), new Color(0.78f, 0.88f, 0.56f), new Color(0.84f, 0.78f, 0.60f),
-                };
-                particleLook.glowPalette = new[]
-                {
-                    new Color(0.55f, 0.95f, 0.98f), new Color(0.70f, 0.96f, 0.90f), new Color(0.78f, 0.95f, 0.70f), new Color(0.88f, 0.72f, 0.74f),
-                    new Color(0.78f, 0.74f, 0.90f), new Color(0.88f, 0.84f, 0.68f), new Color(0.85f, 0.92f, 0.92f), new Color(0.88f, 0.76f, 0.74f),
-                };
-                particleLook.bodyAccent = 0.05f;
-                particleLook.glowAccent = 0.06f;   // a muted accent now and then, never a bright one
+                particleLook.bodyPalette = theme.body;
+                particleLook.glowPalette = theme.glow;
+                particleLook.bodyAccent = theme.bodyAccent;
+                particleLook.glowAccent = theme.glowAccent;   // a muted accent now and then, never a bright one
                 // plants: dense along the ways, fewer away from them
                 particleLook.farShare = 0.2f;
                 // the ground: the terrain sinks dark; sparse points over the nest, dense round the ant, and underfoot
-                // the carpet, made on the GPU; by layer a teal floor, blue-violet walls, a lilac edge along their tops
+                // the carpet, made on the GPU; by layer the floor, the walls, the plateau, a pale edge along the walls' tops
                 particleLook.groundDim = 0.985f;
                 particleLook.groundBrightness = 2.6f;
-                particleLook.groundColour = new Color(0.5f, 0.66f, 0.62f, 1f);
-                particleLook.floorColour = new Color(0.45f, 0.68f, 0.62f, 1f);
-                particleLook.bankColour = new Color(0.55f, 0.68f, 0.62f, 1f);
-                particleLook.plateauColour = new Color(0.40f, 0.55f, 0.55f, 1f);
-                particleLook.edgeColour = new Color(0.80f, 0.86f, 0.82f, 1f);
+                Color Opaque(Color c) => new Color(c.r, c.g, c.b, 1f);
+                particleLook.groundColour = Opaque(theme.ground);
+                particleLook.floorColour = Opaque(theme.floor);
+                particleLook.bankColour = Opaque(theme.bank);
+                particleLook.plateauColour = Opaque(theme.plateau);
+                particleLook.edgeColour = Opaque(theme.edge);
                 particleLook.groundTexMix = 0.3f;
                 particleLook.groundNear = 160f;
                 particleLook.groundBudget = 1000000;
@@ -606,6 +612,8 @@ namespace AntGarden
                 // the floor's things are solid (SolidThings): leaves, twigs, moss, mushrooms... at ant scale; and the
                 // plants, drawn the same way, with the same grain
                 particleLook.solidPlants = true;
+                particleLook.glassKinds = theme.glassKinds;
+                for (int i = 0; i < theme.headGlowKinds.Length; i++) particleLook.glowFrom[theme.headGlowKinds[i]] = theme.headGlowFrom[i];
                 if (Arg("-glass") == "0") particleLook.glassKinds = null;   // test: glass-bulbed plants drawn as plain ones
                 particleLook.shellPlantArea = 0f;
                 particleLook.splatShare = 0.24f;   // like a splat capture: soft larger splats under the fine points
@@ -919,6 +927,7 @@ namespace AntGarden
                 WExit pick = free.Find(ex => biome != null && world.regions[ex.region].biome.id == biome) ?? free[0];
                 free.Remove(pick);
                 Color c = dest.Contains("#") ? new Color(1f, 0.78f, 0.42f) : dest == home ? new Color(0.72f, 1f, 0.85f) : new Color(0.7f, 0.88f, 1f);
+                if (NestTheme.Current != null) c = NestTheme.Current.threadHalo;   // a particle nest: its gates in its own light
                 gates.Add(Gates.WorldGate(world, refs, cfg.gates, parent, pick, dest, c));
                 made++;
             }
@@ -926,7 +935,7 @@ namespace AntGarden
             if (Selection != home)
                 foreach (WExit ex in free)
                 {
-                    gates.Add(Gates.WorldGate(world, refs, cfg.gates, parent, ex, home, new Color(0.72f, 1f, 0.85f)));
+                    gates.Add(Gates.WorldGate(world, refs, cfg.gates, parent, ex, home, NestTheme.Current != null ? NestTheme.Current.threadHalo : new Color(0.72f, 1f, 0.85f)));
                     made++;
                 }
             Debug.Log($"[AntGarden] world gates {made} (exits {world.exits.Count}): {string.Join(", ", gates.FindAll(g => g.world != null).ConvertAll(g => g.world))}");
