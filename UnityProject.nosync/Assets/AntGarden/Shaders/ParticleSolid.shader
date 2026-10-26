@@ -43,12 +43,15 @@ Shader "AntGarden/ParticleSolid"
             float4 _MoonDir, _MoonColor, _FillColor;   // the light (direction toward it, world), its colour and the fill's
             float _Shell;                               // 1: the fine splats of the plants round the ant
             float4 _NearFade;                           // round the ant the fine splats are drawn out to y, the coarse from x
+            float4 _NearDensity;                        // the fine splats: all of a plant's within x of the camera, at least y further
+            float4 _ThingNear;                          // the things' and vines' ranked splats: all within x of the camera, y of them further
             float _FlareCount;                          // plants an antenna has lit: where, and how far / high / bright
             float4 _Flares[16], _FlareInfo[16];
             float4 _RimColor;                           // the thin silvery light along every form's outline
             float4 _GlintColor;                         // a few splats catch the light now and then
             float4 _WalkTrail[16];                      // where the ant has just been (xz) and when (w, as _Time.y)
             float _WalkLit, _WalkRadius;                // how much what it walked past lights up, and how near it must be
+            float _NearLift;                            // how much brighter things are right round the ant (SolidThings; 0.9)
             float _ScatterRadius;                       // what the ant walks through scatters this far round it (0: no)
 
             struct v2f
@@ -72,7 +75,8 @@ Shader "AntGarden/ParticleSolid"
 
             float3 DecodeNormal(uint e)
             {
-                float2 f = float2(e & 0xFFFF, e >> 16) / 65535.0 * 2 - 1;
+                // two 12-bit halves (octahedral); the top byte is a rank (bits 24..30) and a building's flag (bit 31)
+                float2 f = float2(e & 0xFFFu, (e >> 12) & 0xFFFu) / 4095.0 * 2 - 1;
                 float3 n = float3(f.x, 1 - abs(f.x) - abs(f.y), f.y);
                 if (n.y < 0) n.xz = (1 - abs(n.zx)) * (n.xz >= 0 ? 1 : -1);
                 return normalize(n);
@@ -96,6 +100,23 @@ Shader "AntGarden/ParticleSolid"
                 }
                 // far away: fewer splats, the rest a little larger
                 float dist = distance(p.pos, _WorldSpaceCameraPos);
+                // a plant's fine splats: as many as its distance from the camera wants (its detail near, thinning off)
+                if (_Shell > 0.5 && p.radius > 0)
+                {
+                    float want = clamp(_NearDensity.x * _NearDensity.x / max(dist * dist, 1e-4), _NearDensity.y, 1);
+                    if (((p.nrm >> 24) & 127u) / 128.0 >= want) return o;
+                    rad /= sqrt(want);
+                }
+                // the things' and vines' splats, made finer than they are drawn further off (SolidThings.Densify,
+                // GuideThreads.VineSplats; ranked 1..127): as fine as the plants' right in front of the camera, fewer
+                // and larger from a few units off
+                uint rk = (p.nrm >> 24) & 127u;
+                if (_Shell < 0.5 && p.radius > 0 && rk > 0 && _ThingNear.x > 0)
+                {
+                    float want = clamp(_ThingNear.x * _ThingNear.x / max(dist * dist, 1e-4), _ThingNear.y, 1);
+                    if ((rk - 1) / 127.0 >= want) return o;
+                    rad /= sqrt(want);
+                }
                 float keep = lerp(1, _Lod.z, saturate((dist - _Lod.x) / max(1e-3, _Lod.y - _Lod.x)));
                 if (h > keep) return o;
                 // alive: what stands up from the floor sways in the wind, low things part round the ant, and rings
@@ -141,7 +162,7 @@ Shader "AntGarden/ParticleSolid"
                 float3 B = normalize(cross(N, R)), T = cross(B, N);
                 float turn = h2 * 6.2831853, cs = cos(turn), sn = sin(turn);
                 float3 A1 = T * cs + B * sn, A2 = -T * sn + B * cs;
-                float stretch = 1 + 0.6 * Hash(i + 104729u);
+                float stretch = 1 + 0.3 * Hash(i + 104729u);
                 float pixel = 2 * dist / (unity_CameraProjection._m11 * _ScreenParams.y);
                 float size = max(rad / sqrt(max(keep, 0.05)), pixel * _MinPixels);
                 // shrunk away where it is scattered, on the line between the camera and the ant (the ant is never
@@ -167,12 +188,12 @@ Shader "AntGarden/ParticleSolid"
                 // lit from its normal: moonlight from above, a soft fill, a thin rim; brighter near the ant
                 float3 albedo = GammaToLinearSpace(float3(p.col & 255, (p.col >> 8) & 255, (p.col >> 16) & 255) / 255.0);
                 float glow = ((p.col >> 24) & 255) / 255.0;
-                float key = saturate(dot(n, _MoonDir.xyz) * 0.75 + 0.25);
+                float key = saturate(dot(n, _MoonDir.xyz) * 0.85 + 0.15);
                 float rim = pow(1 - saturate(dot(n, V)), 3);
                 // a building (ThingPen.Building: the kiln's spires, arches, chimneys and cells) lights only where it glows,
                 // along its paths and at a few points, when the ant comes near, walks past or touches it; not the whole of it
-                bool building = (p.nrm & 1u) != 0;
-                float near = 1 + 0.9 * (1 - smoothstep(0.8, 4.5, length(pos.xz - _TrailPlayer.xz))) * (building ? 0.3 : 1);
+                bool building = (p.nrm >> 31) != 0;
+                float near = 1 + _NearLift * (1 - smoothstep(0.8, 4.5, length(pos.xz - _TrailPlayer.xz))) * (building ? 0.3 : 1);
                 float3 lit = albedo * (_FillColor.rgb + _MoonColor.rgb * key * key) * near + rim * 0.08 * albedo * 4;
                 // a thin silvery light along the outlines, as in a scan; a few splats glint now and then
                 lit += _RimColor.rgb * rim * (0.5 + 0.5 * key);
@@ -202,7 +223,7 @@ Shader "AntGarden/ParticleSolid"
                 flare *= part;
                 lit = lit * (1 + 3 * flare) + flare * albedo * (0.6 + 2.5 * glow) * float3(0.95, 1.0, 1.05);
                 // each splat a little lighter or darker than its neighbours, as the points of a capture are
-                o.col = lit * _Gain * (0.76 + 0.48 * Hash(i + 999u));
+                o.col = lit * _Gain * (0.88 + 0.24 * Hash(i + 999u));
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;
             }
@@ -212,10 +233,10 @@ Shader "AntGarden/ParticleSolid"
                 // a dab with a slightly irregular outline
                 float r2 = dot(i.uv, i.uv);
                 float ang = atan2(i.uv.y, i.uv.x);
-                float wobble = 0.12 * sin(ang * 3 + i.shape * 31) + 0.07 * sin(ang * 5 + i.shape * 57);
+                float wobble = 0.07 * sin(ang * 3 + i.shape * 31) + 0.04 * sin(ang * 5 + i.shape * 57);
                 clip(1 + wobble - r2);
                 // its edge a little darker, so every splat reads as a point of its own
-                fixed4 col = fixed4(i.col * (1 - 0.3 * smoothstep(0.45, 1.0, r2)), 1);
+                fixed4 col = fixed4(i.col * (1 - 0.1 * smoothstep(0.45, 1.0, r2)), 1);
                 UNITY_APPLY_FOG(i.fogCoord, col);
                 return col;
             }

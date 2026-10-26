@@ -47,7 +47,7 @@ namespace AntGarden
                 last = p;
                 started = true;
             }
-            Shader.SetGlobalFloat("_WalkLit", strength);
+            Shader.SetGlobalFloat("_WalkLit", strength * (NestTheme.Current != null ? NestTheme.Current.walkGain : 1f));
             Shader.SetGlobalFloat("_WalkRadius", radius);
             Shader.SetGlobalFloat("_ScatterRadius", scatter);
             Shader.SetGlobalVectorArray("_WalkTrail", trail);

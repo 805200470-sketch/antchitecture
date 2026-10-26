@@ -158,6 +158,27 @@ namespace AntGarden
                     ("temple_cells", 1.1f, 0.78f, 1, false, false),
                     ("relic_button", 2.2f, 0.88f, -1, true, true),
                 });
+            else if (what == "giant")
+                plan.AddRange(new (string, float, float, int, bool, bool)[]
+                {
+                    // the giant's relics (azure): its teacup, coins, key and button, nothing of the temple's
+                    ("relic_coins", 1.5f, 0.1f, 1, true, false),
+                    ("relic_teacup", 2.8f, 0.3f, -1, false, false),
+                    ("relic_key", 2.8f, 0.5f, 1, true, false),
+                    ("relic_coins", 1.2f, 0.66f, -1, true, false),
+                    ("relic_button", 2.2f, 0.86f, -1, true, true),
+                });
+            else if (what == "machine")
+                plan.AddRange(new (string, float, float, int, bool, bool)[]
+                {
+                    // the verdigris city: the giant's coins, keys and a button left in the nest, green with verdigris
+                    // (its gears are its own things: SolidThings)
+                    ("relic_coins", 1.6f, 0.12f, 1, true, false),
+                    ("relic_key", 3.0f, 0.3f, -1, true, false),
+                    ("relic_coins", 1.3f, 0.48f, -1, true, false),
+                    ("relic_button", 2.4f, 0.66f, 1, true, true),
+                    ("relic_key", 2.6f, 0.82f, 1, true, false),
+                });
             else if (what == "temple")
             {
                 // the temple: clay spires in pairs down both sides of the way, a carved arch between each pair facing

@@ -11,7 +11,7 @@ namespace AntGarden
     /// </summary>
     public static class NestThingsGrowth
     {
-        /// <summary>The most splats one thing may have.</summary>
+        /// <summary>The most splats one thing may have (at the usual density: ThingPen.Cap).</summary>
         public const int Cap = 9000;
 
         /// <summary>How high above the floor plane the lowest splat sits.</summary>
@@ -58,12 +58,12 @@ namespace AntGarden
             public int Count(float area, int min = 8) => pen.Count(area, min);
 
             /// <summary>How many more splats this thing may have.</summary>
-            public int Left => Cap - (pen.into.Count - start);
+            public int Left => pen.Cap(Cap) - (pen.into.Count - start);
 
             /// <summary>One splat at local point lp facing local normal ln: linear colour c, radius r, glow.</summary>
             public void Put(Vector3 lp, Vector3 ln, Color c, float r, float glow = 0f)
             {
-                if (pen.into.Count - start >= Cap) return;
+                if (pen.into.Count - start >= pen.Cap(Cap)) return;
                 if (lp.y < Lift) lp.y = Lift;
                 pen.Put(p + a * lp.x + n * lp.y + b * lp.z, a * ln.x + n * ln.y + b * ln.z, c, r, glow);
             }

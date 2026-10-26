@@ -38,6 +38,8 @@ namespace AntGarden
                     DemoMode.Shot(game, game.cfg.camera.distance, game.cfg.camera.pitch);
                     game.demoKeys = new Vector2(0, 1);
                     for (float t = 0; t < 1.3f; t += Time.deltaTime) yield return null;
+                    game.demoKeys = Vector2.zero;
+                    yield return ShellSettles();
                     yield return Grab(Path.Combine(dir, $"r{r}_{k}_play_{name}.png"));
                     game.demoKeys = Vector2.zero;
                     // at a relic, look at the relic itself; elsewhere, wherever the view runs furthest
@@ -89,7 +91,8 @@ namespace AntGarden
                 if (a1 > a0) spots.Add(("lab_way_in", t[a0], t[a1]));
                 int m = t.Count / 2;
                 if (m + 6 < t.Count) spots.Add(("lab_halfway", t[m], t[m + 6]));
-                if (Approach(game, r, game.LabNest.Heart, 7f, out Vector2 at)) spots.Add(("lab_heart", at, game.LabNest.Heart));
+                // (from the way in, as a player comes: Approach alone could stand behind a bank on another canyon)
+                if (OnWayIn(game, 3.4f, out Vector2 at) || Approach(game, r, game.LabNest.Heart, 7f, out at)) spots.Add(("lab_heart", at, game.LabNest.Heart));
                 // a curled plant and a glass-bulbed one close up, seen from the way (for judging the plants' detail)
                 void CloseUp(string kind, string name, float back)
                 {
@@ -107,14 +110,16 @@ namespace AntGarden
                         if (dw >= 0.9f) cands.Add((dw, pp, q0));
                     }
                     cands.Sort((a, b) => a.dw.CompareTo(b.dw));
-                    foreach (var (dw, plant, onWay) in cands)
-                    {
-                        Vector2 dir = (plant - onWay).normalized;
-                        Vector2 at = plant - dir * Mathf.Max(back, dw);
-                        if (!game.LabNest.OnFloor(at, 0.2f) || !InSight(game, at, plant)) continue;
-                        spots.Add((name, at, plant));
-                        return;
-                    }
+                    // from the way's side first, else turned round it a little at a time (a big plant among others)
+                    foreach (float turn in new[] { 0f, 30f, -30f, 60f, -60f, 90f, -90f })
+                        foreach (var (dw, plant, onWay) in cands)
+                        {
+                            Vector2 dir = (plant - onWay).normalized, d = Quaternion.Euler(0, 0, turn) * dir;
+                            Vector2 at = plant - d * Mathf.Max(back, Mathf.Min(dw, back + 1.5f));
+                            if (!game.LabNest.OnFloor(at, 0.2f) || !InSight(game, at, plant)) continue;
+                            spots.Add((name, at, plant));
+                            return;
+                        }
                 }
                 CloseUp("curl_glow", "lab_curl", 2.6f);
                 CloseUp("spore_stalk", "lab_spore", 2.2f);
@@ -125,6 +130,8 @@ namespace AntGarden
                 CloseUp("frond_a_feather", "lab_frond", 2.6f);
                 CloseUp("curl_d_cluster", "lab_cluster", 2.2f);
                 CloseUp("curl_b_double", "lab_double", 2.4f);
+                CloseUp("curl_e_corkscrew", "lab_corkscrew", 2.4f);
+                CloseUp("puff_a_stalked", "lab_puff", 2.4f);
                 CloseUp("dry_mushroom", "lab_mushroom", 4.5f);
                 CloseUp("amber_resin", "lab_resin", 2.4f);
                 CloseUp("thorn_succulent", "lab_thorn", 2.4f);
@@ -153,7 +160,7 @@ namespace AntGarden
                     if (Tall.ContainsKey(name) || (kind != "Heart" && dw < 0.6f)) continue;
                     Vector2 dir = dw > 0.1f ? (pos - onWay).normalized : (game.LabNest.Heart - t[0]).normalized;
                     Vector2 stand = pos - dir * Mathf.Max(Mathf.Clamp(height * 1.8f, 1.5f, 3.4f), dw);
-                    if (kind == "Heart" ? !Approach(game, r, pos, 4.6f, out stand) : !game.LabNest.OnFloor(stand, 0.2f) || !InSight(game, stand, pos)) continue;
+                    if (kind == "Heart" ? !OnWayIn(game, 1.6f, out stand) && !Approach(game, r, pos, 4.6f, out stand) : !game.LabNest.OnFloor(stand, 0.2f) || !InSight(game, stand, pos)) continue;
                     Tall[name] = height;
                     spots.Add((name, stand, pos));
                 }
@@ -189,6 +196,27 @@ namespace AntGarden
         }
 
         /// <summary>A walkable point on a path about <paramref name="back"/> units from the target, on its way in.</summary>
+        /// <summary>Where on the main way the ant stands back units (along it) short of where its glowing track ends
+        /// at the heart: there it sees the heart as a player coming in does.</summary>
+        static bool OnWayIn(Game game, float back, out Vector2 at)
+        {
+            at = default;
+            List<Vector2> t = game.LabNest?.Track;
+            if (t == null || t.Count < 2) return false;
+            Vector2 heart = game.LabNest.Heart;
+            int hi = 0;
+            for (int i = 1; i < t.Count; i++) if ((t[i] - heart).sqrMagnitude < (t[hi] - heart).sqrMagnitude) hi = i;
+            int step = hi > t.Count / 2 ? -1 : 1;   // toward the way in
+            float left = back;
+            for (int i = hi; i + step >= 0 && i + step < t.Count; i += step)
+            {
+                float seg = (t[i + step] - t[i]).magnitude;
+                if (seg >= left) { at = Vector2.Lerp(t[i], t[i + step], left / Mathf.Max(seg, 1e-4f)); return game.world.Dist(at.x, at.y) < -0.3f; }
+                left -= seg;
+            }
+            return false;
+        }
+
         static bool Approach(Game game, int r, Vector2 target, float back, out Vector2 at)
         {
             at = default;
@@ -203,6 +231,16 @@ namespace AntGarden
                 }
             }
             return best < 2f;
+        }
+
+        /// <summary>Waits (up to 12 s) until the plants' fine splats are made for where the ant and the camera now are.</summary>
+        internal static IEnumerator ShellSettles()
+        {
+            for (float t = 0; t < 12f; t += Time.unscaledDeltaTime)
+            {
+                if (SolidThings.Instance == null || SolidThings.Instance.ShellReady()) yield break;
+                yield return null;
+            }
         }
 
         static IEnumerator Grab(string path)
@@ -245,6 +283,7 @@ namespace AntGarden
             game.hud.canvas.enabled = false;
             cam.fieldOfView = 72f;
             cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(fwd + Vector3.up * 0.14f));
+            yield return ShellSettles();
             for (int f = 0; f < 3; f++) yield return null;
             yield return Grab(path);
             foreach (GameObject a in hidden) a.SetActive(true);
@@ -280,7 +319,7 @@ namespace AntGarden
         static readonly Dictionary<string, float> Tall = new Dictionary<string, float>();
 
         static readonly HashSet<string> PlantShots = new HashSet<string>
-            { "lab_curl", "lab_spore", "lab_crozier", "lab_lantern", "lab_hook", "lab_coral", "lab_frond", "lab_cluster", "lab_double", "lab_mushroom", "lab_resin", "lab_thorn" };
+            { "lab_curl", "lab_spore", "lab_crozier", "lab_lantern", "lab_hook", "lab_coral", "lab_frond", "lab_cluster", "lab_double", "lab_corkscrew", "lab_puff", "lab_mushroom", "lab_resin", "lab_thorn" };
 
         /// <summary>
         /// A plant close up, as a photograph: from the way, raised to about half the plant's height and aimed at its
@@ -302,6 +341,9 @@ namespace AntGarden
             var eye = new Vector3(from.x, game.world.WalkHeight(from.x, from.y) + Mathf.Clamp(h * 0.55f, 0.45f, 2f), from.y);
             var target = new Vector3(plant.x, game.world.WalkHeight(plant.x, plant.y) + h * 0.5f, plant.y);
             float dist = Mathf.Max(0.5f, (target - eye).magnitude);
+            game.rig.manual = true;
+            cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(target - eye));
+            yield return ShellSettles();   // the plants' fine splats made for this view
             // ants near the lens, or between it and the thing (or just past it), step out of the picture
             var hidden = new List<GameObject>();
             foreach (NpcAnt n in game.npcs)
@@ -314,6 +356,12 @@ namespace AntGarden
             cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(target - eye));
             for (int f = 0; f < 3; f++) yield return null;
             yield return Grab(path);
+            // (a nest's own thing is not a plant: say what it is, not which plant stands nearest)
+            string file = Path.GetFileName(path);
+            if (file.Contains("_own_") || file.Contains("heart_close"))
+                Debug.Log($"[AntGarden] photo {file}: the nest's own " + (file.Contains("heart_close") ? "heart thing" : file.Substring(file.IndexOf("_own_") + 5).Replace(".png", ""))
+                    + $", {h:F2} tall, {dist:F1} from the camera");
+            else if (game.Look != null) Debug.Log($"[AntGarden] photo {file}: " + game.Look.DescribeNear(new Vector3(plant.x, 0, plant.y), eye, cam.fieldOfView, Screen.height));
             foreach (GameObject a in hidden) a.SetActive(true);
             cam.fieldOfView = fov;
             game.hud.canvas.enabled = true;

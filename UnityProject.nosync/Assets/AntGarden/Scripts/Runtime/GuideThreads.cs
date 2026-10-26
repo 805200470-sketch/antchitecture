@@ -144,14 +144,20 @@ namespace AntGarden
             if (mainPts != null)
             {
                 float dFar = Mathf.Max(mainDs[0], mainDs[mainDs.Count - 1]);
+                // (in a nest with a heart thing they stop where the way's track ends: past it every step fell on the same
+                // point and the vine climbed up and down there, sending out tendril after tendril, a thicket before the heart)
+                float stop = string.IsNullOrEmpty((NestTheme.Current ?? NestTheme.Cyan).heart) ? 1f : Mathf.Min(mainDs[0], mainDs[mainDs.Count - 1]) + 0.5f;
                 int side = R() < 0.5f ? 1 : -1;
                 for (float at = dFar - U(3f, 8f); at > 4f; at -= U(9f, 18f))
                 {
-                    WallVine(mainPts, mainDs, at, Mathf.Max(1f, at - U(8f, 18f)), side, U(0.02f, 0.035f));
+                    WallVine(mainPts, mainDs, at, Mathf.Max(stop, at - U(8f, 18f)), side, U(0.02f, 0.035f));
                     side = -side;
                 }
-                for (float at = dFar - 7f; at > 9f; at -= U(16f, 24f)) Station(mainPts, mainDs, at);
-                Station(mainPts, mainDs, 2.5f);
+                // (a heart with its own thing keeps the last beam and its vines well back: from the way in they stood
+                // in front of it as a glowing thicket)
+                float last = string.IsNullOrEmpty((NestTheme.Current ?? NestTheme.Cyan).heart) ? 9f : 12f;
+                for (float at = dFar - 7f; at > last; at -= U(16f, 24f)) Station(mainPts, mainDs, at);
+                Station(mainPts, mainDs, 2.5f, true);
             }
             int n = 0;
             foreach (Filament f in lines) n += f.pts.Count;
@@ -400,8 +406,9 @@ namespace AntGarden
         }
 
         /// <summary>A beam beside the way at distance d from the heart (to one side, as far as the floor allows), and
-        /// the vines rising round its foot from a low tangle on the floor.</summary>
-        void Station(List<Vector2> pts, List<float> ds, float d)
+        /// the vines rising round its foot from a low tangle on the floor. The heart's own beam (heart) has only a few
+        /// short ones: the heart's thing (SolidThings.Heart) is what stands there, not a thicket.</summary>
+        void Station(List<Vector2> pts, List<float> ds, float d, bool heart = false)
         {
             Vector2 p = OnTrack(pts, ds, d, out Vector2 dir);
             var nrm = new Vector2(-dir.y, dir.x);
@@ -418,19 +425,20 @@ namespace AntGarden
             // behind it) walks past them, not through them
             Vector2 away = (foot - p).sqrMagnitude > 1e-4f ? (foot - p).normalized : nrm * sideSign;
             float awayAngle = Mathf.Atan2(away.y, away.x);
-            int n = 6 + (int)(R() * 5);
+            int n = heart ? 2 + (int)(R() * 2) : 6 + (int)(R() * 5);
             for (int i = 0; i < n; i++)
             {
                 float a = awayAngle + U(-1.4f, 1.4f), rad = U(0.15f, 1.2f);
                 var at = new Vector2(foot.x + Mathf.Cos(a) * rad, foot.y + Mathf.Sin(a) * rad);
                 if (!lab.OnFloor(at, 0.05f) || (at - p).magnitude < 0.9f) continue;
+                if (heart && (at - lab.Heart).magnitude < 1.9f) continue;   // clear of the heart's thing
                 var outward = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a));
                 Vector3 dir0 = (Vector3.up + outward * U(0.1f, 0.6f) + Rand3() * 0.3f).normalized;
-                float len = R() < 0.25f ? U(4f, 7f) : U(1.2f, 4f);
+                float len = heart ? U(0.8f, 1.8f) : R() < 0.25f ? U(4f, 7f) : U(1.2f, 4f);
                 Walk(new Vector3(at.x, lab.WalkHeight(at) + 0.02f, at.y), dir0, len, Vector3.up * U(0.3f, 0.9f) + outward * U(-0.1f, 0.25f),
                     1f, U(0.025f, 0.05f), d, 0, true, 0.5f);
             }
-            for (int i = 0; i < 3; i++)
+            for (int i = 0, tangles = heart ? 1 : 3; i < tangles; i++)
             {
                 // the tangle on the floor at its foot
                 float a = awayAngle + U(-1.6f, 1.6f);
@@ -452,15 +460,19 @@ namespace AntGarden
         {
             var vr = new System.Random(9001);
             float V() => (float)vr.NextDouble();
-            int start = into.Count;
+            int start = into.Count, cleared = 0;
             int[] cool = { 0, 1, 2, 6 };
+            // a heart with its own thing (NestTheme.heart) stands clear: no vine rooted round it (they were a thicket there)
+            bool clearHeart = !string.IsNullOrEmpty((NestTheme.Current ?? NestTheme.Cyan).heart);
             foreach (Vine v in vines)
             {
                 int n = v.pts.Count;
                 if (n < 2) continue;
+                if (clearHeart && (new Vector2(v.pts[0].x, v.pts[0].z) - lab.Heart).sqrMagnitude < 4.2f * 4.2f) { cleared++; continue; }
                 float len = Mathf.Max(1e-3f, v.s[n - 1]);
                 Color stem = body != null && body.Length >= 8 ? body[(int)(V() * 6) % 6].linear : new Color(0.32f, 0.42f, 0.38f);
-                stem = Color.Lerp(stem, (NestTheme.Current ?? NestTheme.Cyan).vineDark, 0.5f + 0.25f * V());   // darker than the plants
+                NestTheme nt = NestTheme.Current ?? NestTheme.Cyan;
+                stem = Color.Lerp(stem, nt.vineDark, Mathf.Min(1f, nt.vineDarken + 0.25f * V()));   // darker than the plants
                 Color light = (glowPal != null && glowPal.Length >= 8 ? glowPal[cool[(int)(V() * 4) % 4]].linear : new Color(0.4f, 0.85f, 0.85f))
                     * (NestTheme.Current ?? NestTheme.Cyan).vineGlow;
                 bool vein = V() < 0.55f, leaves = V() < 0.45f;
@@ -485,7 +497,9 @@ namespace AntGarden
                     float node = 1f + 0.25f * Mathf.Pow(Mathf.Max(0f, Mathf.Cos(s0 / nodes * 6.283f)), 24f);
                     float r = Mathf.Lerp(v.r0, v.r1, Mathf.Pow(u, 0.8f)) * node;
                     float area = 6.283f * r * seg;
-                    int k = Mathf.Max(3, Mathf.RoundToInt(area * vineDensity));
+                    // (made SolidThings.Fine times as dense, ranked: the shader keeps a quarter of them from a few units
+                    // off, larger, and all of them right in front of the camera)
+                    int k = Mathf.Max(3, Mathf.RoundToInt(area * vineDensity * SolidThings.Fine));
                     float rad = 0.62f * Mathf.Sqrt(area / k);
                     for (int j = 0; j < k; j++)
                     {
@@ -511,7 +525,7 @@ namespace AntGarden
                             glow = Mathf.Max(glow, 0.4f * tu);
                             c = Color.Lerp(c, light * 0.5f, 0.5f * tu);
                         }
-                        into.Add(ThingPen.Splat(p, dir, c, rad * (0.8f + 0.4f * V()), glow));
+                        into.Add(ThingPen.Ranked(ThingPen.Splat(p, dir, c, rad * (0.8f + 0.4f * V()), glow), j, k));
                     }
                     // small leaves in pairs now and then, leaning toward the tip
                     if (v.s[i] > nextLeaf && u < 0.85f)
@@ -526,7 +540,7 @@ namespace AntGarden
                     }
                 }
             }
-            Debug.Log($"[AntGarden] vines: {vines.Count}, {into.Count - start} splats");
+            Debug.Log($"[AntGarden] vines: {vines.Count - cleared}, {into.Count - start} splats" + (cleared > 0 ? $" ({cleared} round the heart left out)" : ""));
         }
 
         /// <summary>A small leaf from at, reaching along, a little greener and lighter than its stem, its middle
@@ -539,7 +553,7 @@ namespace AntGarden
             Vector3 nrm = Vector3.Cross(across, along).normalized;
             Color leaf = Color.Lerp(stem, (NestTheme.Current ?? NestTheme.Cyan).vineLeaf, 0.5f) * 1.2f;
             float w = length * 0.42f;
-            int k = Mathf.Max(8, Mathf.RoundToInt(length * w * 2.4f * vineDensity));
+            int k = Mathf.Max(8, Mathf.RoundToInt(length * w * 2.4f * vineDensity * SolidThings.Fine));
             float rad = 0.62f * Mathf.Sqrt(length * w * 1.6f / k);
             for (int j = 0; j < k; j++)
             {
@@ -547,7 +561,7 @@ namespace AntGarden
                 float half = Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Min(1f, x * 1.05f)), 0.8f);
                 Vector3 p = at + along * (x * length) + across * (y * half * w) + nrm * (0.25f * w * x * x);
                 float vein = Mathf.Abs(y) < 0.12f ? 1.15f : 1f;
-                into.Add(ThingPen.Splat(p, nrm, leaf * (vein * (0.8f + 0.35f * V())), rad * (0.8f + 0.4f * V()), 0f));
+                into.Add(ThingPen.Ranked(ThingPen.Splat(p, nrm, leaf * (vein * (0.8f + 0.35f * V())), rad * (0.8f + 0.4f * V()), 0f), j, k));
             }
         }
 

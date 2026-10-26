@@ -58,6 +58,7 @@ namespace AntGarden
         Transform ring;
         Rings.Draped playerRing;
         ParticleLook particleLook;
+        public ParticleLook Look => particleLook;   // checks
         int currentNest = -1, currentRegion = -1;
         float stepRun;              // ground walked since the last footstep sound
         float stepNext = 0.2f;      // and how far until the next one (uneven)
@@ -115,6 +116,8 @@ namespace AntGarden
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = cfg.display.targetFps;
             if (int.TryParse(Arg("-vsync"), out int vsync)) QualitySettings.vSyncCount = vsync;   // checks: paced by the display instead
+            if (Arg("-uncapped") != null) Application.targetFrameRate = -1;   // checks: how fast it could run (the headroom)
+            if (Arg("-mute") != null) AudioListener.volume = 0f;               // checks run at night: no sound at all
             // open in a window unless full screen was asked for on the command line (Unity would otherwise
             // reopen in whatever mode the last session ended in)
             if (Arg("-screen-fullscreen") != "1" && Screen.fullScreenMode != FullScreenMode.Windowed && !windowChecked)
@@ -408,7 +411,10 @@ namespace AntGarden
                 // the particle nest's white balance from its theme (a cool grade turns a warm nest's gold green)
                 var volume = FindObjectOfType<UnityEngine.Rendering.PostProcessing.PostProcessVolume>();
                 if (volume != null && volume.profile != null && volume.profile.TryGetSettings(out UnityEngine.Rendering.PostProcessing.ColorGrading grading))
+                {
                     grading.temperature.Override(NestTheme.Current.temperature);
+                    grading.saturation.Override(NestTheme.Current.saturation);
+                }
                 if (volume != null && volume.profile != null && volume.profile.TryGetSettings(out UnityEngine.Rendering.PostProcessing.Bloom bloom))
                     bloom.color.Override(NestTheme.Current.bloomTint);
             }
@@ -660,13 +666,16 @@ namespace AntGarden
         /// <summary>The particle nest's own plants: where they grow from the way, how far apart, how tall.</summary>
         static ScatterRule[] LabPlants() => new[]
         {
-            new ScatterRule { plant = "curl_a_crozier", dMin = -0.6f, dMax = 4f, spacing = 8.5f, height = new Vector2(1.4f, 3.0f), tilt = 0.2f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2) },
-            new ScatterRule { plant = "curl_b_double", dMin = -0.4f, dMax = 4.5f, spacing = 10f, height = new Vector2(1.6f, 3.2f), tilt = 0.2f, tintJitter = 0.08f },
-            new ScatterRule { plant = "curl_c_hook", dMin = -0.6f, dMax = 4f, spacing = 9.5f, height = new Vector2(1.4f, 2.8f), tilt = 0.2f, tintJitter = 0.08f, cluster = new Vector2Int(1, 3) },
-            new ScatterRule { plant = "curl_d_cluster", dMin = -1f, dMax = 3.5f, spacing = 11f, height = new Vector2(1.1f, 2.2f), tilt = 0.35f, tintJitter = 0.1f },
-            new ScatterRule { plant = "puff_b_lantern", dMin = -0.5f, dMax = 5f, spacing = 11f, height = new Vector2(1.6f, 3.0f), tilt = 0.15f, tintJitter = 0.08f },
-            new ScatterRule { plant = "coral_b_branching", dMin = -1.2f, dMax = 3.5f, spacing = 9f, height = new Vector2(0.9f, 1.8f), tilt = 0.4f, tintJitter = 0.1f, cluster = new Vector2Int(1, 2) },
-            new ScatterRule { plant = "frond_a_feather", dMin = -0.4f, dMax = 5f, spacing = 8f, height = new Vector2(1.4f, 3.2f), tilt = 0.25f, tintJitter = 0.1f, cluster = new Vector2Int(1, 3) },
+            // (about 1.4 times the size they first had: giant plants to an ant, big enough on the screen for their detail)
+            new ScatterRule { plant = "curl_a_crozier", dMin = -0.6f, dMax = 4.5f, spacing = 10f, height = new Vector2(2.0f, 4.2f), tilt = 0.2f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2) },
+            new ScatterRule { plant = "curl_b_double", dMin = -0.4f, dMax = 5f, spacing = 12f, height = new Vector2(2.2f, 4.4f), tilt = 0.2f, tintJitter = 0.08f },
+            new ScatterRule { plant = "curl_c_hook", dMin = -0.6f, dMax = 4.5f, spacing = 11f, height = new Vector2(2.0f, 3.9f), tilt = 0.2f, tintJitter = 0.08f, cluster = new Vector2Int(1, 3) },
+            new ScatterRule { plant = "curl_d_cluster", dMin = -1f, dMax = 4f, spacing = 13f, height = new Vector2(1.6f, 3.1f), tilt = 0.35f, tintJitter = 0.1f },
+            new ScatterRule { plant = "puff_b_lantern", dMin = -0.5f, dMax = 5.5f, spacing = 13f, height = new Vector2(2.2f, 4.2f), tilt = 0.15f, tintJitter = 0.08f },
+            new ScatterRule { plant = "coral_b_branching", dMin = -1.2f, dMax = 4f, spacing = 11f, height = new Vector2(1.3f, 2.5f), tilt = 0.4f, tintJitter = 0.1f, cluster = new Vector2Int(1, 2) },
+            new ScatterRule { plant = "frond_a_feather", dMin = -0.4f, dMax = 5.5f, spacing = 10f, height = new Vector2(2.0f, 4.4f), tilt = 0.25f, tintJitter = 0.1f, cluster = new Vector2Int(1, 3) },
+            new ScatterRule { plant = "curl_e_corkscrew", dMin = -0.5f, dMax = 5f, spacing = 12f, height = new Vector2(2.0f, 3.8f), tilt = 0.2f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2) },
+            new ScatterRule { plant = "puff_a_stalked", dMin = -0.5f, dMax = 5f, spacing = 12f, height = new Vector2(1.8f, 3.4f), tilt = 0.15f, tintJitter = 0.08f, cluster = new Vector2Int(1, 3) },
         };
 
         /// <summary>Animation check: the player's ant becomes another species, in place (camera and ring stay).</summary>
@@ -942,7 +951,7 @@ namespace AntGarden
                 WExit pick = free.Find(ex => biome != null && world.regions[ex.region].biome.id == biome) ?? free[0];
                 free.Remove(pick);
                 Color c = dest.Contains("#") ? new Color(1f, 0.78f, 0.42f) : dest == home ? new Color(0.72f, 1f, 0.85f) : new Color(0.7f, 0.88f, 1f);
-                if (NestTheme.Current != null) c = NestTheme.Current.threadHalo;   // a particle nest: its gates in its own light
+                if (NestTheme.Current != null) c = NestTheme.Current.threadHalo * NestTheme.Current.gateGain;   // a particle nest: its gates in its own light
                 gates.Add(Gates.WorldGate(world, refs, cfg.gates, parent, pick, dest, c));
                 made++;
             }
@@ -950,7 +959,7 @@ namespace AntGarden
             if (Selection != home)
                 foreach (WExit ex in free)
                 {
-                    gates.Add(Gates.WorldGate(world, refs, cfg.gates, parent, ex, home, NestTheme.Current != null ? NestTheme.Current.threadHalo : new Color(0.72f, 1f, 0.85f)));
+                    gates.Add(Gates.WorldGate(world, refs, cfg.gates, parent, ex, home, NestTheme.Current != null ? NestTheme.Current.threadHalo * NestTheme.Current.gateGain : new Color(0.72f, 1f, 0.85f)));
                     made++;
                 }
             Debug.Log($"[AntGarden] world gates {made} (exits {world.exits.Count}): {string.Join(", ", gates.FindAll(g => g.world != null).ConvertAll(g => g.world))}");

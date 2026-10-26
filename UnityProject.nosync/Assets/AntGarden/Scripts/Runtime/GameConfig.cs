@@ -24,8 +24,11 @@ namespace AntGarden
         public bool seamBlend = true;       // different grounds interleave in patches across a seam (false: a line)
         public bool particleLook = false;   // experiment: plants and ground as glowing points round the ant (P toggles)
         // the particle nests, one per segment of the room lights' colour wheel (NestTheme), on the map's world row:
-        // cyan, the blue fungal forest (chapter one); orange, the warm amber nest; red, the ancient temple's kiln
-        public string labWorld = "lab:path-012@blue,lab:path-010@amber,lab:path-007@kiln";
+        // the particle nests, one for each segment of the room lights' colour wheel, in its order: red, the ancient
+        // temple's kiln; orange, the warm amber nest; yellow, the honeypot granary; chartreuse, the leafcutters' garden;
+        // green, the moss forest; spring green, the verdigris city; cyan, the blue fungal forest (chapter one); azure,
+        // the giant's relics; blue, the rain cistern
+        public string labWorld = "lab:path-007@kiln,lab:path-010@amber,lab:path-005@honey,lab:path-009@leafcut,lab:path-011@moss,lab:path-013@verdigris,lab:path-012@blue,lab:path-003@azure,lab:path-006@cistern";
         public float labWidth = 0.55f;      // its canyons, narrowed into passages
         public string labExtraPlants = "thorn_succulent,fungus_garden,dry_grass_tuft,dry_mushroom,soil_spire,amber_resin,seed_pile";   // grown in the particle nest too
         public ScatterSettings scatter = new ScatterSettings();
@@ -103,9 +106,9 @@ namespace AntGarden
             },
             new Biome
             {
-                // a preview of the The Honeypot Granary segment (NestTheme.Honey): only colours and plants of its own so far
-                id = "honey", displayName = "蜜罐粮仓（预览）", displayNameEn = "The Honeypot Granary",
-                groundSet = "amber", terrainHue = 12, terrainSaturation = 1f, mapHue = 12, mapSaturation = 1f,
+                // the first version of the The Honeypot Granary segment (NestTheme.Honey): its palette, plants and a few things of its own
+                id = "honey", displayName = "蜜罐粮仓", displayNameEn = "The Honeypot Granary",
+                groundSet = "amber", terrainHue = -25, terrainSaturation = 1f, mapHue = 120, mapSaturation = 1f,
                 speckColor = new Color(1.00f, 0.92f, 0.35f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(1.00f, 0.92f, 0.35f), groundColor = new Color(0.15f, 0.10f, 0.04f),
                 antHue = 0, antSaturation = 1f,
                 fogColor = new Color(0.15f, 0.10f, 0.04f), ambientSky = new Color(0.40f, 0.32f, 0.12f), ambientEquator = new Color(0.40f, 0.32f, 0.12f), ambientGround = new Color(0.15f, 0.10f, 0.04f),
@@ -114,9 +117,9 @@ namespace AntGarden
             },
             new Biome
             {
-                // a preview of the The Leafcutters' Garden segment (NestTheme.Leafcut): only colours and plants of its own so far
-                id = "leafcut", displayName = "切叶蚁菌圃（预览）", displayNameEn = "The Leafcutters' Garden",
-                groundSet = "blue", terrainHue = -80, terrainSaturation = 1f, mapHue = -80, mapSaturation = 1f,
+                // the first version of the The Leafcutters' Garden segment (NestTheme.Leafcut): its palette, plants and a few things of its own
+                id = "leafcut", displayName = "切叶蚁菌圃", displayNameEn = "The Leafcutters' Garden",
+                groundSet = "blue", terrainHue = 90, terrainSaturation = 1f, mapHue = 90, mapSaturation = 1f,
                 speckColor = new Color(0.75f, 1.00f, 0.35f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(0.75f, 1.00f, 0.35f), groundColor = new Color(0.10f, 0.11f, 0.04f),
                 antHue = 0, antSaturation = 1f,
                 fogColor = new Color(0.10f, 0.11f, 0.04f), ambientSky = new Color(0.30f, 0.36f, 0.12f), ambientEquator = new Color(0.30f, 0.36f, 0.12f), ambientGround = new Color(0.10f, 0.11f, 0.04f),
@@ -125,9 +128,9 @@ namespace AntGarden
             },
             new Biome
             {
-                // a preview of the The Moss Forest segment (NestTheme.Moss): only colours and plants of its own so far
-                id = "moss", displayName = "苔藓森林（预览）", displayNameEn = "The Moss Forest",
-                groundSet = "blue", terrainHue = -55, terrainSaturation = 1f, mapHue = -55, mapSaturation = 1f,
+                // the first version of the The Moss Forest segment (NestTheme.Moss): its palette, plants and a few things of its own
+                id = "moss", displayName = "苔藓森林", displayNameEn = "The Moss Forest",
+                groundSet = "blue", terrainHue = 55, terrainSaturation = 1f, mapHue = 55, mapSaturation = 1f,
                 speckColor = new Color(0.50f, 1.00f, 0.50f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(0.50f, 1.00f, 0.50f), groundColor = new Color(0.05f, 0.11f, 0.05f),
                 antHue = 0, antSaturation = 1f,
                 fogColor = new Color(0.05f, 0.11f, 0.05f), ambientSky = new Color(0.16f, 0.34f, 0.16f), ambientEquator = new Color(0.16f, 0.34f, 0.16f), ambientGround = new Color(0.05f, 0.11f, 0.05f),
@@ -136,14 +139,36 @@ namespace AntGarden
             },
             new Biome
             {
-                // a preview of the The Verdigris City segment (NestTheme.Verdigris): only colours and plants of its own so far
-                id = "verdigris", displayName = "铜绿机城（预览）", displayNameEn = "The Verdigris City",
-                groundSet = "blue", terrainHue = -25, terrainSaturation = 1f, mapHue = -25, mapSaturation = 1f,
+                // the first version of the The Verdigris City segment (NestTheme.Verdigris): its palette, plants and a few things of its own
+                id = "verdigris", displayName = "铜绿机城", displayNameEn = "The Verdigris City",
+                groundSet = "blue", terrainHue = 25, terrainSaturation = 1f, mapHue = 25, mapSaturation = 1f,
                 speckColor = new Color(0.55f, 1.00f, 0.82f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(0.55f, 1.00f, 0.82f), groundColor = new Color(0.05f, 0.12f, 0.11f),
                 antHue = 0, antSaturation = 1f,
                 fogColor = new Color(0.05f, 0.12f, 0.11f), ambientSky = new Color(0.14f, 0.34f, 0.30f), ambientEquator = new Color(0.14f, 0.34f, 0.30f), ambientGround = new Color(0.05f, 0.12f, 0.11f),
                 moonColor = new Color(0.80f, 1.00f, 0.92f), skyTop = new Color(0.05f, 0.12f, 0.11f), skyHorizon = new Color(0.14f, 0.34f, 0.30f),
                 rimColor = new Color(0.55f, 1.00f, 0.82f), gateColor = new Color(0.55f, 1.00f, 0.82f),
+            },
+            new Biome
+            {
+                // the first version of the The Giant's Relics segment (NestTheme.Azure): its palette, plants and a few things of its own
+                id = "azure", displayName = "巨人遗物", displayNameEn = "The Giant's Relics",
+                groundSet = "blue", terrainHue = -30, terrainSaturation = 1f, mapHue = -30, mapSaturation = 1f,
+                speckColor = new Color(0.45f, 0.82f, 1.00f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(0.45f, 0.82f, 1.00f), groundColor = new Color(0.03f, 0.08f, 0.14f),
+                antHue = 0, antSaturation = 1f,
+                fogColor = new Color(0.03f, 0.08f, 0.14f), ambientSky = new Color(0.14f, 0.30f, 0.46f), ambientEquator = new Color(0.14f, 0.30f, 0.46f), ambientGround = new Color(0.03f, 0.08f, 0.14f),
+                moonColor = new Color(0.80f, 0.90f, 1.00f), skyTop = new Color(0.03f, 0.08f, 0.14f), skyHorizon = new Color(0.14f, 0.30f, 0.46f),
+                rimColor = new Color(0.45f, 0.82f, 1.00f), gateColor = new Color(0.45f, 0.82f, 1.00f),
+            },
+            new Biome
+            {
+                // the first version of the The Rain Cistern segment (NestTheme.Blue): its palette, plants and a few things of its own
+                id = "cistern", displayName = "雨水潭", displayNameEn = "The Rain Cistern",
+                groundSet = "blue", terrainHue = -60, terrainSaturation = 1f, mapHue = -60, mapSaturation = 1f,
+                speckColor = new Color(0.45f, 0.52f, 1.00f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(0.45f, 0.52f, 1.00f), groundColor = new Color(0.03f, 0.04f, 0.12f),
+                antHue = 0, antSaturation = 1f,
+                fogColor = new Color(0.03f, 0.04f, 0.12f), ambientSky = new Color(0.12f, 0.16f, 0.42f), ambientEquator = new Color(0.12f, 0.16f, 0.42f), ambientGround = new Color(0.03f, 0.04f, 0.12f),
+                moonColor = new Color(0.80f, 0.84f, 1.00f), skyTop = new Color(0.03f, 0.04f, 0.12f), skyHorizon = new Color(0.12f, 0.16f, 0.42f),
+                rimColor = new Color(0.45f, 0.52f, 1.00f), gateColor = new Color(0.45f, 0.52f, 1.00f),
             },
         };
 

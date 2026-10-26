@@ -50,6 +50,9 @@ namespace AntGarden
                     if (glow.NearestTouchable(new Vector3(t[i].x, 0, t[i].y), 1.6f, tall, out Vector3 g)) { thing = g; at = i; }
                 if (at >= 0) break;
             }
+            // (none in the middle half: anywhere along the way, a little further off it)
+            for (int i = 4; i < t.Count - 4 && at < 0; i++)
+                if (glow.NearestTouchable(new Vector3(t[i].x, 0, t[i].y), 2.4f, 0f, out Vector3 g)) { thing = g; at = i; }
             if (at < 0)
             {
                 Debug.LogWarning("[AntGarden] interactshots: nothing to touch near the way");
@@ -63,11 +66,13 @@ namespace AntGarden
             DemoMode.PlaceFacing(game, t[back], target);
             DemoMode.Shot(game, game.cfg.camera.distance * 0.8f, game.cfg.camera.pitch);
             yield return new WaitForSeconds(2.5f);
+            yield return SceneShots.ShellSettles();
             yield return Grab(Path.Combine(dir, "1_idle.png"));
 
             // 2 touched: lit as an antenna would light it (at the top of its flare)
             glow.TouchNearest(thing, 0.5f);
             yield return new WaitForSeconds(0.6f);
+            yield return SceneShots.ShellSettles();
             yield return Grab(Path.Combine(dir, "2_touched.png"));
             yield return new WaitForSeconds(6f);   // its flare fades
 
@@ -81,6 +86,7 @@ namespace AntGarden
             }
             game.demoKeys = Vector2.zero;
             yield return new WaitForSeconds(1.0f);
+            yield return SceneShots.ShellSettles();
             yield return Grab(Path.Combine(dir, "3_walked_past.png"));
 
             // 3b where a nest's buildings light only in parts (the kiln's temple): one of its spires, idle and touched
@@ -91,10 +97,12 @@ namespace AntGarden
                     DemoMode.PlaceFacing(game, a + (a - c).normalized * 1.2f, c);   // on the way, a little back from it
                     DemoMode.Shot(game, game.cfg.camera.distance, game.cfg.camera.pitch * 0.7f);
                     yield return new WaitForSeconds(2.5f);
-                    yield return Grab(Path.Combine(dir, "5_building_idle.png"));
+                    yield return SceneShots.ShellSettles();
+            yield return Grab(Path.Combine(dir, "5_building_idle.png"));
                     glow.TouchNearest(new Vector3(c.x, 0, c.y), 1.5f);
                     yield return new WaitForSeconds(0.6f);
-                    yield return Grab(Path.Combine(dir, "6_building_touched.png"));
+                    yield return SceneShots.ShellSettles();
+            yield return Grab(Path.Combine(dir, "6_building_touched.png"));
                     yield return new WaitForSeconds(6f);
                     break;
                 }
@@ -108,10 +116,19 @@ namespace AntGarden
             DemoMode.Shot(game, game.cfg.camera.distance, game.cfg.camera.pitch);
             yield return new WaitForSeconds(0.6f);
             game.demoKeys = null;
+            bool settled = false;
             for (float s = 0; s < 9f; s += Time.deltaTime)
             {
                 Vector2 me = DemoMode.Pos(game);
                 if ((me - heart).magnitude < 3.0f) break;
+                if (!settled && (me - heart).magnitude < 4.8f)
+                {
+                    // the plants' fine splats made before the chapter closes (its card shows five seconds; in a big
+                    // nest the shell took longer than that to settle after it, and the still missed the card)
+                    game.demoMove = Vector2.zero;
+                    yield return SceneShots.ShellSettles();
+                    settled = true;
+                }
                 while (next < hi && (t[next] - me).sqrMagnitude < 2.5f * 2.5f) next++;
                 Vector2 d = (next < hi ? t[next] : heart) - me;
                 game.demoMove = d.sqrMagnitude < 0.25f ? Vector2.zero : d.normalized;
@@ -119,7 +136,8 @@ namespace AntGarden
             }
             game.demoMove = Vector2.zero;
             game.demoKeys = Vector2.zero;
-            yield return new WaitForSeconds(1.4f);
+            yield return new WaitForSeconds(1.0f);
+            yield return SceneShots.ShellSettles();
             yield return Grab(Path.Combine(dir, "4_heart.png"));
 
             File.WriteAllText(Path.Combine(dir, "done.txt"), game.world.label + "\n");

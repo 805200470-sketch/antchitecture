@@ -57,6 +57,12 @@ namespace AntGarden
         /// <summary>How many splats cover this much surface (unit²) at PerArea, at least min.</summary>
         public int Count(float area, int min = 8) => Mathf.Max(min, Mathf.RoundToInt(area * PerArea));
 
+        /// <summary>The floor's things' usual density (splats per unit²), which their caps were set for.</summary>
+        public const float Sparse = 2200f;
+
+        /// <summary>The most splats a thing may have: baseCap at the usual density, more as the pen is made denser.</summary>
+        public int Cap(int baseCap) => Mathf.RoundToInt(baseCap * Mathf.Max(1f, PerArea / Sparse));
+
         /// <summary>A splat's radius that covers a surface at PerArea, varied the way a capture's are: most near the
         /// middle size, some smaller, a few much larger (times scale).</summary>
         public float Radius(float scale = 1f)
@@ -75,7 +81,7 @@ namespace AntGarden
                 float lum = albedo.r * 0.3f + albedo.g * 0.55f + albedo.b * 0.15f;
                 albedo = Color.Lerp(Tint * (lum * 2.1f), albedo, Keep);
             }
-            into.Add(new SolidPoint { pos = pos, nrm = EncodeNormal(normal), col = Pack(albedo, glow), radius = radius });
+            into.Add(new SolidPoint { pos = pos, nrm = PackNormal(normal), col = Pack(albedo, glow), radius = radius });
         }
 
         /// <summary>A normal from its two 16-bit halves (EncodeNormal's inverse).</summary>
@@ -94,7 +100,36 @@ namespace AntGarden
 
         /// <summary>A splat as the solid shader takes it, from parts already worked out (packed colour and normal).</summary>
         public static SolidPoint Splat(Vector3 pos, Vector3 normal, Color albedo, float radius, float glow) =>
-            new SolidPoint { pos = pos, nrm = EncodeNormal(normal), col = Pack(albedo, glow), radius = radius };
+            new SolidPoint { pos = pos, nrm = PackNormal(normal), col = Pack(albedo, glow), radius = radius };
+
+        /// <summary>A splat's normal as the solid shader takes it: two 12-bit halves (octahedral); bits 24..30 are its rank
+        /// (WithRank) and bit 31 a building's flag (Building).</summary>
+        public static uint PackNormal(Vector3 n)
+        {
+            uint e = EncodeNormal(n);
+            return ((e & 0xFFFFu) >> 4) | ((e >> 20) << 12);
+        }
+
+        /// <summary>A splat's normal (PackNormal) back as a vector.</summary>
+        public static Vector3 UnpackNormal(uint e) => DecodeNormal(((e & 0xFFFu) << 4) | (((e >> 12) & 0xFFFu) << 20));
+
+        /// <summary>A fine splat's rank among its plant's (0..127 of 128): the shader keeps those its distance from the
+        /// camera wants (ParticleLook.SolidShell), so the plant's detail comes in smoothly as the camera nears it.</summary>
+        public static SolidPoint WithRank(SolidPoint p, int rank)
+        {
+            p.nrm = (p.nrm & ~(127u << 24)) | ((uint)Mathf.Clamp(rank, 0, 127) << 24);
+            return p;
+        }
+
+        /// <summary>A thing's or a vine's splat, j of a set of k that are drawn fewer and larger further off: its rank
+        /// (1..127) by j's place among the k, so the shader keeps the first quarter of every set at a quarter of the
+        /// density, the first half at half, all of them up close (Shaders/ParticleSolid.shader, _ThingNear; rank 0 is
+        /// never thinned).</summary>
+        public static SolidPoint Ranked(SolidPoint p, int j, int k)
+        {
+            k = Mathf.Max(1, k);
+            return WithRank(p, 1 + (int)(((long)j * 127 + k - 1) / k));
+        }
 
         /// <summary>A normal as two 16-bit halves (octahedral).</summary>
         public static uint EncodeNormal(Vector3 n)
@@ -110,14 +145,14 @@ namespace AntGarden
             }
             uint a = (uint)Mathf.Clamp(Mathf.RoundToInt((x * 0.5f + 0.5f) * 65535f), 0, 65535);
             uint b = (uint)Mathf.Clamp(Mathf.RoundToInt((y * 0.5f + 0.5f) * 65535f), 0, 65535);
-            return (a & 0xFFFEu) | (b << 16);   // its lowest bit is kept for a flag (Building)
+            return a | (b << 16);
         }
 
         /// <summary>A splat of a building (Shaders/ParticleSolid.shader): walking past it or touching it lights only its
         /// glowing parts (its paths, a few points), not the whole of it.</summary>
         public static SolidPoint Building(SolidPoint p)
         {
-            p.nrm |= 1u;
+            p.nrm |= 1u << 31;
             return p;
         }
 

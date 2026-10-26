@@ -137,7 +137,7 @@ namespace AntGarden
         public static void FallenLeaf(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var f = new Frame(pen, p, n, ta, tb);
-            int end = pen.into.Count + Cap;
+            int end = pen.into.Count + pen.Cap(Cap);
             float L = Mathf.Max(size, 0.3f), Lp = 0.12f * L, r0 = R0(pen), rMin = 0.5f * r0;
             var b = new Blade
             {
@@ -237,7 +237,7 @@ namespace AntGarden
         public static void Twig(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var f = new Frame(pen, p, n, ta, tb);
-            int end = pen.into.Count + Cap;
+            int end = pen.into.Count + pen.Cap(Cap);
             float L = Mathf.Max(size, 0.3f), R = 0.06f + 0.12f * pen.R(), taper = 0.2f + 0.25f * pen.R();
             float bend = (pen.R() * 2f - 1f) * 0.06f, wig = 0.012f * pen.R(), ph = pen.R() * Tau;
             Color bark = Tint(pen, Color.Lerp(new Color(0.16f, 0.12f, 0.09f), new Color(0.12f, 0.13f, 0.14f), pen.R()));
@@ -349,7 +349,7 @@ namespace AntGarden
         public static void Petal(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var f = new Frame(pen, p, n, ta, tb);
-            int end = pen.into.Count + Cap;
+            int end = pen.into.Count + pen.Cap(Cap);
             float L = Mathf.Max(size, 0.2f), r0 = R0(pen);
             var b = new Blade
             {
@@ -400,7 +400,7 @@ namespace AntGarden
         public static void FallenBlossom(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var f = new Frame(pen, p, n, ta, tb);
-            int end = pen.into.Count + Cap;
+            int end = pen.into.Count + pen.Cap(Cap);
             float D = Mathf.Max(size, 0.3f), rc = D * (0.13f + 0.04f * pen.R()), pick = pen.R();
             Color body = Tint(pen, pick < 0.4f ? new Color(0.6f, 0.6f, 0.58f) : pick < 0.7f ? new Color(0.6f, 0.55f, 0.2f) : new Color(0.4f, 0.3f, 0.55f));
             Color root = Color.Lerp(Mul(body, 0.8f), new Color(0.5f, 0.4f, 0.08f), 0.3f), heart = Tint(pen, new Color(0.55f, 0.35f, 0.05f));
@@ -469,7 +469,7 @@ namespace AntGarden
         public static void Feather(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var f = new Frame(pen, p, n, ta, tb);
-            int end = pen.into.Count + Cap;
+            int end = pen.into.Count + pen.Cap(Cap);
             float L = Mathf.Max(size, 0.3f), rMin = 0.5f * R0(pen), xo = -0.5f * L;
             float bend = (pen.R() * 2f - 1f) * 0.06f, Wv = L * (0.2f + 0.1f * pen.R()), q0 = 0.1f + 0.04f * pen.R();
             float curl = 0.05f + 0.07f * pen.R(), bars = 4f + 3f * pen.R(), ph = pen.R() * Tau;
@@ -531,7 +531,7 @@ namespace AntGarden
         public static void FernFrond(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var f = new Frame(pen, p, n, ta, tb);
-            int end = pen.into.Count + Cap;
+            int end = pen.into.Count + pen.Cap(Cap);
             float L = Mathf.Max(size, 0.3f), rMin = 0.5f * R0(pen), xo = -0.5f * L;
             float bend = (pen.R() * 2f - 1f) * 0.12f, st = 0.16f + 0.06f * pen.R(), Lmax = L * (0.26f + 0.06f * pen.R());
             int per = 9 + (int)(pen.R() * 4.999f);
@@ -590,7 +590,7 @@ namespace AntGarden
         public static void Seed(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var f = new Frame(pen, p, n, ta, tb);
-            int end = pen.into.Count + Cap;
+            int end = pen.into.Count + pen.Cap(Cap);
             float L = Mathf.Max(size, 0.1f);
             if (pen.R() < 0.55f) StripedSeed(pen, f, end, L);
             else Acorn(pen, f, end, L);

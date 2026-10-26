@@ -62,8 +62,11 @@ Shader "AntGarden/LightThread"
                 if (i.knot > 0.5)
                 {
                     float r2 = dot(i.uv, i.uv);
-                    core = exp(-r2 * 18.0);
-                    halo = exp(-r2 * 3.0) * 0.35;
+                    // (to nothing at the sprite's round edge: a bright one's halo cut off by its square showed a frame)
+                    float edge = saturate(1 - r2);
+                    edge *= edge;
+                    core = exp(-r2 * 18.0) * edge;
+                    halo = exp(-r2 * 3.0) * 0.35 * edge;
                 }
                 else
                 {

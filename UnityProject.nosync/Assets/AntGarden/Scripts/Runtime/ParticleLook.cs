@@ -44,8 +44,12 @@ namespace AntGarden
         public bool solidPlants;
         public float solidCoarse = 240f;    // splats per unit² of a plant's surface in the coarse set (along the ways)
         public int solidCoarseBudget = 1500000;
-        public float solidFine = 1500f;     // and in the fine one, round the ant
-        public int solidFineCap = 42000;    // at most this many for one plant
+        public float solidFine = 1500f;     // and in the fine one, round the ant (as far from the camera as it thins to)
+        public int solidFineCap = 42000;    // at most this many for one plant (the old fine set; see solidNear)
+        public float solidNear = 16000f;    // the fine set right in front of the camera: splats per unit² (detail, form)
+        public float nearDist = 2.8f;       // within this of the camera a plant has all of them; further, fewer (1/d²)
+        public int solidNearCap = 200000;   // at most this many for one plant (all of a plant's stored points)
+        public int splitMax = 4;            // a big plant's stored points too few for solidNear: each near the camera drawn as up to this many
         public float solidAlbedo = 0.5f;    // how bright a plant's splats are lit (its dots' colours were for glowing)
         // plants whose glowing part is glass (a mesh can only make it an opaque lump): there a thin, broken shell of
         // splats round a light of its own inside, as a capture of something translucent looks
@@ -82,6 +86,8 @@ namespace AntGarden
             public Color glowDeep;          // its glow colour, deeper (the palette's glow colours are pale: as light they read white)
             public float ownHue, ownSat = 1;   // its region's turn of the texture's own colour (a blue plant in the amber nest)
             public bool building;              // a prop that lights only in its glowing parts (NestTheme.buildingsGlowInParts)
+            public bool far;                   // one of the huge trees beyond the walls (Scatter.Surroundings)
+            public string name;                // its plant's (checks)
             public float partFrom, partTo, partRel, partAmount;   // a part that glows a little in this nest only (NestTheme.glowParts)
             public Vector4[] core;          // and the light inside it: where (xyz), how far out (w, 0 middle .. 1 edge)
         }
@@ -586,12 +592,12 @@ namespace AntGarden
             {
                 pts = plant.points, raw = plant.pointColors, nrms = plant.pointNormals, density = plant.pointDensity, open = plant.pointOpen,
                 m = pi.t.localToWorldMatrix, pos = p0, reach = pi.t.lossyScale.y * 0.8f, area = area, top = st.top, meanLum = st.mean,
-                rigid = pi.relic,
+                rigid = pi.relic, name = plant.name, far = pi.far,
                 building = pi.relic && NestTheme.Current != null && NestTheme.Current.buildingsGlowInParts,
                 baseTint = Jitter(b0, hue, 0.8f + 0.3f * R()),
                 tipTint = Jitter(b1, hue + (R() - 0.5f) * 20f, 0.9f + 0.35f * R()),
                 glow = glowPal != null && pal != 63 ? HueShift(glowPal[(pal >> 3) & 7].linear, (R() - 0.5f) * 30f, 1f) : Color.white,
-                keepOwn = pi.relic ? 0.8f : 0.25f + 0.35f * R(),
+                keepOwn = pi.relic ? 0.8f : 0.5f + 0.3f * R(),   // mostly its own colours (their detail), the nest's palette over them
                 contrast = 1.1f + 0.25f * R(),
                 mottle = 0.06f + 0.16f * R(), mottleScale = 2.5f + 7f * R(), mottleSeed = R() * 97f,
                 band = R() < 0.3f ? 0.1f + 0.15f * R() : 0f, bandFreq = 8f + 22f * R(),
@@ -666,19 +672,99 @@ namespace AntGarden
         /// Replace, solid plants: the fine set for the plants round (x, z) (as far as reach and their own size), many
         /// splats per unit², small; into is cleared first. Plain arithmetic on arrays only: a worker thread may run it.
         /// </summary>
-        public void SolidShell(Vector2 at, float reach, List<SolidPoint> into)
+        /// <summary>Checks: the plant nearest p as the fine splats draw it seen from cam (how big it is, how many splats it
+        /// has there, how large each is on the screen).</summary>
+        public string DescribeNear(Vector3 p, Vector3 cam, float fovDeg, int screenH)
         {
-            into.Clear();
+            SolidSlot best = null;
+            float bd = 2.5f * 2.5f;
+            foreach (SolidSlot s in solidSlots)
+            {
+                float d = (new Vector2(s.pos.x - p.x, s.pos.z - p.z)).sqrMagnitude;
+                if (d < bd) { bd = d; best = s; }
+            }
+            if (best == null) return "no plant near";
+            int full = Mathf.Max(1, Mathf.Min(Mathf.Min(solidNearCap, best.pts.Length), Mathf.RoundToInt(best.area * solidNear)));
+            float r = Mathf.Max(0.0018f, 0.62f * Mathf.Sqrt(best.area / full));
+            float height = best.reach / 0.8f, dist = Vector3.Distance(cam, best.pos + Vector3.up * height * 0.5f);
+            float want = Mathf.Clamp(nearDist * nearDist / (dist * dist), Mathf.Clamp01(solidFine / solidNear), 1f);
+            float px = 2f * dist * Mathf.Tan(fovDeg * 0.5f * Mathf.Deg2Rad) / screenH;
+            int split = want > 0.2f && dist < nearDist * 1.6f ? Mathf.Clamp(Mathf.CeilToInt(best.area * solidNear / full - 0.25f), 1, splitMax) : 1;
+            if (split > 1) r *= 1.15f / Mathf.Sqrt(split);
+            return $"{best.name}: height {height:F2}, surface {best.area:F1} u², {best.pts.Length} points, {full} splats at full" + (split > 1 ? $" (each split in {split} up close)" : "")
+                + $", {want:P0} kept at {dist:F1} from the camera, dab {2 * r / Mathf.Sqrt(want) / px:F1} px across";
+        }
+
+        /// <summary>The fine splats of the plants round at (into, grown as needed; returns how many), made plant by plant
+        /// on all the cores.</summary>
+        public int SolidShell(Vector2 at, float reach, ref SolidPoint[] into, Vector3 cam, float slack)
+        {
+            float floor = Mathf.Clamp01(solidFine / solidNear);
+            var jobs = new List<(SolidSlot slot, int full, int n, float radius, int coreFull, int m, int at, int split)>();
+            int total = 0;
             foreach (SolidSlot slot in solidSlots)
             {
                 float dx = slot.pos.x - at.x, dz = slot.pos.z - at.y, r = reach + slot.reach;
                 if (dx * dx + dz * dz > r * r) continue;
-                int n = Mathf.Min(Mathf.Min(solidFineCap, slot.pts.Length), Mathf.RoundToInt(slot.area * solidFine));
-                float radius = Mathf.Max(0.004f, 0.62f * Mathf.Sqrt(slot.area / Mathf.Max(1, n)));
-                for (int k = 0; k < n; k++) into.Add(SolidSplat(slot, k, radius));
-                if (slot.core != null)
-                    for (int j = 0, m = Mathf.Min(slot.core.Length, n / 3); j < m; j++) into.Add(CoreSplat(slot, j, radius));
+                // as many splats as the nearest the camera may come to it before the shell is made again wants; each
+                // frame the shader keeps those its distance then wants (by their rank), the rest a little larger, so
+                // near the camera a plant shows its texture's detail and its form, further off it thins smoothly
+                float cx = slot.pos.x - cam.x, cz = slot.pos.z - cam.z;
+                float dc = Mathf.Max(0.4f, Mathf.Sqrt(cx * cx + cz * cz) - slot.reach * 0.5f - slack);
+                float want = Mathf.Clamp(nearDist * nearDist / (dc * dc), floor, 1f);
+                int full = Mathf.Max(1, Mathf.Min(Mathf.Min(solidNearCap, slot.pts.Length), Mathf.RoundToInt(slot.area * solidNear)));
+                int n = Mathf.Min(full, Mathf.CeilToInt(full * want));
+                float radius = Mathf.Max(0.0018f, 0.62f * Mathf.Sqrt(slot.area / full));
+                // a big plant whose stored points are too few for that (a giant mushroom, a boulder): near the camera
+                // each of them is drawn as several smaller ones, so its grain is as fine as what stands beside it
+                int split = want > 0.2f ? Mathf.Clamp(Mathf.CeilToInt(slot.area * solidNear / full - 0.25f), 1, splitMax) : 1;
+                // the light inside a glass plant: ranked as its shell is
+                int coreFull = slot.core != null ? Mathf.Min(slot.core.Length, Mathf.Max(1, full / 3)) : 0;
+                int m = slot.core != null ? Mathf.Min(coreFull, Mathf.CeilToInt(coreFull * want)) : 0;
+                jobs.Add((slot, full, n, radius, coreFull, m, total, split));
+                total += n * split + m;   // (the most it may make: only those near the camera are split)
             }
+            if (into == null || into.Length < total) into = new SolidPoint[Mathf.NextPowerOfTwo(Mathf.Max(1024, total))];
+            SolidPoint[] arr = into;
+            var made = new int[jobs.Count];
+            float splitReach = nearDist * 1.6f + slack;
+            // (on all but three cores: the main and render threads keep theirs, or a frame stalls while a big shell is made)
+            var cores = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = Mathf.Max(1, System.Environment.ProcessorCount - 3) };
+            System.Threading.Tasks.Parallel.For(0, jobs.Count, cores, j =>
+            {
+                var (slot, full, n, radius, coreFull, m, o, split) = jobs[j];
+                int w = o;
+                float near2 = split > 1 ? splitReach * splitReach : -1f, shrink = 1.15f / Mathf.Sqrt(split);
+                for (int k = 0; k < n; k++)
+                {
+                    int rank = k * 128 / full;
+                    SolidPoint sp = SolidSplat(slot, k, radius);
+                    if ((sp.pos - cam).sqrMagnitude >= near2) { arr[w++] = ThingPen.WithRank(sp, rank); continue; }
+                    Vector3 nn = ThingPen.UnpackNormal(sp.nrm);
+                    NestThingsGrowth.Perp(nn, out Vector3 u, out Vector3 v);
+                    uint flag = sp.nrm & (1u << 31);
+                    for (int c = 0; c < split; c++)
+                    {
+                        float h1 = PointHash(k * 7 + c * 131 + 17), h2 = PointHash(k * 7 + c * 131 + 29), h3 = PointHash(k * 7 + c * 131 + 41);
+                        float a = h1 * 6.2831853f, d = sp.radius * (c == 0 ? 0.25f * h2 : 0.9f * Mathf.Sqrt(h2));
+                        SolidPoint q = sp;
+                        q.pos = sp.pos + (u * Mathf.Cos(a) + v * Mathf.Sin(a)) * d;
+                        q.nrm = ThingPen.PackNormal(nn + (u * (h3 * 2f - 1f) + v * (h1 * 2f - 1f)) * 0.12f) | flag;
+                        q.radius = sp.radius * shrink * (0.85f + 0.3f * h3);
+                        arr[w++] = ThingPen.WithRank(q, rank);
+                    }
+                }
+                for (int c = 0; c < m; c++) arr[w++] = ThingPen.WithRank(CoreSplat(slot, c, radius), c * 128 / coreFull);
+                made[j] = w - o;
+            });
+            // close up the room left for splits that were not needed
+            int end = 0;
+            for (int j = 0; j < jobs.Count; j++)
+            {
+                if (jobs[j].at != end) System.Array.Copy(arr, jobs[j].at, arr, end, made[j]);
+                end += made[j];
+            }
+            return end;
         }
 
         /// <summary>
@@ -703,7 +789,7 @@ namespace AntGarden
             float lum = Mathf.Max(1e-4f, Lum(lin));
             // (a plant whose head glows: its texture's light and dark softened, so its pale head and dark stalk do not
             // read as two parts)
-            float rel = Mathf.Clamp(Mathf.Pow(lum / s.meanLum, s.glowFrom > 0 ? s.contrast * 0.55f : s.contrast), 0.05f, 3.2f);
+            float rel = Mathf.Clamp(Mathf.Pow(lum / s.meanLum, s.glowFrom > 0 ? s.contrast * 0.8f : s.contrast), 0.05f, 3.2f);
             // how much of the glowing part this point is: its texture's glowing parts; a plant whose head alone glows
             // grows into it over a soft band round where the head begins, not at a line; and a part glowing only in
             // this nest (a mushroom's gills), where its texture is light
@@ -748,6 +834,13 @@ namespace AntGarden
                 // pores; those lean to its glow colour
                 if (PointHash(k + 911) < 0.012f) glow = Mathf.Max(glow, 0.55f + 0.3f * PointHash(k + 913));
                 if (glow > 0) albedo = Color.Lerp(albedo, s.glowDeep * 0.55f, 0.6f * Mathf.Min(1f, glow));
+            }
+            if (s.far && th != null && th.farDim < 1f)
+            {
+                // a tree beyond the walls: a dark, muted shape in the fog
+                float l = Lum(albedo);
+                albedo = Color.Lerp(new Color(l, l, l), albedo, 0.5f) * th.farDim;
+                glow *= th.farDim * 0.5f;
             }
             if (s.glass && glows)
             {

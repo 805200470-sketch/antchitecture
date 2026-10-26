@@ -98,10 +98,18 @@ namespace AntGarden
                 UiKit.Button(row, Loc.T("出口 ", "Exit ") + (i + 1), new Vector2(90, 36), () => Jump(world, p, teleport), 16);
             }
             var mods = Row(root, "Modules", 40);
+            // the particle nests, one per colour of the room's lights, in a row of their own (short labels: there are many)
+            var nests = Row(root, "Nests", 144);
             foreach (string id in modules)
             {
+                if (!id.StartsWith("lab:")) continue;
+                string label = LabShort(id), target = id;
+                UiKit.Button(nests, label, new Vector2(Loc.En ? 128 : 156, 36), () => switchWorld(target), 15);
+            }
+            foreach (string id in modules)
+            {
+                if (id.StartsWith("lab:")) continue;
                 string label = id.StartsWith("honeycomb:") ? Loc.T("蚁穴群岛", "Archipelago")
-                    : id.StartsWith("lab:") ? LabLabel(id)
                     : id.Contains("#") ? RuinScene.Title(id.Substring(id.LastIndexOf('#') + 1))
                     : id.Contains("|") ? Loc.T("蚁穴群岛", "Archipelago")
                     : id.StartsWith("stitch:") ? Loc.T("拼接 ", "Stitch ") + id.Substring(id.LastIndexOf(':') + 1).Replace("path-", "").Replace(",", "+")
@@ -179,11 +187,12 @@ namespace AntGarden
         }
     
         /// <summary>A particle nest's button: its colour segment and its name.</summary>
-        static string LabLabel(string id)
+        static string LabShort(string id)
         {
             int at = id.LastIndexOf('@');
             NestTheme t = NestTheme.For(at >= 0 ? id.Substring(at + 1) : "blue");
-            return Loc.T($"粒子蚁穴 · {t.segmentZh} · {t.nameZh}", $"Particle Nest · {t.segmentEn} · {t.nameEn}");
+            return Loc.T($"{t.segmentZh} · {t.nameZh}", t.segmentEn);
         }
+
 }
 }
