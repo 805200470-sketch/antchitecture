@@ -8,4 +8,6 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/AntGarden/Scenes/Main.unity
     guid: 91e29e06260884021a7741355b0a98ab
-  m_configObjects: {}
+  m_configObjects:
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 74c08cd31339a46fabf92831fbd5c2c8, type: 2}
+    com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 5570f1c8a8dbd4de5a5b40b5e5529cb0, type: 2}

@@ -42,6 +42,7 @@ namespace AntGarden
         public List<Gate> gates = new List<Gate>();
         public CameraRig rig;
         public Camera cam;
+        VRPlayer vr;                       // a headset: the player sees through the ant's eyes (null: on the screen)
         public Hud hud;
         public BigMap bigmap;
         // demo recording: the script steers the ant instead of the keyboard
@@ -457,6 +458,14 @@ namespace AntGarden
             hud.SetHelp(world.label);
             if (Lab) hud.SetHelpVisible(false);   // chapter one: one goal at a time instead
             hud.HideLoading();
+            if (VRPlayer.Active)
+            {
+                // in a headset: through the ant's own eyes; the headset sets the pace of the frames
+                vr = gameObject.AddComponent<VRPlayer>();
+                vr.Init(cam, player, hud.canvas);
+                Application.targetFrameRate = -1;
+                QualitySettings.vSyncCount = 0;
+            }
             Ready = true;
             Debug.Log($"[AntGarden] ready: {world.label}");
             string capture = Arg("-capture");
@@ -971,6 +980,7 @@ namespace AntGarden
         /// <summary>Another app in front: drop to a low frame rate (recording and capture runs excepted).</summary>
         void OnApplicationFocus(bool focused)
         {
+            if (VRPlayer.Active) { Application.targetFrameRate = -1; return; }   // in a headset the window is rarely in front
             if (cfg == null || Arg("-capture") != null || Arg("-demo") != null || Arg("-photos") != null || Arg("-animcheck") != null || Arg("-lookcheck") != null || Arg("-npccheck") != null || Arg("-camcheck") != null || Arg("-sceneshots") != null || Arg("-legcheck") != null || Arg("-padcheck") != null || Arg("-trailfilm") != null || Arg("-interactshots") != null || Arg("-stuttercheck") != null) return;
             Application.targetFrameRate = focused ? cfg.display.targetFps : cfg.display.backgroundFps;
         }
@@ -1023,24 +1033,24 @@ namespace AntGarden
                     particleLook.SetOn(!particleLook.On);
                     hud.ShowLine(Loc.T("粒子化（实验）", "Particle look (experiment)"), particleLook.On ? Loc.T("开", "on") : Loc.T("关", "off"));
                 }
-                if (!mapOpen && (Input.GetKeyDown(KeyCode.Space) || (Pad.Back && !back)) && player.speed < 0.1f)
+                if (!mapOpen && (Input.GetKeyDown(KeyCode.Space) || (Pad.Back && !back) || (vr != null && vr.Talk)) && player.speed < 0.1f)
                 {
                     // reaching out with the antennae is also how you talk: to the ant or relic in front of you
                     if ((nearRuin != null || focusNpc) && nearPortal == null && nearWorldGate == null) Interact();
                     else player.PlayTalk();
                 }
-                if (!mapOpen && (Input.GetKeyDown(KeyCode.E) || Pad.Interact)) Interact();
+                if (!mapOpen && (Input.GetKeyDown(KeyCode.E) || Pad.Interact || (vr != null && vr.Interact))) Interact();
                 // on the map the left stick moves a cursor and A teleports there
                 if (mapOpen) bigmap.PadTick(Pad.Move, Pad.Interact, dt);
             }
 
-            var (fwd, right) = rig.Basis();
+            var (fwd, right) = vr != null ? vr.Basis() : rig.Basis();   // in a headset the ant walks the way the head faces
             float ix = (Key(KeyCode.D) || Key(KeyCode.RightArrow) ? 1 : 0) - (Key(KeyCode.A) || Key(KeyCode.LeftArrow) ? 1 : 0);
             float iz = (Key(KeyCode.W) || Key(KeyCode.UpArrow) ? 1 : 0) - (Key(KeyCode.S) || Key(KeyCode.DownArrow) ? 1 : 0);
-            Vector2 stick = demo || mapOpen ? Vector2.zero : Pad.Move;   // a gentle tilt walks slowly
+            Vector2 stick = demo || mapOpen ? Vector2.zero : Pad.Move + (vr != null ? vr.Move : Vector2.zero);   // a gentle tilt walks slowly
             Vector2 move = demo ? (demoKeys.HasValue ? fwd * demoKeys.Value.y + right * demoKeys.Value.x : demoMove)
                 : mapOpen ? Vector2.zero : fwd * (iz + stick.y) + right * (ix + stick.x);
-            bool fast = demo ? demoFast : !mapOpen && (Key(KeyCode.LeftShift) || Key(KeyCode.RightShift) || Pad.Run);
+            bool fast = demo ? demoFast : !mapOpen && (Key(KeyCode.LeftShift) || Key(KeyCode.RightShift) || Pad.Run || (vr != null && vr.Run));
             if (antGrid != null)
             {
                 antGrid.Clear();
@@ -1073,7 +1083,7 @@ namespace AntGarden
                 if (regionActive[n.region]) n.Tick(dt, player);
                 else if (regionWasActive[n.region]) n.ant.SetVisible(false);
             }
-            rig.Tick(dt, player, !mapOpen && !demo);
+            if (vr == null) rig.Tick(dt, player, !mapOpen && !demo);   // (in a headset the camera is the player's head)
             Atmosphere.Follow(spores, cam);
             playerRing.Drape(world, player.Position);   // it lies on the ground under the ant, following every bump
 
