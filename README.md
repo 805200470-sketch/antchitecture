@@ -173,7 +173,7 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
 | **粒子蚁穴的去留** | 实验分支上已经做到第十六版，暖琥珀蚁穴是第一个换色段的场景；要在 Windows 演示机上试帧率（第十二版在 Mac M3 Max 上约 57 帧，之后还没重新测），再决定要不要合进 `main` | `experiment/particle-look` |
 | **其余色段的场景** | 红 古蚁圣殿、天蓝 巨人遗物有效果图，还没做成场景；其余 8 段只有主题建议 | `02_Concepts/Particle_Styles_v1/`、`NestTheme.cs` |
 | **硬件灯光和游戏联动** | 色轮分段已定；灯的颜色怎么传给游戏（切换到对应的蚁穴）还没做 | 待定 |
-| **粒子蚁穴的通道宽度** | 现在 0.55（约 5 只蚂蚁宽），改窄到 0.40 还在考虑 | `GameConfig.cs` 的 `labWidth`，或启动参数 `-labwidth` |
+| **粒子蚁穴的通道宽度** | 不等宽、不太宽、沿路有宽窄（10-27 起）：地面宽 3.5–7.9，平均约 5.4 个蚁身；最窄处和洞室跟着 `labWidth` 0.55 | `GameConfig.cs` 的 `labWidth`、`labPassageSpread`、`labPassageSwell`、`labPassageWave`、`labPassageMax`；启动参数 `-labwidth`；改前对比 `-passages before` |
 | **背景音乐** | 还没做（音效已有，全部由程序合成） | `Scripts/Runtime/Sfx.cs`；试听 `Docs/音效试听/` |
 | **蜂巢细节** | 接缝已改成粒子 + 土色渗透（2026-10-16）；琥珀格怎么分布、外圈出口现在是死路，还没定 | `Docs/报告/2026-10-13_蜂巢拼接/` |
 | **遗迹和引路的反馈** | 2026-10-16 改完：隧道收窄、光点引路、隧道稍暗。还要在演示机上试玩，看光点够不够明显、暗度是否合适 | 视频在 Releases：`ruins_tunnels_guide_trail.mp4`；数值见上面 A 类 |

@@ -75,6 +75,15 @@ namespace AntGarden
             report.AppendLine($"theme {(NestTheme.Current ?? NestTheme.Cyan).id}, {Screen.width}x{Screen.height} at {hz:F0} Hz, vSyncCount {QualitySettings.vSyncCount}, targetFrameRate {Application.targetFrameRate}, quality {game.Preset.name}");
             report.AppendLine($"{ms.Count} frames in {sum / 1000f:F1} s: {ms.Count / (sum / 1000f):F1} fps; frame ms p50 {P(0.5f):F1}, p90 {P(0.9f):F1}, p99 {P(0.99f):F1}, max {sorted[sorted.Count - 1]:F1}");
             report.AppendLine($"uneven (more than 4 ms from the frame before): {uneven} ({100f * uneven / Mathf.Max(1, ms.Count - 1):F1}%); over 25 ms: {over25}; over 40 ms: {over40}");
+            // with the screen on, most frames sit right at the cap (76-97 % on 10-27); with the screen locked or dark
+            // the system paces the game itself (20-23 %, at 56-57 fps however much is drawn), and the times say nothing
+            if (Application.targetFrameRate > 0)
+            {
+                float cap = 1000f / Application.targetFrameRate;
+                int atCap = 0;
+                foreach (float m in ms) if (Mathf.Abs(m - cap) < 0.15f) atCap++;
+                report.AppendLine($"at the cap ({cap:F1} ms, within 0.15): {100f * atCap / Mathf.Max(1, ms.Count):F0}% of frames; focused {Application.isFocused}");
+            }
             int gcs = 0, made = 0, shown = 0;
             foreach (var f in frames) { if (f.gc) gcs++; made += f.made; shown += f.shown; }
             report.AppendLine($"garbage collections {gcs}, shells made {made}, swapped in {shown}");

@@ -69,7 +69,7 @@ Shader "AntGarden/MicroLife"
                 uint ci = id / 36, k = (id / 3) % 12;
                 Creature c = _Creatures[ci];
                 float kind = c.a.w, seed = c.b.x, size = c.b.y, range = c.b.z;
-                float t = _Time.y;
+                float t = AG_TIME;
                 float3 centre, fwd = float3(0, 0, 1), up = float3(0, 1, 0);
                 float vis = 1;
                 if (kind < 1.5)

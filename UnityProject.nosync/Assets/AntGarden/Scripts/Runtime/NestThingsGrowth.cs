@@ -68,6 +68,14 @@ namespace AntGarden
                 pen.Put(p + a * lp.x + n * lp.y + b * lp.z, a * ln.x + n * ln.y + b * ln.z, c, r, glow);
             }
 
+            /// <summary>As Put, the splat glossy (ThingPen.Glossy): honey, resin, a wet face.</summary>
+            public void PutGlossy(Vector3 lp, Vector3 ln, Color c, float r, float glow = 0f)
+            {
+                int before = pen.into.Count;
+                Put(lp, ln, c, r, glow);
+                if (pen.into.Count > before) pen.into[pen.into.Count - 1] = ThingPen.Glossy(pen.into[pen.into.Count - 1]);
+            }
+
             /// <summary>Colour c varied for one splat: its brightness by about amount, each channel a little.</summary>
             public Color V(Color c, float amount = 0.1f)
             {
@@ -153,11 +161,14 @@ namespace AntGarden
         /// <summary>
         /// A moss cushion: a lumpy low dome made of countless tiny upright fronds, dark green deep down and bright
         /// yellow-green at their tips, with 5 to 15 thin reddish stalks standing out of it, each nodding a small capsule.
-        /// size is its diameter (0.6 to 2).
+        /// In the moss forest (NestTheme.darkCushions) its body darker, the yellow-green at the frond tips only, and its
+        /// capsules lit at the mouth and its stalks a little toward the top, as the moss forest's own moss stalks are
+        /// (light, they were the biggest pale patches in its picture). size is its diameter (0.6 to 2).
         /// </summary>
         public static void MossCushion(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var s = new Spot(pen, p, n, ta, tb);
+            bool dark = NestTheme.Current != null && NestTheme.Current.darkCushions;
             float k = s.U(0.9f, 1.1f), w = s.U(-0.06f, 0.06f);
             Color deep = Tint(new Color(0.06f, 0.16f, 0.05f), k, w), tip = Tint(new Color(0.25f, 0.42f, 0.08f), k, w);
             Color seta = Tint(new Color(0.3f, 0.12f, 0.06f), k, w), capsule = Tint(new Color(0.35f, 0.25f, 0.1f), k, w);
@@ -188,8 +199,8 @@ namespace AntGarden
                 Vector3 rad = new Vector3(Mathf.Cos(th), 0f, Mathf.Sin(th)), side = new Vector3(-rad.z, 0f, rad.x);
                 Vector3 nrm = ((rad - side * (drho / rho)) * (qr / rho) + Vector3.up * (qy / h)).normalized;
                 Vector3 pos = rad * (rho * qr) + Vector3.up * (h * qy);
-                float tt = Mathf.Clamp01(0.3f + 0.5f * s.R() + 0.25f * qy) * Mathf.Clamp01(0.45f + qy * 3f);
-                if (s.R() < 0.15f) tt *= 0.35f;   // dark gaps between the fronds
+                float tt = Mathf.Clamp01((dark ? 0.1f : 0.3f) + 0.5f * s.R() + 0.25f * qy) * Mathf.Clamp01(0.45f + qy * 3f);
+                if (s.R() < (dark ? 0.3f : 0.15f)) tt *= 0.35f;   // dark gaps between the fronds
                 Vector3 fn = (nrm + new Vector3(s.S(), s.S(), s.S()) * 0.25f).normalized;
                 s.Put(pos + nrm * (s.S() * 0.008f), fn, s.V(Color.Lerp(deep, tip, tt)), s.Rad() * grow);
                 if ((i & 3) == 0)
@@ -218,7 +229,7 @@ namespace AntGarden
                 {
                     float f = q / 6f;
                     Vector3 cur = b0 + (Vector3.up * f + lean * (f * f)) * len;
-                    Tube(s, prev, cur, r, r * 0.95f, Color.Lerp(seta * 0.75f, seta, f - 1f / 6f), Color.Lerp(seta * 0.75f, seta, f));
+                    Tube(s, prev, cur, r, r * 0.95f, Color.Lerp(seta * 0.75f, seta, f - 1f / 6f), Color.Lerp(seta * 0.75f, seta, f), dark ? 0.1f * f * f : 0f);
                     prev = cur;
                 }
                 Vector3 dir = (Vector3.up + lean * 2.5f).normalized;
@@ -229,7 +240,9 @@ namespace AntGarden
                 for (int i = 0; i < m; i++)
                 {
                     Vector3 pos = OnEllipsoid(s, cc, u * cw, dir * cl, v * cw, out Vector3 nrm, out Vector3 q);
-                    s.Put(pos, nrm, s.V(Color.Lerp(capsule * 0.8f, capsule, 0.5f + 0.5f * q.y)), s.Rad(0.6f));
+                    Color col = s.V(Color.Lerp(capsule * 0.8f, capsule, 0.5f + 0.5f * q.y));
+                    bool mouth = dark && q.y > 0.7f;
+                    s.Put(pos, nrm, mouth ? new Color(0.95f, 0.92f, 0.75f) : col, s.Rad(0.6f), mouth ? 0.6f : 0f);
                 }
             }
         }

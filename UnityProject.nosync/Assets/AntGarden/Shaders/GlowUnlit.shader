@@ -22,6 +22,7 @@ Shader "AntGarden/GlowUnlit"
             #pragma multi_compile_instancing
             #pragma multi_compile_fog
             #include "UnityCG.cginc"
+            #include "AGClock.cginc"
 
             sampler2D _MainTex;
             UNITY_INSTANCING_BUFFER_START(Props)
@@ -47,7 +48,7 @@ Shader "AntGarden/GlowUnlit"
             {
                 UNITY_SETUP_INSTANCE_ID(i);
                 fixed4 c = UNITY_ACCESS_INSTANCED_PROP(Props, _Color) * tex2D(_MainTex, i.uv) * i.color;
-                float pulse = 0.8 + 0.2 * sin(_Time.y * 2.0);
+                float pulse = 0.8 + 0.2 * sin(AG_TIME * 2.0);
                 c.rgb *= c.a * pulse;
                 UNITY_APPLY_FOG_COLOR(i.fogCoord, c, fixed4(0, 0, 0, 0));
                 return c;

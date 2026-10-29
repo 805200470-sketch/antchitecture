@@ -45,6 +45,8 @@ Shader "AntGarden/ParticleCarpet"
             float4 _Fade;           // x: thinning out from, y: gone by (units from the ant)
             float4 _FloorTint, _TintFloor, _TintBank;   // the floor texture's tint; the floor's own tints (linear)
             float _Step, _N, _Size, _Gain, _MinPixels, _FloorScale, _HueShift, _Saturation, _MeanLum, _Grain, _TexMix;
+            float _Vary;    // how far its patches swing in hue (degrees; the nest's floorVary)
+            float4 _PatchA, _PatchB;   // patches of other materials on the floor (linear; a: how much; NestTheme.floorPatchA, B)
 
             struct v2f
             {
@@ -115,11 +117,15 @@ Shader "AntGarden/ParticleCarpet"
                 float lum = (0.3 * lw.r + 0.75 * lw.g) / max(1e-3, lw.r + lw.g) * (0.55 + 0.45 * lw.a);
                 lum *= lerp(1, clamp(0.08 + 0.92 * pow(rel, 2.0), 0.04, 3.2), _Grain) * (0.85 + 0.3 * Hash(cell + 3571));
                 float3 tint = (_TintFloor.rgb * lw.r + _TintBank.rgb * lw.g) / max(1e-3, lw.r + lw.g);
+                // patches of other materials on the floor (ParticleLook.FloorPatches makes the same on its points)
+                float fl = lw.r / max(1e-3, lw.r + lw.g);
+                tint = lerp(tint, _PatchA.rgb, _PatchA.a * fl * smoothstep(0, 1, (Patch(xz, 3.7, 63.1) - 0.42) / 0.25));
+                tint = lerp(tint, _PatchB.rgb, _PatchB.a * fl * smoothstep(0, 1, (Patch(xz, 2.9, 27.7) - 0.5) / 0.25));
                 float3 rgb = lerp(tint * lum, albedo * (lum / al), _TexMix) * _Gain;
-                // patches across the floor, some leaning teal-green, some blue-violet, lighter and darker; and a
-                // little drift from splat to splat, as in a capture
+                // patches across the floor, leaning one way and the other in hue, lighter and darker; and a little
+                // drift from splat to splat, as in a capture
                 float pa = Patch(xz, 2.8, 17.3), pb = Patch(xz, 1.1, 41.9);
-                rgb = AG_HueShift(rgb, (pa - 0.5) * 22 + (Hash(cell + 2741) - 0.5) * 12, 0.85 + 0.3 * pb);
+                rgb = AG_HueShift(rgb, (pa - 0.5) * _Vary + (Hash(cell + 2741) - 0.5) * 12, 0.85 + 0.3 * pb);
                 rgb *= 0.55 + 0.9 * pb * pa;
                 // dimmer toward the banks: the floor's edge fades into the walls' points
                 rgb *= smoothstep(0.25, 0.75, lw.r);
@@ -131,7 +137,7 @@ Shader "AntGarden/ParticleCarpet"
                 // guiding threads' pools of light
                 float rip = NestRipple(xz);
                 pos.y += 0.025 * rip;
-                rgb *= (1 + 1.4 * rip) * (1 + 0.16 * sin(dot(xz, float2(0.21, 0.13)) - _Time.y * 0.5));
+                rgb *= (1 + 1.4 * rip) * (1 + 0.16 * sin(dot(xz, float2(0.21, 0.13)) - AG_TIME * 0.5));
                 rgb += NestBeacon(pos) * _BeaconColor.rgb * 0.26 * soft;
                 float dist = distance(pos, _WorldSpaceCameraPos);
                 float pixel = 2 * dist / (unity_CameraProjection._m11 * _ScreenParams.y);

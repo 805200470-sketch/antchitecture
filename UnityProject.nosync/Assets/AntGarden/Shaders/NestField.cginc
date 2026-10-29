@@ -6,6 +6,7 @@
 // slow: the ant stays the thing that moves.
 #ifndef ANTGARDEN_NEST_FIELD
 #define ANTGARDEN_NEST_FIELD
+#include "AGClock.cginc"
 
 sampler2D _FloorHeightMap;
 float4 _FloorHeightRect;    // the height map's corner (x, z) and size (x, z); size 0: no map
@@ -29,7 +30,7 @@ float NestNoise2(float2 p)
 // (GlassLamps.cs reckons the same on the CPU)
 float NestBreath(float3 p)
 {
-    return 0.5 + 0.5 * sin(_Time.y * 0.55 + NestNoise2(p.xz * 0.35) * 6.2831853);
+    return 0.5 + 0.5 * sin(AG_TIME * 0.55 + NestNoise2(p.xz * 0.35) * 6.2831853);
 }
 
 // the floor's height under xz (the nearest sample; -1000 where there is no map)
@@ -46,7 +47,7 @@ float NestFloor(float2 xz)
 float3 NestSway(float3 p, float above, float seed)
 {
     if (_NestWind.x <= 0 || above <= 0.05) return 0;
-    float t = _Time.y;
+    float t = AG_TIME;
     float2 dir = normalize(float2(0.8, 0.6));
     float phase = dot(p.xz, dir) / max(0.5, _NestWind.z) - t * _NestWind.y;
     float gust = 0.6 * sin(phase) + 0.3 * sin(phase * 2.3 + 1.7) + 0.1 * sin(t * 1.7 + seed * 6.28);

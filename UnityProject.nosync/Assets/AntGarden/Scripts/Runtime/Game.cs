@@ -102,8 +102,28 @@ namespace AntGarden
             return null;
         }
 
+        /// <summary>The game now running (checks reach it from their coroutines).</summary>
+        public static Game Instance { get; private set; }
+
+        /// <summary>Checks (NestClock fixed): the floating spores as they would be at this moment, the same in every run
+        /// (their own random seed, simulated from their start); ResumeSpores lets them play on.</summary>
+        public void SettleSpores(float t)
+        {
+            if (spores == null) return;
+            spores.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            spores.useAutoRandomSeed = false;
+            spores.randomSeed = 20261027;
+            spores.Simulate(t, true, true, true);
+        }
+
+        public void ResumeSpores()
+        {
+            if (spores != null) spores.Play(true);
+        }
+
         void Start()
         {
+            Instance = this;
             cfg = GameConfig.Load();
             // test overrides: the player's species, and procedural legs on or off
             cfg.ant.playerSpecies = Arg("-player") ?? cfg.ant.playerSpecies;
@@ -228,7 +248,9 @@ namespace AntGarden
                     List<double> widths = rs.cells?.ConvertAll(c => c.scene != null ? (double)cfg.ruinWidth : 1.0)
                         ?? (rs.scene != null ? new List<double> { cfg.ruinWidth } : null)
                         ?? (Lab ? new List<double> { Arg("-labwidth") is string lw ? double.Parse(lw, System.Globalization.CultureInfo.InvariantCulture) : cfg.labWidth } : null);   // the particle nest: passages
-                    (field, connectors, paths, ids) = MakeField(rs.spec, texts, widths);
+                    // its passages swell and narrow, never wide (checks: -passages before keeps them as they were)
+                    bool passages = Lab && rs.cells == null && rs.scene == null && Arg("-passages") != "before";
+                    (field, connectors, paths, ids) = MakeField(rs.spec, texts, widths, passages ? LabPassages(cfg) : null);
                 }
                 catch (Exception e) { Fail(Loc.T($"路径数据出错（{rs.spec}）：", $"Bad path data ({rs.spec}): ") + e.GetBaseException().Message); yield break; }
                 if (rs.cells != null)
@@ -261,10 +283,24 @@ namespace AntGarden
                 Stage(Loc.T("铺设峡谷地面", "Laying the canyon floor") + $" {i + 1}/{world.regions.Count}", 0.08f + 0.3f * i / world.regions.Count);
                 var ground = new Material(refs.terrain);
                 groundMats.Add(ground);
-                GroundSet set = refs.Ground(r.biome.groundSet);
+                // (checks: -palette before puts the honey granary and the leafcut garden back on the textures and turn they had)
+                bool before = Lab && Arg("-palette") == "before" && (r.biome.id == "honey" || r.biome.id == "leafcut");
+                // (a particle nest with textures of its own where its biome's are shared with the world outside the lab,
+                // NestTheme.groundSet: the amber nest's, its biome's set the kiln's clay too)
+                string setId = Lab && NestTheme.For(r.biome.id).groundSet is string ownSet ? ownSet : r.biome.groundSet;
+                GroundSet set = refs.Ground(before ? (r.biome.id == "honey" ? "amber" : "blue") : setId);
                 if (set != null)
                 {
                     ground.SetTexture("_FloorTex", set.floor);
+                    // (checks: a nest's new floor texture tried in the game before it goes in, -groundtrial <png> as
+                    // Tools/make_ground_textures.py makes it, its height in alpha: the particle nest's points and carpet
+                    // take only this one of the floors)
+                    if (Lab && Arg("-groundtrial") is string trialFloor && File.Exists(trialFloor))
+                    {
+                        var tried = new Texture2D(2, 2, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Repeat, anisoLevel = 4 };
+                        tried.LoadImage(File.ReadAllBytes(trialFloor));
+                        ground.SetTexture("_FloorTex", tried);
+                    }
                     ground.SetTexture("_BankTex", set.bank);
                     ground.SetTexture("_PlateauTex", set.plateau);
                     if (set.floorNormal != null) ground.SetTexture("_FloorNormal", set.floorNormal);
@@ -294,11 +330,16 @@ namespace AntGarden
                     ground.SetFloat("_FloorVariety", variety ? 1f : 0f);
                     ground.SetFloat("_VarietyScale", 0.06f);   // patches about 15 units across: two or three kinds in view
                 }
-                ground.SetColor("_FloorTint", r.biome.floorTint);
-                ground.SetColor("_BankTint", r.biome.bankTint);
-                ground.SetColor("_PlateauTint", r.biome.plateauTint);
+                // (a particle nest made by NestPalette tints its textures itself: v15's tints turned to its hue)
+                NestTheme tinted = Lab ? NestTheme.For(r.biome.id) : null;
+                bool own = tinted != null && tinted.floorTexTint.a > 0;
+                ground.SetColor("_FloorTint", own ? tinted.floorTexTint : r.biome.floorTint);
+                ground.SetColor("_BankTint", own ? tinted.bankTexTint : r.biome.bankTint);
+                ground.SetColor("_PlateauTint", own ? tinted.plateauTexTint : r.biome.plateauTint);
                 ground.SetColor("_GlowColor", r.biome.speckColor);
-                ground.SetFloat("_HueShift", r.biome.terrainHue);
+                // (checks: -groundhue N turns a particle nest's ground N degrees more, to try its ground's hue without a build)
+                float groundTried = Lab && Arg("-groundhue") is string gh && float.TryParse(gh, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ghv) ? ghv : 0f;
+                ground.SetFloat("_HueShift", before ? (r.biome.id == "honey" ? -25f : 90f) : r.biome.terrainHue + groundTried);
                 ground.SetFloat("_Saturation", r.biome.terrainSaturation);
                 int ri = i;
                 if (r.cell) continue;   // a honeycomb's cells are built together below
@@ -329,6 +370,10 @@ namespace AntGarden
             {
                 // the particle nest is drawn in its colour segment's theme: its region's biome picks it
                 NestTheme.Current = NestTheme.For(world.regions[0].biome.id);
+                // no nest has a heart now (the user, 2026-10-27: "不要用心脏的概念了"): nothing stands at the way's end,
+                // which is its way out (LabNest.Plan); a nest's landmarks stand beside the way. (-heart <kind> still
+                // shows one, for checks)
+                if (Arg("-heart") == null) NestTheme.Current.heart = null;
                 lab = new LabNest(world, world.regions[0], refs);
                 var sp = world.SpawnPoint(0);
                 lab.Plan(new Vector2(sp.x, sp.z));
@@ -358,10 +403,38 @@ namespace AntGarden
                     {
                         if (System.Array.IndexOf(theme.scatterPlants, rule.plant) < 0) rule.biomes = "none";
                         else if (!string.IsNullOrEmpty(rule.biomes) && !GameConfig.InList(rule.biomes, biomeId)) rule.biomes += "," + biomeId;
+                        // (and as sparse as the nest wants them: NestTheme.sparserKinds)
+                        int sparse = System.Array.IndexOf(theme.sparserKinds, rule.plant);
+                        if (sparse >= 0) rule.spacing *= theme.sparserBy[sparse];
                     }
-                var rules = new List<ScatterRule>(cfg.scatter.rules);
+                // the nest's finely made plants first, so they find room round the way before the rest fill it (last,
+                // they found only one to four spots each); where they grow, the old smooth lollipop curls give way
+                // to the fine croziers
+                // (a nest with many kinds of them, the blue forest's nine, has each kind sparser: about as many in all)
+                var rules = new List<ScatterRule>();
+                float sparser = Mathf.Pow(Mathf.Max(1f, theme.labPlants.Length / 3f), 0.75f);
                 foreach (ScatterRule rule in LabPlants())
-                    if (System.Array.IndexOf(theme.labPlants, rule.plant) >= 0) rules.Add(rule);
+                    if (System.Array.IndexOf(theme.labPlants, rule.plant) >= 0)
+                    {
+                        rule.spacing *= sparser;
+                        // (as the nest wants them: NestTheme.labTweaks, and its sparserKinds as for the world's plants)
+                        if (theme.labTweaks != null && theme.labTweaks.TryGetValue(rule.plant, out Vector4 tw))
+                        {
+                            rule.tuft = new Vector2Int(rule.tuft.x + (int)tw.x, rule.tuft.y + (int)tw.x);
+                            if (tw.y > 0f) rule.dMin = Mathf.Max(rule.dMin, tw.y);
+                            if (tw.z > 0f) rule.dMax = Mathf.Min(rule.dMax, tw.z);
+                            if (tw.w > 0f) rule.height *= tw.w;
+                        }
+                        int sparse = System.Array.IndexOf(theme.sparserKinds, rule.plant);
+                        if (sparse >= 0) rule.spacing *= theme.sparserBy[sparse];
+                        rules.Add(rule);
+                    }
+                bool fineCurls = System.Array.IndexOf(theme.labPlants, "curl_a_crozier") >= 0;
+                foreach (ScatterRule rule in cfg.scatter.rules)
+                {
+                    if (fineCurls && rule.plant == "curl_glow") rule.biomes = "none";
+                    rules.Add(rule);
+                }
                 cfg.scatter.rules = rules.ToArray();
             }
             int placed = 0;
@@ -400,6 +473,8 @@ namespace AntGarden
             cam.tag = "MainCamera";
             cam.gameObject.AddComponent<AudioListener>();
             rig = cam.gameObject.AddComponent<CameraRig>();
+            // the particle nest: a longer lens, further back (62° stretched the near ground and the edges of the frame)
+            if (Lab) { cfg.camera.fov = 52f; cfg.camera.distance = 4.2f; }
             rig.Init(cam, world, cfg.camera);
             rig.classic = Arg("-camstyle") == "classic";   // checks: the previous camera, for comparison
             Sfx.Init(cfg.audio, cam);
@@ -425,6 +500,13 @@ namespace AntGarden
                 var sr = spores.GetComponent<ParticleSystemRenderer>();
                 sr.material = new Material(sr.sharedMaterial);
                 sr.material.SetColor("_Color", NestTheme.Current.motes);   // pale, in the nest's own light
+                // (a nest made by NestPalette: the spores' own range of colours turned to it too)
+                if (NestTheme.Current.sporeA.a > 0)
+                {
+                    var main = spores.main;
+                    main.startColor = new ParticleSystem.MinMaxGradient(new Color(NestTheme.Current.sporeA.r, NestTheme.Current.sporeA.g, NestTheme.Current.sporeA.b, 0.6f),
+                        new Color(NestTheme.Current.sporeB.r, NestTheme.Current.sporeB.g, NestTheme.Current.sporeB.b, 0.6f));
+                }
             }
             // plants beyond the haze are not drawn at all (a honeycomb puts many nests in view at once)
             var cull = new float[32];
@@ -437,8 +519,12 @@ namespace AntGarden
             {
                 // the particle nest: a deep mist in its theme's colour, so depth reads as haze, not as nothing
                 atmosphere.fogTint = NestTheme.Current.fog;
-                atmosphere.skyTopTint = NestTheme.Current.skyTop;
-                atmosphere.skyHorizonTint = NestTheme.Current.skyHorizon;
+                // and its sky a deep night in that colour, not black (the zenith toward the horizon's colour; a big black
+                // sky over the walls read as a hole: "不要出现这样的一大片黑")
+                Color top = NestTheme.Current.skyTop, horizon = NestTheme.Current.skyHorizon;
+                // (lifted further it read as a khaki haze: "天空可以黑一些")
+                atmosphere.skyTopTint = Color.Lerp(top, horizon, 0.6f) * (1.6f * NestTheme.Current.skyGain);
+                atmosphere.skyHorizonTint = horizon * (1.4f * NestTheme.Current.skyGain);
             }
             atmosphere?.SetBiome(world.regions[0].biome, true);
 
@@ -457,6 +543,7 @@ namespace AntGarden
             bigmap = new BigMap(hud.canvas, painter, world, cfg, gates, Teleport, TeleportToGate, SwitchWorld, worlds);
             hud.SetHelp(world.label);
             if (Lab) hud.SetHelpVisible(false);   // chapter one: one goal at a time instead
+            if (Arg("-controls") != null) hud.SetControlsVisible(true);   // showing the game to people: the pad's controls top left
             hud.HideLoading();
             if (VRPlayer.Active)
             {
@@ -535,8 +622,10 @@ namespace AntGarden
             return string.Join("  |  ", parts);
         }
 
-        /// <summary>Pure computation: no Unity API calls in here. Returns the field, connector and path counts, ids.</summary>
-        static (PathField, int, int, string[]) MakeField(string spec, Dictionary<string, string> texts, IList<double> widthScale = null)
+        /// <summary>Pure computation: no Unity API calls in here. Returns the field, connector and path counts, ids.
+        /// A single nest's config is handed to <paramref name="passages"/> last, after widthScale (the particle nest's passages).</summary>
+        static (PathField, int, int, string[]) MakeField(string spec, Dictionary<string, string> texts, IList<double> widthScale = null,
+            Action<PathConfig> passages = null)
         {
             var pc = PathConfig.Default();
             if (spec.StartsWith("stitch:"))
@@ -545,11 +634,11 @@ namespace AntGarden
                 string layout = parts[1];
                 string[] ids = parts[2].Split(',');
                 var nets = new List<NetworkData>();
-                foreach (string id in ids) nets.Add(NetworkData.Parse(texts[id]));
+                foreach (string id in ids) nets.Add(Turned(NetworkData.Parse(texts[id]), id));
                 var (field, report) = Stitcher.Stitch(nets, ids, pc, layout, widthScale);
                 return (field, report.Connectors, field.Edges.Count, ids);
             }
-            var net = NetworkData.Parse(texts[spec]);
+            var net = Turned(NetworkData.Parse(texts[spec]), spec);
             if (widthScale != null && widthScale[0] != 1)
             {
                 // a ruin on its own: the same narrow tunnels and small rooms as in the honeycomb
@@ -558,11 +647,62 @@ namespace AntGarden
                 pc.MinWidth *= k; pc.MaxWidth *= k; pc.ChamberMin *= k; pc.ChamberMax *= k;
                 pc.JunctionClearing *= k; pc.EndpointClearing *= k;
             }
+            passages?.Invoke(pc);
             var f = new PathField(net, pc);
             return (f, 0, f.Edges.Count, new[] { spec });
         }
 
-        static string PathFile(string id) => Path.Combine(Application.streamingAssetsPath, "Paths", id + ".json");
+        /// <summary>
+        /// The particle nest's passages (GameConfig.labPassage*): not one width all along and never wide. Each passage
+        /// its own width, swelling into bays and narrowing into squeezes along its length (the core's width noise,
+        /// stronger and a little more often than elsewhere, so it reads), and no wider than labPassageMax across. The
+        /// narrowest squeeze (MinHalfWidth) and the chambers at the forks and dead ends (ChamberMin) keep what labWidth
+        /// gives them. Measured without Unity: floor 3.5 to 7.9 units across, 5.4 on average (it was 3.5 to 9.0, 5.9).
+        /// </summary>
+        static Action<PathConfig> LabPassages(GameConfig cfg) => pc =>
+        {
+            pc.EdgeWidthRange = new double[] { cfg.labPassageSpread.x, cfg.labPassageSpread.y };
+            pc.WidthVariation = cfg.labPassageSwell;
+            pc.WidthFrequency = cfg.labPassageWave;
+            pc.MaxHalfWidth = Math.Max(pc.MinHalfWidth, Math.Min(pc.MaxHalfWidth, cfg.labPassageMax / 2.0));
+            pc.TailWidths = true;   // the straight runs out to the frame swell and narrow too
+        };
+
+        static string PathFile(string id) => Path.Combine(Application.streamingAssetsPath, "Paths", Drawing(id) + ".json");
+
+        /// <summary>A path id's drawing: "path-011~m" is path-011 mirrored left to right, "~v" upside down, "~r" turned half
+        /// round (so nests whose drawings look alike, two loops or two forks, lie differently).</summary>
+        static string Drawing(string id)
+        {
+            int t = id.IndexOf('~');
+            return t < 0 ? id : id.Substring(0, t);
+        }
+
+        /// <summary>The network as its id turns it (Drawing): its points mirrored within the image, so its tails still run
+        /// off the image's edges.</summary>
+        static NetworkData Turned(NetworkData net, string id)
+        {
+            int t = id.IndexOf('~');
+            if (t < 0) return net;
+            string how = id.Substring(t + 1);
+            bool fx = how.Contains("m") || how.Contains("r"), fy = how.Contains("v") || how.Contains("r");
+            double w = net.ImageWidth, h = net.ImageHeight;
+            if (net.Nodes != null)
+                foreach (NetworkNode n in net.Nodes)
+                {
+                    if (fx) n.X = w - n.X;
+                    if (fy) n.Y = h - n.Y;
+                }
+            if (net.Edges != null)
+                foreach (NetworkEdge e in net.Edges)
+                    if (e.Points != null)
+                        foreach (double[] q in e.Points)
+                        {
+                            if (fx) q[0] = w - q[0];
+                            if (fy) q[1] = h - q[1];
+                        }
+            return net;
+        }
 
         static List<string> ListWorlds(string defaultWorld, string labWorlds)
         {
@@ -621,24 +761,35 @@ namespace AntGarden
                 particleLook.glowAccent = theme.glowAccent;   // a muted accent now and then, never a bright one
                 // plants: dense along the ways, fewer away from them
                 particleLook.farShare = 0.2f;
-                // the ground: the terrain sinks dark; sparse points over the nest, dense round the ant, and underfoot
-                // the carpet, made on the GPU; by layer the floor, the walls, the plateau, a pale edge along the walls' tops
-                particleLook.groundDim = 0.985f;
-                particleLook.groundBrightness = 2.6f;
+                // the ground: sparse points over the nest, dense round the ant, and underfoot the carpet, made on the GPU;
+                // by layer the floor, the walls, the plateau, a pale edge along the walls' tops. The terrain behind the
+                // points a dark surface in the nest's base colour, not a void (sunk to 1.5 % it read as large black holes
+                // beyond the carpet: "不要出现这样的一大片黑"); a warm world's lighter
+                particleLook.groundDim = 1f - 0.1f * theme.groundGain;
+                particleLook.groundBrightness = 2.6f * theme.groundGain;
                 Color Opaque(Color c) => new Color(c.r, c.g, c.b, 1f);
                 particleLook.groundColour = Opaque(theme.ground);
                 particleLook.floorColour = Opaque(theme.floor);
                 particleLook.bankColour = Opaque(theme.bank);
                 particleLook.plateauColour = Opaque(theme.plateau);
                 particleLook.edgeColour = Opaque(theme.edge);
-                particleLook.groundTexMix = 0.3f;
+                particleLook.groundTexMix = theme.groundTexMix;
                 particleLook.groundNear = 160f;
                 particleLook.groundBudget = 1000000;
                 particleLook.shellDensity = 1000f;
                 particleLook.shellFade = new Vector2(5f, 12f);
                 particleLook.carpet = refs.particleCarpet;
-                particleLook.carpetGain = 0.085f;   // opaque splats: the floor's own colour, dark (the things on it stand out)
-                particleLook.dust = 18f;
+                particleLook.carpetGain = 0.085f * theme.groundGain;   // opaque splats: the floor's own colour, dark (the things on it stand out)
+                // and the walls round the ant as opaque splats too, in their own colour (the carpet lies on the floor only:
+                // up close the walls were the bare terrain, then a snowfall of their glowing points), about as light as the
+                // walls further off: a wall's ground colour is about four times a floor's, and the solid shader lights a
+                // wall with its fill and the moon at a slant (at half the carpet's gain over that they were a pale plaster,
+                // eight times the floor; at 0.2 a little lighter than the walls further off, OKLab L 0.36-0.39 for 0.26-0.33)
+                particleLook.wallDensity = 4500f;
+                float wallLight = (theme.fill.grayscale + 0.3f * theme.moon.grayscale) * 0.62f;   // (SolidThings.gain)
+                particleLook.wallGain = 0.13f * theme.wallGain * particleLook.carpetGain / Mathf.Max(0.05f, wallLight);
+                Debug.Log($"[AntGarden] walls round the ant: {particleLook.wallDensity:F0} splats per unit², gain {particleLook.wallGain:F3} (light {wallLight:F3})");
+                particleLook.dust = 18f * theme.dustGain;
                 // the floor's things are solid (SolidThings): leaves, twigs, moss, mushrooms... at ant scale; and the
                 // plants, drawn the same way, with the same grain
                 particleLook.solidPlants = true;
@@ -663,28 +814,71 @@ namespace AntGarden
             if (Lab && particleLook.On)
             {
                 guide?.VineSplats(particleLook.extraSolids, particleLook.bodyPalette, particleLook.glowPalette);
+                // its gates as points too (Gates.ArchSplats), in its own light
+                foreach (Gate g in gates)
+                    if (g.world != null) Gates.ArchSplats(g, cfg.gates.tube, NestTheme.Current.threadHalo.linear * 0.75f, particleLook.extraSolids, gates.IndexOf(g) * 7919 + 13);
                 gameObject.AddComponent<SolidThings>().Init(world, particleLook, refs.particleSolid, player.transform, lab);
                 gameObject.AddComponent<WalkLight>().Init(player.transform);   // what the ant walks past lights up
-                if (particleLook.glassLamps.Count > 0)   // a light inside every glass bulb, through its broken shell
-                    gameObject.AddComponent<GlassLamps>().Init(particleLook.glassLamps, refs.lightThread);
+                // a light inside every glass bulb, through its broken shell; motes circling the finely made plants
+                if (particleLook.glassLamps.Count > 0 || particleLook.orbitLamps.Count > 0)
+                    gameObject.AddComponent<GlassLamps>().Init(particleLook.glassLamps, refs.lightThread, particleLook.orbitLamps);
                 gameObject.AddComponent<MicroLife>().Init(world, particleLook, refs.microLife);   // the small life
             }
             if (Lab && lab != null) lab.StartField();
         }
 
-        /// <summary>The particle nest's own plants: where they grow from the way, how far apart, how tall.</summary>
+        /// <summary>The particle nest's own plants: where they grow from the way, how far apart, how tall. Spread at
+        /// random round the way, close to it (not in patches), so they are what the ant walks past. The thin ones grow
+        /// in tufts (a fern's fronds from one crown, croziers, corkscrews, puffballs and hooks in small groups): one alone
+        /// is flat, a tuft has a body. (tuftFace -90: the crozier and hook lean toward their model's -x, turned to lean out.)</summary>
         static ScatterRule[] LabPlants() => new[]
         {
             // (about 1.4 times the size they first had: giant plants to an ant, big enough on the screen for their detail)
-            new ScatterRule { plant = "curl_a_crozier", dMin = -0.6f, dMax = 4.5f, spacing = 10f, height = new Vector2(2.0f, 4.2f), tilt = 0.2f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2) },
-            new ScatterRule { plant = "curl_b_double", dMin = -0.4f, dMax = 5f, spacing = 12f, height = new Vector2(2.2f, 4.4f), tilt = 0.2f, tintJitter = 0.08f },
-            new ScatterRule { plant = "curl_c_hook", dMin = -0.6f, dMax = 4.5f, spacing = 11f, height = new Vector2(2.0f, 3.9f), tilt = 0.2f, tintJitter = 0.08f, cluster = new Vector2Int(1, 3) },
-            new ScatterRule { plant = "curl_d_cluster", dMin = -1f, dMax = 4f, spacing = 13f, height = new Vector2(1.6f, 3.1f), tilt = 0.35f, tintJitter = 0.1f },
-            new ScatterRule { plant = "puff_b_lantern", dMin = -0.5f, dMax = 5.5f, spacing = 13f, height = new Vector2(2.2f, 4.2f), tilt = 0.15f, tintJitter = 0.08f },
-            new ScatterRule { plant = "coral_b_branching", dMin = -1.2f, dMax = 4f, spacing = 11f, height = new Vector2(1.3f, 2.5f), tilt = 0.4f, tintJitter = 0.1f, cluster = new Vector2Int(1, 2) },
-            new ScatterRule { plant = "frond_a_feather", dMin = -0.4f, dMax = 5.5f, spacing = 10f, height = new Vector2(2.0f, 4.4f), tilt = 0.25f, tintJitter = 0.1f, cluster = new Vector2Int(1, 3) },
-            new ScatterRule { plant = "curl_e_corkscrew", dMin = -0.5f, dMax = 5f, spacing = 12f, height = new Vector2(2.0f, 3.8f), tilt = 0.2f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2) },
-            new ScatterRule { plant = "puff_a_stalked", dMin = -0.5f, dMax = 5f, spacing = 12f, height = new Vector2(1.8f, 3.4f), tilt = 0.15f, tintJitter = 0.08f, cluster = new Vector2Int(1, 3) },
+            new ScatterRule { plant = "curl_a_crozier", dMin = -0.3f, dMax = 3.6f, spacing = 8f, height = new Vector2(1.8f, 3.8f), tilt = 0.2f, tintJitter = 0.08f, patchiness = 0.25f,
+                tuft = new Vector2Int(3, 5), tuftLean = 12f, tuftFace = -90f, tuftScale = new Vector2(0.55f, 1f) },
+            new ScatterRule { plant = "curl_b_double", dMin = -0.2f, dMax = 3.8f, spacing = 7f, height = new Vector2(2.2f, 4.4f), tilt = 0.2f, tintJitter = 0.08f, patchiness = 0.25f },
+            new ScatterRule { plant = "curl_c_hook", dMin = -0.3f, dMax = 3.6f, spacing = 8f, height = new Vector2(2.0f, 3.9f), tilt = 0.2f, tintJitter = 0.08f, patchiness = 0.25f,
+                tuft = new Vector2Int(2, 3), tuftLean = 10f, tuftFace = -90f, tuftScale = new Vector2(0.7f, 1f) },
+            new ScatterRule { plant = "curl_d_cluster", dMin = -0.5f, dMax = 3.4f, spacing = 7f, height = new Vector2(1.6f, 3.1f), tilt = 0.35f, tintJitter = 0.1f, patchiness = 0.25f },
+            new ScatterRule { plant = "puff_b_lantern", dMin = -0.2f, dMax = 3.8f, spacing = 7.5f, height = new Vector2(2.2f, 4.2f), tilt = 0.15f, tintJitter = 0.08f, patchiness = 0.25f },
+            new ScatterRule { plant = "coral_b_branching", dMin = -0.6f, dMax = 3.4f, spacing = 6.5f, height = new Vector2(1.3f, 2.5f), tilt = 0.4f, tintJitter = 0.1f, cluster = new Vector2Int(1, 2), patchiness = 0.25f },
+            // (the frond's blade faces its model's +z, its leaflets along x: turned to face out, so the leaflets spread round
+            // the clump and the blades open upward as they lean, as a real fern's; not edge-on, leaflets pointing in and out)
+            new ScatterRule { plant = "frond_a_feather", dMin = -0.2f, dMax = 3.8f, spacing = 9f, height = new Vector2(2.0f, 3.8f), tilt = 0.25f, tintJitter = 0.1f, patchiness = 0.25f,
+                tuft = new Vector2Int(5, 8), tuftLean = 22f, tuftFace = 0f, tuftFlip = true, tuftScale = new Vector2(0.4f, 1f) },   // (leaning 34° the outer blades read as growing sideways)
+            new ScatterRule { plant = "curl_e_corkscrew", dMin = -0.3f, dMax = 3.6f, spacing = 8.5f, height = new Vector2(2.0f, 3.8f), tilt = 0.2f, tintJitter = 0.08f, patchiness = 0.25f,
+                tuft = new Vector2Int(2, 4), tuftLean = 8f, tuftScale = new Vector2(0.6f, 1f) },
+            new ScatterRule { plant = "puff_a_stalked", dMin = -0.3f, dMax = 3.6f, spacing = 8f, height = new Vector2(1.8f, 3.4f), tilt = 0.15f, tintJitter = 0.08f, patchiness = 0.25f,
+                tuft = new Vector2Int(3, 5), tuftLean = 12f, tuftScale = new Vector2(0.55f, 1f) },
+            // the crystals (Tripo, 02_Concepts/Crystals_v1): small clusters close beside the way, a crystal about an ant tall,
+            // faceted, their ridges catching the light, lit from within in patches (ParticleLook.CrystalSplat), as the
+            // references' crystals by a path
+            new ScatterRule { plant = "crystal_a_spray", dMin = -0.4f, dMax = 2.6f, spacing = 11f, height = new Vector2(1.2f, 2.4f), tilt = 0.12f, tintJitter = 0.06f, cluster = new Vector2Int(1, 2), patchiness = 0.3f },
+            new ScatterRule { plant = "crystal_b_fan", dMin = -0.4f, dMax = 2.6f, spacing = 10f, height = new Vector2(0.7f, 1.4f), tilt = 0.12f, tintJitter = 0.06f, cluster = new Vector2Int(1, 3), patchiness = 0.3f },
+            new ScatterRule { plant = "crystal_c_mixed", dMin = -0.4f, dMax = 2.6f, spacing = 11f, height = new Vector2(1.0f, 2.0f), tilt = 0.12f, tintJitter = 0.06f, cluster = new Vector2Int(1, 2), patchiness = 0.3f },
+            // the moss forest's own (Tripo, 02_Concepts/Moss_v1): liverwort colonies with their parasols, pixie-cup lichens
+            // with scarlet caps, groves of moss capsules hanging like lamps; smaller than its landmarks (LabNest), near the way
+            new ScatterRule { plant = "liverwort_parasols", dMin = -0.4f, dMax = 3.0f, spacing = 10f, height = new Vector2(1.4f, 2.6f), tilt = 0.12f, tintJitter = 0.08f, patchiness = 0.3f },
+            new ScatterRule { plant = "pixie_cup_lichen", dMin = -0.4f, dMax = 3.0f, spacing = 9f, height = new Vector2(1.0f, 2.0f), tilt = 0.15f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2), patchiness = 0.3f },
+            // (the capsules three or four from one spot, a grove whose heads touch, leaning out a little: one alone, its
+            // seven stalks spread from a small cushion, read thin, review k12; two or three a few ants apart still stood
+            // apart, k14; three or four still thin, k15: four to six)
+            new ScatterRule { plant = "moss_capsules", dMin = -0.4f, dMax = 3.2f, spacing = 10f, height = new Vector2(1.8f, 3.2f), tilt = 0.1f, tintJitter = 0.08f, patchiness = 0.3f,
+                tuft = new Vector2Int(4, 6), tuftLean = 8f, tuftScale = new Vector2(0.6f, 1f) },
+            // the kiln temple's own (Tripo, 02_Concepts/Kiln_Redesign_v1/fronts), the life that follows a fire: bonfire cups
+            // low on the ash close beside the way, their rims beaded (half the height they had in k1: there a cup was as big
+            // as the ant, the cluster a heap of clay bowls); fire morels in ones and twos, a few ants tall
+            new ScatterRule { plant = "ember_cups", dMin = -0.4f, dMax = 2.8f, spacing = 6f, height = new Vector2(0.38f, 0.65f), tilt = 0.1f, tintJitter = 0.06f, cluster = new Vector2Int(1, 3), patchiness = 0.3f },
+            // (the morels back from the way's very edge, dMin from -0.3: there their stems were lost, k3 plant review)
+            // (the kiln's morels on the floor, clear of the banks' foot: up the slopes their stems and feet were never seen,
+            // k6-k8 plant reviews; 0.5-2.4 from the floor's edge was still slope; at -0.3-0.5 their model's wide ash pile
+            // still lay half on the slope and sank them to its lowest ground, their stems under it, k10)
+            new ScatterRule { plant = "fire_morel", dMin = -1.1f, dMax = -0.4f, spacing = 8.5f, height = new Vector2(1.4f, 2.6f), tilt = 0.05f, tintJitter = 0.06f, cluster = new Vector2Int(1, 2), patchiness = 0.3f },
+            // the amber nest's own (Tripo, 02_Concepts/Amber_v1_候选): little frankincense trees along the way, a few ants
+            // tall, tears of resin in rows down their peeling bark; gumweed in clumps low beside it, a bead of resin in each bud
+            // (a gumweed tall enough that its surface is over ParticleLook.accentArea: smaller, some took a cool accent whole, lilac)
+            new ScatterRule { plant = "tear_tree", dMin = -0.2f, dMax = 3.4f, spacing = 11f, height = new Vector2(2.6f, 4.2f), tilt = 0.08f, tintJitter = 0.06f, patchiness = 0.3f },
+            new ScatterRule { plant = "gumweed", dMin = -0.4f, dMax = 3.0f, spacing = 7f, height = new Vector2(1.9f, 2.6f), tilt = 0.12f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2), patchiness = 0.3f },
         };
 
         /// <summary>Animation check: the player's ant becomes another species, in place (camera and ring stay).</summary>
@@ -840,7 +1034,8 @@ namespace AntGarden
 
         void AddSlot(Transform root, string id, float x, float z)
         {
-            var marker = Rings.Make("Slot_" + id, 0.9f, 1.15f, refs.slotRing, new Color(1f, 0.85f, 0.55f) * 2f);
+            // (in a particle nest quieter: at full its centre blew out white)
+            var marker = Rings.Make("Slot_" + id, 0.9f, 1.15f, refs.slotRing, new Color(1f, 0.85f, 0.55f) * (Lab ? 0.9f : 2f));
             marker.transform.SetParent(root, false);
             marker.transform.position = new Vector3(x, world.Height(x, z) + 0.05f, z);
             world.slots.Add(new StorySlot { id = id, position = marker.transform.position, marker = marker });
@@ -939,6 +1134,7 @@ namespace AntGarden
             }
             string home = cfg.defaultWorld;
             var dests = new List<string>();
+            string nextLab = null;
             if (Selection == home)
             {
                 foreach (string w in RuinWorlds) if (!home.Contains(w)) dests.Add(w);
@@ -947,6 +1143,15 @@ namespace AntGarden
             }
             else
             {
+                // a particle nest: its way out, where its light leads (LabNest.Heart), opens on the next nest of the list
+                // (after the last, the first): the way in, through the nest, out, and on to the next (the user, 10-26 and
+                // 10-27: no heart, "不要用心脏的概念了"); its other exits lead home
+                if (Lab)
+                {
+                    var labs = worlds.FindAll(w => w.StartsWith("lab:"));
+                    int li = labs.IndexOf(Selection);
+                    if (labs.Count > 1 && li >= 0) dests.Add(nextLab = labs[(li + 1) % labs.Count]);
+                }
                 dests.Add(home);
                 int i = worlds.IndexOf(Selection);
                 if (!Selection.Contains("#") && i >= 0 && i + 1 < worlds.Count && worlds[i + 1].StartsWith("path-")) dests.Add(worlds[i + 1]);
@@ -955,12 +1160,17 @@ namespace AntGarden
             foreach (string dest in dests)
             {
                 if (free.Count == 0) break;
-                // a ruin opens from an exit of its own colour when there is one
+                // a ruin opens from an exit of its own colour when there is one; a particle nest's next from its way out
                 string biome = dest.Contains("@") ? dest.Substring(dest.IndexOf('@') + 1).Split('#')[0] : null;
                 WExit pick = free.Find(ex => biome != null && world.regions[ex.region].biome.id == biome) ?? free[0];
+                if (dest == nextLab && lab != null)
+                    foreach (WExit ex in free)
+                        if ((new Vector2(ex.x, ex.z) - lab.Heart).sqrMagnitude < (new Vector2(pick.x, pick.z) - lab.Heart).sqrMagnitude) pick = ex;
                 free.Remove(pick);
                 Color c = dest.Contains("#") ? new Color(1f, 0.78f, 0.42f) : dest == home ? new Color(0.72f, 1f, 0.85f) : new Color(0.7f, 0.88f, 1f);
-                if (NestTheme.Current != null) c = NestTheme.Current.threadHalo * NestTheme.Current.gateGain;   // a particle nest: its gates in its own light
+                // a particle nest: its gates in its own light, soft (its way out is where its light leads: at the theme's own
+                // gain alone the gate's arc was a white blaze at the end of the way)
+                if (NestTheme.Current != null) c = NestTheme.Current.threadHalo * (NestTheme.Current.gateGain * 0.5f);
                 gates.Add(Gates.WorldGate(world, refs, cfg.gates, parent, pick, dest, c));
                 made++;
             }
@@ -968,7 +1178,7 @@ namespace AntGarden
             if (Selection != home)
                 foreach (WExit ex in free)
                 {
-                    gates.Add(Gates.WorldGate(world, refs, cfg.gates, parent, ex, home, NestTheme.Current != null ? NestTheme.Current.threadHalo * NestTheme.Current.gateGain : new Color(0.72f, 1f, 0.85f)));
+                    gates.Add(Gates.WorldGate(world, refs, cfg.gates, parent, ex, home, NestTheme.Current != null ? NestTheme.Current.threadHalo * (NestTheme.Current.gateGain * 0.5f) : new Color(0.72f, 1f, 0.85f)));
                     made++;
                 }
             Debug.Log($"[AntGarden] world gates {made} (exits {world.exits.Count}): {string.Join(", ", gates.FindAll(g => g.world != null).ConvertAll(g => g.world))}");

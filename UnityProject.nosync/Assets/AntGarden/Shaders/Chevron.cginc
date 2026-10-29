@@ -5,6 +5,7 @@
 // _TrailPlayerD is the ant's own distance to the heart along the way (-1: off it).
 #ifndef ANTGARDEN_CHEVRON
 #define ANTGARDEN_CHEVRON
+#include "AGClock.cginc"
 
 sampler2D _TrackField;
 float4 _TrackRect;          // the field's corner (x, z) and size (x, z)
@@ -27,7 +28,7 @@ float Chevron(float3 p, float h)
     // they rise out of the ground a little behind the ant (where the camera sees them) and run on ahead
     float ahead = smoothstep(-3.2, -1.6, k) * (1 - smoothstep(9.0, 15.0, k));
     if (lane * ahead <= 0) return 0;
-    float t = _Time.y;
+    float t = AG_TIME;
     // wavering edges, a little different for every point
     float wob = 0.18 * sin(tf.x * 1.7 + t * 0.9) + 0.1 * sin(tf.x * 4.3 - t * 1.6) + 0.12 * (h - 0.5);
     // the middle ahead of the sides: a chevron pointing on; in step with the warm specks' own pulses

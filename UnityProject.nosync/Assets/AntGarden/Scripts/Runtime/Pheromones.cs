@@ -43,6 +43,23 @@ namespace AntGarden
         Vector2[] uvs, uv2s, uv3s;
         readonly System.Random rng = new System.Random(808);
 
+        bool settled;
+
+        /// <summary>Checks (NestClock fixed): the arrows spread evenly along the stream, none in a loop, each to be placed
+        /// afresh where the fixed moment puts it.</summary>
+        void Settle()
+        {
+            var r = new System.Random(808);
+            for (int i = 0; i < list.Count; i++)
+            {
+                Arrow a = list[i];
+                a.s = Mathf.Lerp(from, to, (i + 0.5f) / list.Count);
+                a.loop = -1;
+                a.loopAt = 1f + 9f * (float)r.NextDouble();
+                a.started = false;
+            }
+        }
+
         public void Init(LabNest nest, Transform player, Material material)
         {
             lab = nest;
@@ -92,7 +109,15 @@ namespace AntGarden
         void LateUpdate()
         {
             if (mesh == null || ant == null) return;
-            float dt = Mathf.Min(Time.deltaTime, 0.1f), t = Time.time;
+            float dt = Mathf.Min(Time.deltaTime, 0.1f), t = NestClock.Now;
+            // a still at a fixed moment (NestClock): every arrow laid out as in any other run, and held there
+            if (NestClock.IsFixed)
+            {
+                dt = 0f;
+                if (!settled) Settle();
+                settled = true;
+            }
+            else settled = false;
             // the way: the nearest glowing way to the ant, followed toward the heart
             List<Vector2> pts = null;
             int at = 0;
@@ -110,7 +135,7 @@ namespace AntGarden
             int v = 0;
             foreach (Arrow a in list)
             {
-                Vector3 p;
+                Vector3 p, aim = Vector3.forward;
                 float alpha;
                 if (!done)
                 {
@@ -122,6 +147,7 @@ namespace AntGarden
                     Vector3 fwd = ahead - on;
                     fwd.y = 0;
                     fwd = fwd.sqrMagnitude > 1e-8f ? fwd.normalized : Vector3.forward;
+                    aim = fwd;
                     Vector3 side = Vector3.Cross(Vector3.up, fwd);
                     // the stream snakes and rises in travelling waves; each arrow keeps its lane, weaving a little
                     float snake = 0.35f * Mathf.Sin(0.55f * a.s - 1.3f * t);
@@ -151,7 +177,7 @@ namespace AntGarden
                     alpha = 0.85f;
                 }
                 // it follows its place smoothly (a jump between ways is not seen) and points where it flies
-                if (!a.started) { a.pos = p; a.dir = Vector3.forward; a.started = true; }
+                if (!a.started) { a.pos = p; a.dir = aim; a.started = true; }
                 Vector3 prev = a.pos;
                 a.pos = Vector3.Lerp(a.pos, p, 1 - Mathf.Exp(-dt * 14f));
                 Vector3 vel = (a.pos - prev) / Mathf.Max(dt, 1e-4f);

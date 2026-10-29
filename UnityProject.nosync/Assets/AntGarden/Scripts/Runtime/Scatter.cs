@@ -117,14 +117,41 @@ namespace AntGarden
                     if (dm < rule.dMin - 0.5f || dm > rule.dMax + 0.5f) continue;
                     if (occupied.Overlaps(mx, mz, plant.footprintRadius * mh * 0.8f) || world.reserved.Overlaps(mx, mz, plant.footprintRadius * mh)) continue;
                 }
-                Place(plant, mx, mz, mh, stack, rule.tilt, rule.tintJitter, rule.dim, !rule.noShadow);
+                if (rule.tuft.y > 1) Tuft(rule, plant, mx, mz, mh, stack);
+                else Place(plant, mx, mz, mh, stack, rule.tilt, rule.tintJitter, rule.dim, !rule.noShadow);
+            }
+        }
+
+        /// <summary>A tuft (ScatterRule.tuft): several of a plant from one crown, spread round it, each a little out
+        /// from the middle, turned and tipped to lean out, of different heights, so together they have a body (a fern
+        /// clump's fountain of fronds) where one alone is flat.</summary>
+        void Tuft(ScatterRule rule, PlantRef plant, float x, float z, float h, int stack)
+        {
+            int n = rng.Next(rule.tuft.x, rule.tuft.y + 1);
+            float a0 = Range(0, 360);
+            for (int k = 0; k < n; k++)
+            {
+                float a = a0 + (k + Range(-0.45f, 0.45f)) * 360f / n;
+                float size = Range(rule.tuftScale.x, rule.tuftScale.y), grown = Mathf.InverseLerp(rule.tuftScale.x, rule.tuftScale.y, size);
+                float r = h * Range(0.02f, 0.08f) * (0.5f + grown);
+                float yaw = a - rule.tuftFace + (rule.tuftFlip && Range(0, 1) < 0.5f ? 180f : 0f) + Range(-rule.tuftTwist, rule.tuftTwist);
+                float lean = rule.tuftLean * Mathf.Lerp(0.35f, 1.1f, grown) * Range(0.85f, 1.15f);
+                Place(plant, x + Mathf.Sin(a * Mathf.Deg2Rad) * r, z + Mathf.Cos(a * Mathf.Deg2Rad) * r, h * size,
+                    stack, rule.tilt, rule.tintJitter, rule.dim, !rule.noShadow, yaw, lean, a);
             }
         }
 
         /// <summary>A fan tree in every junction chamber, set into the widest gap between the paths.</summary>
         void Landmarks()
         {
+            if (Game.Lab && NestTheme.Current != null && NestTheme.Current.noJunctionTree) return;   // a particle nest that has its own landmarks (NestTheme.noJunctionTree)
             string kind = string.IsNullOrEmpty(region.biome.landmarkPlant) ? cfg.landmark.plant : region.biome.landmarkPlant;
+            Vector2 tall = cfg.landmark.height;
+            if (Game.Lab && NestTheme.Current != null && NestTheme.Current.junctionTree != null)
+            {
+                kind = NestTheme.Current.junctionTree;   // (its own: NestTheme.junctionTree, as tall as it says)
+                if (NestTheme.Current.junctionTreeHeight.y > 0f) tall = NestTheme.Current.junctionTreeHeight;
+            }
             PlantRef plant = refs.Plant(kind);
             if (plant == null || plant.prefab == null) plant = refs.Plant(cfg.landmark.plant);
             if (plant == null || plant.prefab == null) return;
@@ -149,7 +176,7 @@ namespace AntGarden
                 float off = node.clear * 0.62f;
                 float x = node.x + Mathf.Cos(bestDir) * off, z = node.z + Mathf.Sin(bestDir) * off;
                 if (world.HexDist(x, z) > -4 || world.reserved.Overlaps(x, z, 1.5f)) continue;
-                Place(plant, x, z, Range(cfg.landmark.height), 1, 0.05f, 0.06f, 1f, true);
+                Place(plant, x, z, Range(tall), 1, 0.05f, 0.06f, 1f, true);
             }
         }
 
@@ -205,7 +232,10 @@ namespace AntGarden
             foreach (Transform t in go.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = layer;
         }
 
-        void Place(PlantRef plant, float x, float z, float scale, int stack, float tilt, float jitter, float dim, bool shadows = true)
+        /// <summary>One plant (a stack of them, for a tall column): turned at random, or to yaw, tipped lean degrees
+        /// toward the azimuth leanToward (a tuft's members).</summary>
+        void Place(PlantRef plant, float x, float z, float scale, int stack, float tilt, float jitter, float dim, bool shadows = true,
+            float yaw = float.NaN, float lean = 0f, float leanToward = 0f)
         {
             // under a tunnel roof nothing grows through the ceiling: a plant that would is grown smaller, or not at all
             float ceiling = world.Ceiling(x, z);
@@ -228,8 +258,13 @@ namespace AntGarden
             }
             y -= cfg.sink * scale * stack;
             Vector3 up = Vector3.Slerp(Vector3.up, world.Normal(x, z), tilt);
-            float yaw = Range(0, 360);
+            if (float.IsNaN(yaw)) yaw = Range(0, 360);
             Quaternion rot = Quaternion.FromToRotation(Vector3.up, up) * Quaternion.Euler(0, yaw, 0);
+            if (lean != 0)
+            {
+                var toward = new Vector3(Mathf.Sin(leanToward * Mathf.Deg2Rad), 0, Mathf.Cos(leanToward * Mathf.Deg2Rad));
+                rot = Quaternion.AngleAxis(lean, Vector3.Cross(up, toward).normalized) * rot;
+            }
             Color tint = new Color(1 + Range(-jitter, jitter), 1 + Range(-jitter, jitter) * 0.6f, 1 + Range(-jitter, jitter)) * dim;
             tint.a = 1;
             var renderers = new List<MeshRenderer>();

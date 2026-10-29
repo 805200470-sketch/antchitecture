@@ -20,6 +20,7 @@ Shader "AntGarden/NightSky"
             #pragma vertex vert
             #pragma fragment frag
             #include "UnityCG.cginc"
+            #include "AGClock.cginc"
 
             fixed4 _TopColor, _HorizonColor, _BottomColor;
             float _StarDensity;
@@ -50,7 +51,7 @@ Shader "AntGarden/NightSky"
                 // sparse stars above the haze line
                 float3 cell = floor(d * 220);
                 float s = step(1 - 0.004 * _StarDensity, hash31(cell)) * smoothstep(0.15, 0.5, y);
-                col += s * (0.6 + 0.4 * sin(_Time.y * 2 + hash31(cell + 3) * 6.28)) * fixed3(0.7, 0.9, 1.0);
+                col += s * (0.6 + 0.4 * sin(AG_TIME * 2 + hash31(cell + 3) * 6.28)) * fixed3(0.7, 0.9, 1.0);
                 return fixed4(col, 1);
             }
             ENDCG

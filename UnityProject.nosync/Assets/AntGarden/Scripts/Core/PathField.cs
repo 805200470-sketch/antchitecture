@@ -310,22 +310,30 @@ namespace AntGarden.Core
                 foreach (double[] p in e.Points) world.Add(new[] { (p[0] - W / 2) * s, (p[1] - H / 2) * s });
                 List<double[]> pts = Resample(world, cfg.ResampleStep);
                 var hws = new List<double>(pts.Count);
+                double mult = 1, accEnd = 0;
+                int eiNow = ei;
+                // its designed half width this far along it (beyond its ends too, for its tails: TailWidths)
+                double DesignedHw(double a)
+                {
+                    double v = Noise.Noise2(a * cfg.WidthFrequency + eiNow * 17.3, eiNow * 3.1);
+                    double pinch = JsMath.Smoothstep(0.45, 0.85, Noise.Noise2(a * 0.03 + 99 + eiNow, eiNow * 1.7)) * cfg.Pinch;
+                    double hw = (cfg.FixedWidth / 2) * mult * (1 + cfg.WidthVariation * v) * (1 - pinch);
+                    return JsMath.Clamp(hw, cfg.MinHalfWidth, cfg.MaxHalfWidth);
+                }
                 if (WidthMode != "measured")
                 {
                     // Every path gets its own character: some are broad avenues, some narrow
                     // tunnels, and each swells and pinches along its length.
                     double rel = e.MeanWidthPx > 0 ? JsMath.Clamp(Math.Pow(e.MeanWidthPx / medianPx, cfg.MeasuredInfluence), 0.7, 1.45) : 1;
-                    double mult = JsMath.Lerp(cfg.EdgeWidthRange[0], cfg.EdgeWidthRange[1], edgeRng.Next()) * rel;
+                    mult = JsMath.Lerp(cfg.EdgeWidthRange[0], cfg.EdgeWidthRange[1], edgeRng.Next()) * rel;
                     double acc = 0;
                     for (int i = 0; i < pts.Count; i++)
                     {
                         double[] p = pts[i];
                         if (i > 0) acc += JsMath.Hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]);
-                        double v = Noise.Noise2(acc * cfg.WidthFrequency + ei * 17.3, ei * 3.1);
-                        double pinch = JsMath.Smoothstep(0.45, 0.85, Noise.Noise2(acc * 0.03 + 99 + ei, ei * 1.7)) * cfg.Pinch;
-                        double hw = (cfg.FixedWidth / 2) * mult * (1 + cfg.WidthVariation * v) * (1 - pinch);
-                        hws.Add(JsMath.Clamp(hw, cfg.MinHalfWidth, cfg.MaxHalfWidth));
+                        hws.Add(DesignedHw(acc));
                     }
+                    accEnd = acc;
                 }
                 else
                 {
@@ -351,7 +359,7 @@ namespace AntGarden.Core
                     while (HexDist(lx + dx * k * step, lz + dz * k * step) < 3 && k < 400)
                     {
                         list.Add(new[] { lx + dx * k * step, lz + dz * k * step });
-                        hl.Add(hl[hl.Count - 1]);
+                        hl.Add(cfg.TailWidths && WidthMode != "measured" ? DesignedHw(atEnd ? accEnd + k * step : -k * step) : hl[hl.Count - 1]);
                         k++;
                     }
                     if (!atEnd)

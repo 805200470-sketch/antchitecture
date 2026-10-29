@@ -121,6 +121,9 @@ namespace AntGarden
 
         static Color LeafColour(int i)
         {
+            // (a nest's own where it has them: the honey granary's dry straw and brown)
+            Color[] own = NestTheme.Current?.leafColours;
+            if (own != null && own.Length > 0) return own[i % own.Length];
             switch (i)
             {
                 case 0: return new Color(0.35f, 0.12f, 0.06f);   // rust

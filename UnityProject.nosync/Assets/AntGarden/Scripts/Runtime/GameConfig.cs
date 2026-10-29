@@ -28,8 +28,19 @@ namespace AntGarden
         // temple's kiln; orange, the warm amber nest; yellow, the honeypot granary; chartreuse, the leafcutters' garden;
         // green, the moss forest; spring green, the verdigris city; cyan, the blue fungal forest (chapter one); azure,
         // the giant's relics; blue, the rain cistern
-        public string labWorld = "lab:path-007@kiln,lab:path-010@amber,lab:path-005@honey,lab:path-009@leafcut,lab:path-011@moss,lab:path-013@verdigris,lab:path-012@blue,lab:path-003@azure,lab:path-006@cistern";
+        // (each nest its own drawing from the 13 path images, 04_Paths/Images; where two look alike, a fork or a loop, the
+        // later one mirrored: "~m", Game.Drawing)
+        public string labWorld = "lab:path-007@kiln,lab:path-010@amber,lab:path-005@honey,lab:path-008@leafcut,lab:path-011~m@moss,lab:path-013@verdigris,lab:path-012@blue,lab:path-003~m@azure,lab:path-006@cistern";
         public float labWidth = 0.55f;      // its canyons, narrowed into passages
+        // its passages need not be one width, only never wide, and change width along their length: each its own width
+        // (labPassageSpread times the nest's), swelling into bays and narrowing into squeezes as it goes (± labPassageSwell),
+        // smoothly, a bay every 15 to 20 units (labPassageWave per unit), and never more than labPassageMax units of floor
+        // across. The narrowest squeeze and the chambers at the forks and dead ends keep the sizes labWidth gives them
+        // (at 0.55: 3.5 units of floor at the narrowest, where two ants pass; chambers about 10 across) (Game.LabPassages)
+        public Vector2 labPassageSpread = new Vector2(0.75f, 1.1f);
+        public float labPassageSwell = 0.5f;
+        public float labPassageWave = 0.065f;
+        public float labPassageMax = 7.8f;
         public string labExtraPlants = "thorn_succulent,fungus_garden,dry_grass_tuft,dry_mushroom,soil_spire,amber_resin,seed_pile";   // grown in the particle nest too
         public ScatterSettings scatter = new ScatterSettings();
         public AtmosphereSettings atmosphere = new AtmosphereSettings();
@@ -86,10 +97,11 @@ namespace AntGarden
             },
             new Biome
             {
-                // the particle nest's red segment: the ancient temple's kiln (NestTheme.Red); the amber nest's clay,
-                // redder, its own few dry plants
+                // the particle nest's red segment: the ancient temple's kiln (NestTheme.Red), redesigned 2026-10-27: a forest
+                // floor long after an old fire, its own ground (v13: ash, burnt earth, charcoal; walls of red earth with a
+                // charcoal and an ash layer), its own plants and the burnt log the ancestors carved
                 id = "kiln", displayName = "古蚁圣殿·窑火", displayNameEn = "The Ancient Temple",
-                groundSet = "amber", terrainHue = -8, terrainSaturation = 1.05f,
+                groundSet = "kiln", terrainHue = 0, terrainSaturation = 1f,
                 mapHue = 172, mapSaturation = 1.15f,
                 floorTint = new Color(0.38f, 0.31f, 0.29f), bankTint = new Color(0.52f, 0.43f, 0.41f), plateauTint = new Color(0.42f, 0.35f, 0.33f),
                 speckColor = new Color(1f, 0.55f, 0.35f),
@@ -100,15 +112,19 @@ namespace AntGarden
                 moonColor = new Color(1f, 0.8f, 0.7f), skyTop = new Color(0.06f, 0.025f, 0.03f), skyHorizon = new Color(0.36f, 0.12f, 0.09f),
                 rimColor = new Color(1f, 0.52f, 0.38f),
                 gateColor = new Color(1f, 0.6f, 0.42f),
-                nativePlants = "soil_spire,thorn_succulent,dry_grass_tuft,seed_pile,seed_husk,temple_spire,temple_arch,temple_cells,temple_spire_v2,temple_arch_v2,temple_cells_v2",
+                // (its own keep their own colours: the cups' red, the morels' brown, the log's charcoal; far away, burnt trunks)
+                nativePlants = "char_stump_temple,ember_log,ember_cups,fire_morel,soil_spire,thorn_succulent,dry_grass_tuft,seed_pile,seed_husk,temple_spire,temple_arch,temple_cells,temple_spire_v2,temple_arch_v2,temple_cells_v2",
                 landmarkPlant = "soil_spire",
-                surroundings = "soil_spire,trunk_night",
+                surroundings = "trunk_night",
             },
             new Biome
             {
                 // the first version of the The Honeypot Granary segment (NestTheme.Honey): its palette, plants and a few things of its own
                 id = "honey", displayName = "蜜罐粮仓", displayNameEn = "The Honeypot Granary",
-                groundSet = "amber", terrainHue = -25, terrainSaturation = 1f, mapHue = 120, mapSaturation = 1f,
+                // (its loess turned 13° toward yellow and much paler: as it was, its walls and floor were caramel orange, 16° from
+                // the amber nest's next to it, "墙是焦糖橙"; turned 20° and more it went olive, "暗沉、土"; the loess twice as vivid
+                // as v15's ground; negative turns orange to gold)
+                groundSet = "honey", terrainHue = -13, terrainSaturation = 0.6f, mapHue = 140, mapSaturation = 1f,   // (its own textures, v11: loess, seed litter, honey)
                 speckColor = new Color(1.00f, 0.92f, 0.35f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(1.00f, 0.92f, 0.35f), groundColor = new Color(0.15f, 0.10f, 0.04f),
                 antHue = 0, antSaturation = 1f,
                 fogColor = new Color(0.15f, 0.10f, 0.04f), ambientSky = new Color(0.40f, 0.32f, 0.12f), ambientEquator = new Color(0.40f, 0.32f, 0.12f), ambientGround = new Color(0.15f, 0.10f, 0.04f),
@@ -119,7 +135,7 @@ namespace AntGarden
             {
                 // the first version of the The Leafcutters' Garden segment (NestTheme.Leafcut): its palette, plants and a few things of its own
                 id = "leafcut", displayName = "切叶蚁菌圃", displayNameEn = "The Leafcutters' Garden",
-                groundSet = "blue", terrainHue = 90, terrainSaturation = 1f, mapHue = 90, mapSaturation = 1f,
+                groundSet = "leafcut", terrainHue = 0, terrainSaturation = 1f, mapHue = 90, mapSaturation = 1f,   // (its own textures, v11: cut leaves, fungus, damp soil)
                 speckColor = new Color(0.75f, 1.00f, 0.35f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(0.75f, 1.00f, 0.35f), groundColor = new Color(0.10f, 0.11f, 0.04f),
                 antHue = 0, antSaturation = 1f,
                 fogColor = new Color(0.10f, 0.11f, 0.04f), ambientSky = new Color(0.30f, 0.36f, 0.12f), ambientEquator = new Color(0.30f, 0.36f, 0.12f), ambientGround = new Color(0.10f, 0.11f, 0.04f),
@@ -130,7 +146,12 @@ namespace AntGarden
             {
                 // the first version of the The Moss Forest segment (NestTheme.Moss): its palette, plants and a few things of its own
                 id = "moss", displayName = "苔藓森林", displayNameEn = "The Moss Forest",
-                groundSet = "blue", terrainHue = 55, terrainSaturation = 1f, mapHue = 55, mapSaturation = 1f,
+                // its own textures (v12, approved 10-27: cushion moss, moss with lichen rosettes, damp humus with liverwort;
+                // peat banks with moss over their ledges), a little muted as the borrowed set was (that set, the blue
+                // nest's moss turned green, at full saturation made its floor the loudest part of the picture); turned a little
+                // toward blue-green (the shader's turn runs from cyan toward yellow for a positive angle): as painted, its
+                // yellow-green moss brought the world to 127°, near the leafcut garden's 121°
+                groundSet = "moss", terrainHue = -20, terrainSaturation = 0.75f, mapHue = 55, mapSaturation = 1f,
                 speckColor = new Color(0.50f, 1.00f, 0.50f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(0.50f, 1.00f, 0.50f), groundColor = new Color(0.05f, 0.11f, 0.05f),
                 antHue = 0, antSaturation = 1f,
                 fogColor = new Color(0.05f, 0.11f, 0.05f), ambientSky = new Color(0.16f, 0.34f, 0.16f), ambientEquator = new Color(0.16f, 0.34f, 0.16f), ambientGround = new Color(0.05f, 0.11f, 0.05f),
@@ -435,6 +456,16 @@ namespace AntGarden
         public string biomes = "";            // comma-separated biome ids this rule grows in; empty = every biome
         public bool noShadow;                 // small ground detail: no shadow casting (cheaper, and it reads as texture)
         public float patchiness = 0.85f;      // 0 = spread evenly; 1 = only in patches (with a few strays between)
+        // >1: each grows as a tuft of this many from one crown (a fern's fronds), each turned so the way the model
+        // itself leans (tuftFace: its azimuth in the model, degrees from +z toward +x) faces out from the middle, and
+        // tipped out by up to tuftLean degrees; each member tuftScale of the tuft's height
+        // (a member leans the more the bigger it is: young small ones near upright in the middle; turned a little off
+        // the radial way by up to tuftTwist degrees; tuftFlip: half turned the other way round, so a model that curls
+        // to one side curls to both)
+        public Vector2Int tuft = new Vector2Int(1, 1);
+        public float tuftLean = 20f, tuftFace, tuftTwist = 12f;
+        public bool tuftFlip;
+        public Vector2 tuftScale = new Vector2(0.6f, 1f);
     }
 
     [Serializable]

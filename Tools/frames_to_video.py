@@ -22,7 +22,9 @@ if not files:
 scene = bpy.context.scene
 img = bpy.data.images.load(files[0])
 w, h = img.size
-scene.render.resolution_x, scene.render.resolution_y = w, h
+# (H.264 wants even sides: a frame the screen cut to an odd size, 1920x999, loses its last row or column)
+cw, ch = w % 2, h % 2
+scene.render.resolution_x, scene.render.resolution_y = w - cw, h - ch
 scene.render.resolution_percentage = 100
 scene.render.fps = fps
 scene.frame_start, scene.frame_end = 1, len(files)
@@ -42,6 +44,10 @@ for f in files[1:]:
     strip.elements.append(os.path.basename(f))
 if hasattr(strip, 'colorspace_settings'):
     strip.colorspace_settings.name = 'sRGB'
+if (cw or ch) and hasattr(strip, 'crop'):
+    if hasattr(strip, 'use_crop'):
+        strip.use_crop = True
+    strip.crop.max_x, strip.crop.max_y = cw, ch
 
 settings = scene.render.image_settings
 if hasattr(settings, 'media_type'):

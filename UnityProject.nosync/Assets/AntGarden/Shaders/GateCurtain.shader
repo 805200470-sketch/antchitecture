@@ -23,6 +23,7 @@ Shader "AntGarden/GateCurtain"
             #pragma fragment frag
             #pragma multi_compile_fog
             #include "UnityCG.cginc"
+            #include "AGClock.cginc"
 
             fixed4 _Color;
             float _Intensity;
@@ -44,8 +45,8 @@ Shader "AntGarden/GateCurtain"
             fixed4 frag(v2f i) : SV_Target
             {
                 float rim = pow(i.uv.y, 3);
-                float bands = 0.5 + 0.5 * sin(i.uv.y * 18 - _Time.y * 2.2 + sin(i.uv.x * 9 + _Time.y) * 1.5);
-                float shimmer = 0.6 + 0.4 * sin(i.uv.x * 40 + _Time.y * 3.1);
+                float bands = 0.5 + 0.5 * sin(i.uv.y * 18 - AG_TIME * 2.2 + sin(i.uv.x * 9 + AG_TIME) * 1.5);
+                float shimmer = 0.6 + 0.4 * sin(i.uv.x * 40 + AG_TIME * 3.1);
                 float a = (0.12 + 0.55 * rim + 0.18 * bands * shimmer) * _Intensity;
                 a *= smoothstep(_NearFade.x, _NearFade.y, i.eye);
                 fixed4 c = fixed4(_Color.rgb * a, 1);

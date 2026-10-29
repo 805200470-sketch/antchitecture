@@ -8,7 +8,8 @@
 //   2  drift   travelling along normal (the whole way) over uv4.x seconds and starting again, fading in and out,
 //              rising and sinking by uv4.y on the way: dust carried along the path, motes rising off a seam
 // uv3.x = a random phase, uv3.y = the radius. Vertex colour: rgb = tint × the particle's own brightness (0..1);
-// _Gain (set per renderer) lifts it into HDR. At rest everything is dim. Near the player's ant it brightens a
+// _Gain (set per renderer) lifts it into HDR. Right in front of the lens each keeps small on screen and fades out.
+// At rest everything is dim. Near the player's ant it brightens a
 // little and stays bright a moment behind it (_TrailLag follows the ant with a delay); the way on ahead along the
 // track (_PlayerD: the ant's distance to the heart, -1 off the track) lights up, nearest the ant most.
 // And like living light, pulses run out from just behind the ant along the way ahead, two beats and a pause
@@ -43,6 +44,7 @@ Shader "AntGarden/GuideTrail"
             #pragma fragment frag
             #pragma multi_compile_fog
             #include "UnityCG.cginc"
+            #include "AGClock.cginc"
 
             float _Base, _Near, _Ahead, _AheadReach, _Gain, _PlayerD;
             float _Pulse, _PulseEvery, _PulseSpeed, _PulseReach;
@@ -73,7 +75,7 @@ Shader "AntGarden/GuideTrail"
                 v2f o;
                 float3 world = mul(unity_ObjectToWorld, v.vertex).xyz;
                 float phase = v.uv3.x * 6.2831;
-                float t = _Time.y;
+                float t = AG_TIME;
                 float kind = v.uv2.y, fade = 1, d = v.uv2.x;
                 if (kind > 1.5)
                 {
@@ -106,9 +108,14 @@ Shader "AntGarden/GuideTrail"
                 }
                 // as it passes, a speck swells and lifts a little
                 world.y += 0.05 * pulse * step(kind, 0.5);
+                // right in front of the lens one would fill the view as a white ball (the motes float at the camera's
+                // height, and it passes through them): there it keeps to a small size on screen and fades away
+                float camD = distance(world, _WorldSpaceCameraPos);
+                float radius = min(v.uv3.y * (1 + 0.7 * pulse), camD * 0.03);
+                float lens = smoothstep(0.25, 0.8, camD);
                 // spread the centre into a camera-facing quad
                 float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
-                world += (right * v.uv.x + up * v.uv.y) * v.uv3.y * (1 + 0.7 * pulse);
+                world += (right * v.uv.x + up * v.uv.y) * radius;
                 o.pos = mul(UNITY_MATRIX_VP, float4(world, 1));
                 o.uv = v.uv;
                 o.kind = kind;
@@ -119,7 +126,7 @@ Shader "AntGarden/GuideTrail"
                 float near = max(1 - smoothstep(0.4, 2.6, dn), 0.6 * (1 - smoothstep(0.4, 2.0, dl)));
                 // the way on: what lies a little nearer the heart than the ant lights up, the nearest most
                 float ahead = _PlayerD >= 0 && k > 0 && k < _AheadReach ? pow(1 - k / _AheadReach, 1.3) * (1 - smoothstep(_AheadReach * 0.7, _AheadReach * 1.2, dn)) : 0;
-                o.glow = (_Base * breathe + _Near * near + _Ahead * ahead + _Pulse * pulse) * _Gain * fade;
+                o.glow = (_Base * breathe + _Near * near + _Ahead * ahead + _Pulse * pulse) * _Gain * fade * lens;
                 o.color = v.color.rgb;
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;

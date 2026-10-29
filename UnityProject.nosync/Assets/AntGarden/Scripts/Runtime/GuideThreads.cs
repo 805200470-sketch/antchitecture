@@ -57,6 +57,9 @@ namespace AntGarden
         Mesh mesh;
         readonly List<Filament> lines = new List<Filament>();
         readonly List<Beam> beams = new List<Beam>();
+        /// <summary>Where the beams of the nest now being played stand (their feet), for what must stand clear of them
+        /// and their vines (SolidThings' landmarks).</summary>
+        public static readonly List<Vector2> BeamFeet = new List<Vector2>();
         readonly List<Vine> vines = new List<Vine>();
         readonly List<Vector3> verts = new List<Vector3>(16384);
         readonly List<Color> cols = new List<Color>(16384);
@@ -71,6 +74,7 @@ namespace AntGarden
             lab = nest;
             ant = player;
             mat = material;
+            BeamFeet.Clear();
             if (mat == null || lab == null || lab.Route == null) { enabled = false; return; }
             if (NestTheme.Current != null) { core = NestTheme.Current.threadCore; halo = NestTheme.Current.threadHalo; }
             mat.SetFloat("_Gain", gain);
@@ -326,7 +330,7 @@ namespace AntGarden
                 }
                 Add(f, p, d, s);
             }
-            if (R() < curl)
+            if (R() < curl * (NestTheme.Current ?? NestTheme.Cyan).vineCurl)   // (as often as its nest has them: NestTheme.vineCurl)
             {
                 // the tip: a hook, curling in a little
                 float r = U(0.1f, 0.22f);
@@ -421,6 +425,7 @@ namespace AntGarden
             }
             var footAt = new Vector3(foot.x, lab.WalkHeight(foot), foot.y);
             beams.Add(new Beam { foot = footAt, height = U(11f, 16f), d = d, seed = R() * 100f });
+            BeamFeet.Add(foot);
             // the vines keep to the beam's far side from the way, leaning away from it, so the ant (and the camera
             // behind it) walks past them, not through them
             Vector2 away = (foot - p).sqrMagnitude > 1e-4f ? (foot - p).normalized : nrm * sideSign;
@@ -608,7 +613,7 @@ namespace AntGarden
             if (mesh == null || ant == null) return;
             if (cam == null) cam = Camera.main;
             if (cam == null) return;
-            float t = Time.time;
+            float t = NestClock.Now;
             verts.Clear();
             cols.Clear();
             uvs.Clear();

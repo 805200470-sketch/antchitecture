@@ -33,6 +33,9 @@ namespace AntGarden.Core
         public double WidthVariation = 0.35;
         /// <summary>path.widthFrequency: how often the width swells (per world unit).</summary>
         public double WidthFrequency = 0.05;
+        /// <summary>Tails continued out to the frame keep swelling and narrowing as the path did (false: they keep its
+        /// last width, a straight run of one width).</summary>
+        public bool TailWidths = false;
         /// <summary>path.pinch: occasional squeeze points.</summary>
         public double Pinch = 0.3;
         /// <summary>path.minHalfWidth.</summary>

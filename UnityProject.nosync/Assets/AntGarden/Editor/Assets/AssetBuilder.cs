@@ -18,6 +18,9 @@ namespace AntGarden.EditorTools
     {
         const string Root = "Assets/AntGarden";
         const string Gen = Root + "/Generated";
+        // points an ant is made of in the particle nest (40000 left its own smooth mesh showing between them up close:
+        // a model with dots on it, not an ant made of points)
+        const int AntPoints = 160000;
 
         [MenuItem("AntGarden/Build Assets")]
         public static void Run()
@@ -301,7 +304,7 @@ namespace AntGarden.EditorTools
             return null;
         }
 
-        static List<PlantRef> BuildPlants()
+        static List<PlantRef> BuildPlants(ICollection<string> only = null)
         {
             var list = new List<PlantRef>();
             string dir = $"{Root}/Art/Plants";
@@ -314,6 +317,7 @@ namespace AntGarden.EditorTools
                 string name = Path.GetFileName(sub);
                 string fbx = $"{dir}/{name}/{name}.fbx";
                 if (!File.Exists(fbx) || Entry(manifest, name, "plants") == null) continue;
+                if (only != null && !only.Contains(name)) continue;
                 var mi = AssetImporter.GetAtPath(fbx) as ModelImporter;
                 if (mi == null) continue;
                 bool dirty = false;
@@ -588,6 +592,68 @@ namespace AntGarden.EditorTools
             AssetDatabase.ImportAsset($"{dir}/{name}.bytes");
         }
 
+        /// <summary>Only the ground sets again (Art/Ground/&lt;set&gt;: a new set, new textures), into the RuntimeRefs the
+        /// game loads, without touching the plants (Run samples their points from their meshes again, undoing the splat
+        /// swaps). Batch mode: -executeMethod AntGarden.EditorTools.AssetBuilder.GroundSetsOnly</summary>
+        [MenuItem("AntGarden/Build Ground Sets")]
+        public static void GroundSetsOnly()
+        {
+            AssetDatabase.Refresh();
+            var refs = AssetDatabase.LoadAssetAtPath<RuntimeRefs>(Root + "/Resources/AntGarden/RuntimeRefs.asset");
+            if (refs == null) { Debug.LogError("[AntGarden] no RuntimeRefs: run Build Assets first"); return; }
+            refs.groundSets = BuildGroundSets();
+            EditorUtility.SetDirty(refs);
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[AntGarden] ground sets: {string.Join(", ", refs.groundSets.Select(g => g.id))}");
+        }
+
+        /// <summary>Only these plants (-plants a,b,c: new ones, or ones whose models changed): their prefabs, materials and
+        /// points made, and put in the asset list in place of their old entries; every other plant, its points included,
+        /// left as it is (Run samples every plant's points from its mesh again, undoing the ones replaced by splat
+        /// captures). Their growth maps must be made after (Tools/plants/growth_map.py). Batch mode: -executeMethod
+        /// AntGarden.EditorTools.AssetBuilder.PlantsOnly -plants a,b,c</summary>
+        public static void PlantsOnly()
+        {
+            string[] args = System.Environment.GetCommandLineArgs();
+            int i = System.Array.IndexOf(args, "-plants");
+            var names = new HashSet<string>(i >= 0 && i + 1 < args.Length ? args[i + 1].Split(',').Select(n => n.Trim()).Where(n => n.Length > 0) : new string[0]);
+            if (names.Count == 0) { Debug.LogError("[AntGarden] PlantsOnly: name the plants with -plants a,b,c"); return; }
+            AssetDatabase.Refresh();
+            var refs = AssetDatabase.LoadAssetAtPath<RuntimeRefs>(Root + "/Resources/AntGarden/RuntimeRefs.asset");
+            if (refs == null) { Debug.LogError("[AntGarden] no RuntimeRefs: run Build Assets first"); return; }
+            List<PlantRef> made = BuildPlants(names);
+            foreach (PlantRef pr in made)
+            {
+                refs.plants.RemoveAll(p => p.name == pr.name);
+                refs.plants.Add(pr);
+            }
+            refs.plants.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+            EditorUtility.SetDirty(refs);
+            AssetDatabase.SaveAssets();
+            string missing = string.Join(", ", names.Where(n => !made.Any(p => p.name == n)));
+            Debug.Log($"[AntGarden] plants only: made {string.Join(", ", made.Select(p => p.name))}" + (missing.Length > 0 ? $"; not found (no folder in Art/Plants or no entry in plants.json): {missing}" : ""));
+        }
+
+        /// <summary>Only the ants' points again (Resources/AntGarden/Points/ant_*.bytes), from the ant prefabs Run made,
+        /// without touching the plants (Run samples their points from their meshes again, and some have been replaced
+        /// by their splat captures, Tools/splat_to_points.py). Batch mode: -executeMethod
+        /// AntGarden.EditorTools.AssetBuilder.AntPointsOnly</summary>
+        [MenuItem("AntGarden/Bake Ant Points")]
+        public static void AntPointsOnly()
+        {
+            string dir = $"{Root}/Art/Ants";
+            foreach (string sub in Directory.GetDirectories(dir).OrderBy(s => s))
+            {
+                string id = Path.GetFileName(sub);
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{Gen}/Ants/{id}.prefab");
+                if (prefab == null) continue;
+                var go = (GameObject)Object.Instantiate(prefab);
+                SaveAntPoints(go, id, $"{dir}/{id}/{id}_BaseColor.png", AntPoints);
+                Object.DestroyImmediate(go);
+            }
+            AssetDatabase.SaveAssets();
+        }
+
         /// <summary>
         /// An ant drawn as points (the particle nest): points spread evenly over its most detailed LOD, each in its
         /// mesh's bind space with the two bones that move it most (and the first one's weight), so they can be
@@ -595,7 +661,8 @@ namespace AntGarden.EditorTools
         /// prefab root and the bindpose of the mesh that uses it. Colours from the base colour texture (eyes dark,
         /// wings dimmer). Resources/AntGarden/Points/ant_&lt;id&gt;.bytes: "AGA1", slots (path, 16 floats), points (x, y, z,
         /// rgba, slot 0, slot 1 as ushorts, weight 0); "AGA2" adds each point's normal (x, y, z) after its position,
-        /// so the points can be lit.
+        /// so the points can be lit; "AGA3" the surface's area (bind space) after the count, so the points can be
+        /// drawn just large enough to cover it.
         /// </summary>
         static void SaveAntPoints(GameObject go, string id, string texPath, int count)
         {
@@ -668,7 +735,7 @@ namespace AntGarden.EditorTools
             Directory.CreateDirectory(dir);
             using (var w = new BinaryWriter(File.Create($"{dir}/ant_{id}.bytes")))
             {
-                w.Write(0x32414741);   // "AGA2"
+                w.Write(0x33414741);   // "AGA3"
                 w.Write(slotPaths.Count);
                 for (int i = 0; i < slotPaths.Count; i++)
                 {
@@ -676,6 +743,7 @@ namespace AntGarden.EditorTools
                     for (int k = 0; k < 16; k++) w.Write(slotPoses[i][k]);
                 }
                 w.Write(count);
+                w.Write((float)total);
                 var acc = new Dictionary<int, float>();
                 for (int k = 0; k < count; k++)
                 {
@@ -707,6 +775,7 @@ namespace AntGarden.EditorTools
             }
             if (tex != null) Object.DestroyImmediate(tex);
             AssetDatabase.ImportAsset($"{dir}/ant_{id}.bytes");
+            Debug.Log($"[AntGarden] ant points: {id}, {count} over {total:F3} u² (bind space)");
         }
 
         static double FirstNum(object e, double def, params string[] keys)
@@ -842,7 +911,7 @@ namespace AntGarden.EditorTools
                 var animator = go.GetComponentInChildren<Animator>();
                 if (animator != null) animator.runtimeAnimatorController = null;
                 var prefab = PrefabUtility.SaveAsPrefabAsset(go, $"{Gen}/Ants/{id}.prefab");
-                SaveAntPoints(go, id, $"{dir}/{id}/{id}_BaseColor.png", 40000);
+                SaveAntPoints(go, id, $"{dir}/{id}/{id}_BaseColor.png", AntPoints);
                 Object.DestroyImmediate(go);
 
                 var all = AssetDatabase.LoadAllAssetsAtPath(fbx).OfType<AnimationClip>().Where(c => !c.name.StartsWith("__preview__")).ToList();

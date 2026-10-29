@@ -44,12 +44,16 @@ namespace AntGarden
                     game.demoKeys = Vector2.zero;
                     // at a relic, look at the relic itself; elsewhere, wherever the view runs furthest
                     bool relic = name.StartsWith("relic") || name.StartsWith("temple") || name.StartsWith("amber") || name.StartsWith("lab_own_")
-                        || name.StartsWith("lab_temple") || name.StartsWith("lab_relic") || name == "lab_heart_close";
+                        || name.StartsWith("lab_temple") || name.StartsWith("lab_relic") || name.StartsWith("lab_ember") || name.StartsWith("lab_char") || name == "lab_heart_close"
+                        || name == "lab_morel";   // (the kiln's morels: looking down the way, its eye shot missed them, k6)
                     yield return AntEye(game, Path.Combine(dir, $"r{r}_{k}_eye_{name}.png"), relic ? toward : (Vector2?)null);
                     // a plant's close-up: a photograph of the plant itself too
-                    if (PlantShots.Contains(name) || Tall.ContainsKey(name) || name.StartsWith("lab_temple"))
+                    if (PlantShots.Contains(name) || Tall.ContainsKey(name) || name.StartsWith("lab_temple") || name.StartsWith("lab_ember") || name.StartsWith("lab_char"))
                         yield return PlantPhoto(game, Path.Combine(dir, $"r{r}_{k}_photo_{name}.png"), at, toward, Tall.TryGetValue(name, out float tall) ? tall : -1);
                 }
+                // the player's ant close up, as a player sees it zoomed right in (is it made of points?)
+                yield return AntClose(game, Path.Combine(dir, $"r{r}_8_ant_close.png"), 1.9f, 35f);
+                yield return AntClose(game, Path.Combine(dir, $"r{r}_8_ant_side.png"), 2.8f, 80f);
                 yield return Aerial(game, r, Path.Combine(dir, $"r{r}_9_aerial.png"));
             }
             var map = new MapPainter(game.world, game.gates, 1600);
@@ -107,7 +111,14 @@ namespace AntGarden
                         Vector2 q0 = pp;
                         foreach (Vector2 q in t) { float d = (q - pp).sqrMagnitude; if (d < nearest) { nearest = d; q0 = q; } }
                         float dw = Mathf.Sqrt(nearest);
-                        if (dw >= 0.9f) cands.Add((dw, pp, q0));
+                        // (one standing up a bank, seen from the way, is behind the bank's slope: tried last; one at a
+                        // guiding beam's foot, in its vines and its pool of light, before that)
+                        bool atBeam = false;
+                        foreach (Vector2 b in GuideThreads.BeamFeet) atBeam |= (b - pp).sqrMagnitude < 2.5f * 2.5f;
+                        // (and one whose foot is off the floor, at a wall's foot in its dark, read as hanging in the air:
+                        // after those on the floor)
+                        if (dw >= 0.9f) cands.Add((dw + (game.world.Dist(pp.x, pp.y) > 0.6f ? 1000f : 0f) + (atBeam ? 500f : 0f)
+                            + (game.LabNest.OnFloor(pp, 0.3f) ? 0f : 200f), pp, q0));
                     }
                     cands.Sort((a, b) => a.dw.CompareTo(b.dw));
                     // from the way's side first, else turned round it a little at a time (a big plant among others)
@@ -137,10 +148,17 @@ namespace AntGarden
                 CloseUp("thorn_succulent", "lab_thorn", 2.4f);
                 // two of the things left beside the way, seen from the way (in the temple, an arch and a spire)
                 var shown = new HashSet<string>();
+                // (of the kiln's burnt logs the one nearest the way, not the first: the first lay up on the rim, a bank
+                // between it and the way, k6)
+                float logNear = float.MaxValue;
                 foreach (var (id, pos, from) in game.LabNest.Objects)
-                    if ((id == "relic_teacup" || id == "relic_key" || id.StartsWith("temple_arch") || id.StartsWith("temple_spire")) && shown.Add(id))
+                    if (id == "ember_log") logNear = Mathf.Min(logNear, (pos - from).sqrMagnitude);
+                foreach (var (id, pos, from) in game.LabNest.Objects)
+                    if ((id == "relic_teacup" || id == "relic_key" || id.StartsWith("temple_arch") || id.StartsWith("temple_spire") || (id == "ember_log" && (pos - from).sqrMagnitude <= logNear) || id == "char_stump_temple" || id == "resin_cone") && shown.Add(id))
                     {
-                        Vector2 back = from - (pos - from).normalized * (id.StartsWith("temple") ? 2.4f : 3.5f);
+                        // (the kiln's stump temple, large, from further back; the first of each along the way; its log close, so
+                        // its carved end and its cracks show, 1.5: from 4.2 it was 12.8 away, a tenth of its points drawn, k6)
+                        Vector2 back = from - (pos - from).normalized * (id.StartsWith("temple") ? 2.4f : id == "ember_log" ? 1.5f : id == "char_stump_temple" ? 5.5f : id == "resin_cone" ? 5f : 3.5f);
                         spots.Add(("lab_" + id, back, pos));
                     }
                 // this nest's own things close up (of each kind the one nearest the way), and the thing at its heart
@@ -154,16 +172,57 @@ namespace AntGarden
                     owns.Add((Mathf.Sqrt(nearest), kind, pos, height, q0));
                 }
                 owns.Sort((a, b) => a.dw.CompareTo(b.dw));
+                // the heart thing, so a close-up neither stands inside it nor looks through it (the way ends at the heart:
+                // for a thing beside it the camera stood in the leafcutters' fungus garden)
+                Vector2 heartAt = default;
+                float heartSize = 0f;
+                foreach (var (kind, pos, height) in SolidThings.Owned) if (kind == "Heart") { heartAt = pos; heartSize = height; }
+                var refused = new Dictionary<string, int[]>();   // (checks) why a kind has no close-up
                 foreach (var (dw, kind, pos, height, onWay) in owns)
                 {
                     string name = kind == "Heart" ? "lab_heart_close" : "lab_own_" + kind;
-                    if (Tall.ContainsKey(name) || (kind != "Heart" && dw < 0.6f)) continue;
+                    if (Tall.ContainsKey(name)) continue;
+                    if (!refused.TryGetValue(kind, out int[] why)) refused[kind] = why = new int[4];
+                    if (kind != "Heart" && dw < 0.6f && !LookDown.Contains(kind)) { why[0]++; continue; }   // (a flat thing may lie on the way)
+                    // (a flat thing not under a story spot's ring: seen from above, the ring hid half a bitten leaf)
+                    bool underRing = false;
+                    if (LookDown.Contains(kind))
+                        foreach (StorySlot sl in game.world.slots) underRing |= (new Vector2(sl.position.x, sl.position.z) - pos).sqrMagnitude < 1.6f * 1.6f;
+                    if (underRing) { why[1]++; continue; }
                     Vector2 dir = dw > 0.1f ? (pos - onWay).normalized : (game.LabNest.Heart - t[0]).normalized;
                     Vector2 stand = pos - dir * Mathf.Max(Mathf.Clamp(height * 1.8f, 1.5f, 3.4f), dw);
-                    if (kind == "Heart" ? !OnWayIn(game, 1.6f, out stand) && !Approach(game, r, pos, 4.6f, out stand) : !game.LabNest.OnFloor(stand, 0.2f) || !InSight(game, stand, pos)) continue;
+                    if (kind != "Heart" && heartSize > 0f && (Vector2.Distance(stand, heartAt) < heartSize * 0.62f || OffSegment(heartAt, stand, pos) < heartSize * 0.5f)) { why[1]++; continue; }
+                    if (kind == "Heart" ? !OnWayIn(game, 1.6f, out stand) && !Approach(game, r, pos, 4.6f, out stand) : !game.LabNest.OnFloor(stand, 0.2f) || !InSight(game, stand, pos))
+                    {
+                        why[kind == "Heart" || !game.LabNest.OnFloor(stand, 0.2f) ? 2 : 3]++;
+                        continue;
+                    }
                     Tall[name] = height;
                     spots.Add((name, stand, pos));
                 }
+                foreach (var kv in refused)
+                    if (!Tall.ContainsKey(kv.Key == "Heart" ? "lab_heart_close" : "lab_own_" + kv.Key))
+                        Debug.Log($"[AntGarden] no close-up of {kv.Key}: {kv.Value[0]} too near the way, {kv.Value[1]} by the heart or a story spot, {kv.Value[2]} off the floor, {kv.Value[3]} hidden");
+                // and last (so every shot before keeps its number): the crystals by the way, and the world's plants a
+                // nest has fixed for itself (the leafcutters' corals' soft change to their tips, the mushrooms' soil)
+                CloseUp("crystal_a_spray", "lab_crystal_spray", 2.2f);
+                CloseUp("crystal_b_fan", "lab_crystal_fan", 2.0f);
+                CloseUp("crystal_c_mixed", "lab_crystal_mixed", 2.2f);
+                CloseUp("coral_fungus", "lab_coral_fungus", 2.2f);
+                CloseUp("tiny_mushrooms", "lab_tiny_mushrooms", 1.6f);
+                // (the moss forest's own Tripo plants, after everything else so no other nest's numbers change)
+                CloseUp("liverwort_parasols", "lab_liverwort", 2.6f);
+                CloseUp("pixie_cup_lichen", "lab_lichen", 2.2f);
+                CloseUp("moss_capsules", "lab_capsules", 2.6f);
+                // (the kiln temple's own, after the moss forest's for the same reason)
+                CloseUp("ember_cups", "lab_cups", 1.3f);   // (closer: at 2.0 the small cups were lost against the bank)
+                // (its frame as for a plant 1.2 tall, about 40°: at its own 0.4 the lens closed to 14° and took a patch of the
+                // slope, the cups in a corner, k6)
+                Tall["lab_cups"] = 1.2f;
+                CloseUp("fire_morel", "lab_morel", 2.6f);
+                // (the amber nest's own, after the kiln temple's for the same reason)
+                CloseUp("tear_tree", "lab_tear_tree", 3.0f);
+                CloseUp("gumweed", "lab_gumweed", 2.2f);
                 return spots;
             }
             WEdge e = DemoMode.LongEdge(game, r);
@@ -243,18 +302,52 @@ namespace AntGarden
             }
         }
 
+        /// <summary>The moment every still is taken at (NestClock): the fireflies, spores, pheromones, the threads'
+        /// flicker and the plants' breath where they were in every other run, so two versions compare fairly.</summary>
+        const float ShotMoment = 31.5f;
+
         static IEnumerator Grab(string path)
         {
+            NestClock.Fix(ShotMoment);
+            Game.Instance?.SettleSpores(ShotMoment);
+            yield return null;   // a frame for what moves on the CPU to take the moment
             yield return new WaitForEndOfFrame();
             Texture2D tex = ScreenCapture.CaptureScreenshotAsTexture();
             File.WriteAllBytes(path, tex.EncodeToPNG());
             Object.Destroy(tex);
+            NestClock.Release();
+            Game.Instance?.ResumeSpores();
         }
 
         /// <summary>
         /// Through the ant's eyes: just above its head, looking a little up at the plants, turned towards whichever
         /// way near ahead is clearest; ants right in front of the lens step out of the picture for the shot.
         /// </summary>
+        /// <summary>The player's ant close up: from behind it, turned this far round to its side (degrees), this far
+        /// from its middle and a little above, looking at it; its ring and the screen's text left out.</summary>
+        static IEnumerator AntClose(Game game, string path, float dist, float turn)
+        {
+            AntController ant = game.player;
+            Camera cam = game.rig.cam;
+            float fov = cam.fieldOfView;
+            var fwd = new Vector3(Mathf.Sin(ant.heading), 0, Mathf.Cos(ant.heading));
+            Vector3 dir = Quaternion.Euler(0, turn, 0) * -fwd;
+            Vector3 target = ant.Position + Vector3.up * 0.2f;
+            // (from above enough that the pebbles round its feet stay out of the lens)
+            Vector3 eye = target + (dir + Vector3.up * 0.85f).normalized * dist;
+            game.rig.manual = true;
+            game.SetRingVisible(false);
+            game.hud.canvas.enabled = false;
+            cam.fieldOfView = 28f;   // (a long lens from further off: close up, a wide one bulged the ant's near parts)
+            cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(target - eye));
+            for (int f = 0; f < 4; f++) yield return null;
+            yield return Grab(path);
+            cam.fieldOfView = fov;
+            game.hud.canvas.enabled = true;
+            game.SetRingVisible(true);
+            game.rig.manual = false;
+        }
+
         static IEnumerator AntEye(Game game, string path, Vector2? lookAt)
         {
             AntController ant = game.player;
@@ -281,7 +374,7 @@ namespace AntGarden
             ant.SetVisible(false);
             game.SetRingVisible(false);
             game.hud.canvas.enabled = false;
-            cam.fieldOfView = 72f;
+            cam.fieldOfView = 50f;   // (72° stretched what was near the lens)
             cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(fwd + Vector3.up * 0.14f));
             yield return ShellSettles();
             for (int f = 0; f < 3; f++) yield return null;
@@ -302,6 +395,20 @@ namespace AntGarden
             float len = d.magnitude;
             if (len < 1e-3f) return true;
             d /= len;
+            // nothing standing right at the camera (a bush there filled a close-up with its splats)
+            foreach (Placement pl in game.world.placements)
+            {
+                var q = new Vector2(pl.x, pl.z);
+                if (pl.height >= 0.15f && (q - from).sqrMagnitude < 0.8f * 0.8f && (q - plant).sqrMagnitude > 0.04f) return false;
+            }
+            // nor the ground rising between them over the line from the camera's height to the plant's middle (the crystal
+            // spray's close-up looked into a bank, its crystal behind it; a plant up a bank's foot is still seen)
+            float h0 = game.world.Height(from.x, from.y) + 0.5f, h1 = game.world.Height(plant.x, plant.y) + 0.4f;
+            for (float u = 0.1f; u < 0.91f; u += 0.1f)
+            {
+                Vector2 q = from + d * (len * u);
+                if (game.world.Height(q.x, q.y) > Mathf.Lerp(h0, h1, u) + 0.05f) return false;
+            }
             foreach (Placement pl in game.world.placements)
             {
                 if (pl.height < 0.4f) continue;
@@ -312,14 +419,35 @@ namespace AntGarden
                 float off = Mathf.Abs(d.x * (p.y - from.y) - d.y * (p.x - from.x));
                 if (off < Mathf.Max(0.35f, pl.height * 0.3f)) return false;
             }
+            // nor a nest's own thing standing up between them (a cut leaf sail hid half a crystal)
+            foreach (var (kind, p, height) in SolidThings.Owned)
+            {
+                if (height < 0.4f || LookDown.Contains(kind) || (p - plant).sqrMagnitude < 0.04f) continue;   // (a flat thing does not hide)
+                float along = Vector2.Dot(p - from, d);
+                if (along < 0.2f || along > len - 0.3f) continue;
+                if (Mathf.Abs(d.x * (p.y - from.y) - d.y * (p.x - from.x)) < Mathf.Max(0.35f, height * 0.4f)) return false;
+            }
             return true;
+        }
+
+        /// <summary>How far the point p is from the segment a..b.</summary>
+        static float OffSegment(Vector2 p, Vector2 a, Vector2 b)
+        {
+            Vector2 ab = b - a;
+            float t = ab.sqrMagnitude < 1e-6f ? 0f : Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude);
+            return (a + ab * t - p).magnitude;
         }
 
         /// <summary>The close-ups of things that are not plants (a nest's own, its heart): how tall each is.</summary>
         static readonly Dictionary<string, float> Tall = new Dictionary<string, float>();
 
+        /// <summary>A nest's own things lying flat on the floor, photographed from above.</summary>
+        static readonly HashSet<string> LookDown = new HashSet<string> { "BittenLeaf", "LeafBits", "AshDrift" };   // (the kiln's cold ash too, k11)
+
         static readonly HashSet<string> PlantShots = new HashSet<string>
-            { "lab_curl", "lab_spore", "lab_crozier", "lab_lantern", "lab_hook", "lab_coral", "lab_frond", "lab_cluster", "lab_double", "lab_corkscrew", "lab_puff", "lab_mushroom", "lab_resin", "lab_thorn" };
+            { "lab_curl", "lab_spore", "lab_crozier", "lab_lantern", "lab_hook", "lab_coral", "lab_frond", "lab_cluster", "lab_double", "lab_corkscrew", "lab_puff", "lab_mushroom", "lab_resin", "lab_thorn",
+              "lab_crystal_spray", "lab_crystal_fan", "lab_crystal_mixed", "lab_coral_fungus", "lab_tiny_mushrooms", "lab_cups", "lab_morel",
+              "lab_liverwort", "lab_lichen", "lab_capsules", "lab_tear_tree", "lab_gumweed" };
 
         /// <summary>
         /// A plant close up, as a photograph: from the way, raised to about half the plant's height and aimed at its
@@ -339,7 +467,26 @@ namespace AntGarden
             Camera cam = game.rig.cam;
             float fov = cam.fieldOfView;
             var eye = new Vector3(from.x, game.world.WalkHeight(from.x, from.y) + Mathf.Clamp(h * 0.55f, 0.45f, 2f), from.y);
-            var target = new Vector3(plant.x, game.world.WalkHeight(plant.x, plant.y) + h * 0.5f, plant.y);
+            // (aimed lower at the kiln's morels, whose caps a view at their middle cut off below, their stems unseen, k6; and
+            // at its cups' own middle, framed as if 1.2 tall: aimed at 0.6 the cluster fell off the bottom, k7)
+            float aim = path.EndsWith("_photo_lab_morel.png") ? 0.3f : path.EndsWith("_photo_lab_cups.png") ? 0.15f : 0.5f;
+            float ground = game.world.WalkHeight(plant.x, plant.y);
+            // (from the kiln's morel's own foot: at a bank's foot it stands below the floor's height at its middle, and
+            // aimed from that the frame took the bank above it, k8)
+            if (path.EndsWith("_photo_lab_morel.png"))
+                foreach (PlantInstance pi in game.world.plantInstances)
+                    if (pi.t != null && pi.plant != null && pi.plant.name == "fire_morel" && (new Vector2(pi.t.position.x, pi.t.position.z) - plant).sqrMagnitude < 0.04f)
+                        ground = pi.t.position.y;
+            var target = new Vector3(plant.x, ground + h * aim, plant.y);
+            // a thing lying flat, seen from above (from level with the floor a bitten leaf was a line in it)
+            string stem = Path.GetFileNameWithoutExtension(path);
+            if (stem.Contains("_own_") && LookDown.Contains(stem.Substring(stem.IndexOf("_own_") + 5)))
+            {
+                Vector2 back = (from - plant).sqrMagnitude > 1e-4f ? (from - plant).normalized : Vector2.up, at = plant + back * 1.9f;
+                eye = new Vector3(at.x, game.world.WalkHeight(at.x, at.y) + 1.5f, at.y);
+                target = new Vector3(plant.x, game.world.WalkHeight(plant.x, plant.y) + 0.05f, plant.y);
+                h = Mathf.Max(2.2f, tall / 0.6f * 0.8f);   // the frame holds it whole (a leaf's tall is 0.6 of its length)
+            }
             float dist = Mathf.Max(0.5f, (target - eye).magnitude);
             game.rig.manual = true;
             cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(target - eye));
@@ -352,7 +499,16 @@ namespace AntGarden
             game.player.SetVisible(false);
             game.SetRingVisible(false);
             game.hud.canvas.enabled = false;
-            cam.fieldOfView = Mathf.Clamp(2f * Mathf.Atan(h * 0.65f / dist) * Mathf.Rad2Deg, 14f, 75f);
+            // no wider than 46° (wider stretched the near parts): stepped back along the line to the plant as far as needs be,
+            // up to half as far again
+            float want = 2f * Mathf.Atan(h * 0.65f / dist) * Mathf.Rad2Deg;
+            if (want > 46f)
+            {
+                float back = Mathf.Min(h * 0.65f / Mathf.Tan(23f * Mathf.Deg2Rad), dist * 1.5f);
+                eye = target + (eye - target).normalized * back;
+                dist = back;
+            }
+            cam.fieldOfView = Mathf.Clamp(2f * Mathf.Atan(h * 0.65f / dist) * Mathf.Rad2Deg, 14f, 46f);
             cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(target - eye));
             for (int f = 0; f < 3; f++) yield return null;
             yield return Grab(path);
