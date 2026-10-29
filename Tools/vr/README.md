@@ -15,6 +15,11 @@
   - 对比图：`07_Outputs/VR_头显版/01_头显版参数_Mac预览对比.jpg`（Mac 上，不在仓库里）。
 - **还没在真头显上跑过**，帧率未知。
 - 第一个 APK 是在 Mac 上打的：`05_Builds.nosync/AntGarden_Quest/AntGarden.apk`。
+  - 1.0 GB，打包用了 221 秒。
+  - 包名 com.ucldfpi.antgarden，minSdk 32，arm64；清单里 supportedDevices = quest|quest2|cambria|eureka（eureka 就是 Quest 3）。
+- 打包时，`AntGarden/Plant`（网格植物的着色器）在 Vulkan 上有 2 个编译错误（BLENDINDICES 的输入顺序）。
+  - 粒子蚁穴里植物网格是隐藏的，用不到它。
+  - 以后要在头显里放非粒子的世界，得先修它。
 
 ## 在 Windows 上打包
 
