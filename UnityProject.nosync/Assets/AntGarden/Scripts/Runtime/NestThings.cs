@@ -156,12 +156,55 @@ namespace AntGarden
             return p;
         }
 
+        /// <summary>A splat of the ground itself (ParticleLook.WallShell: the walls round the ant): it stands still as a
+        /// building's does, and takes no rim light, no glints and no glow (a wall seen aslant lit all over by its rim). The
+        /// shader knows it by a building's flag with a glow byte of 2.</summary>
+        public static SolidPoint Terrain(SolidPoint p)
+        {
+            p.nrm |= 1u << 31;
+            p.col = (p.col & 0x00FFFFFFu) | (2u << 24);
+            return p;
+        }
+
+        /// <summary>How much a splat glows of itself (0..1).</summary>
+        public static float GlowOf(SolidPoint p) => ((p.col >> 24) & 254) / 255f;
+
+        /// <summary>A splat glowing this much of itself, its colour as it was (glossy or not as it was).</summary>
+        public static SolidPoint WithGlow(SolidPoint p, float glow)
+        {
+            p.col = (p.col & 0x01FFFFFFu) | ((uint)(Mathf.Clamp(Mathf.RoundToInt(glow * 255f), 0, 255) & 254) << 24);
+            return p;
+        }
+
+        /// <summary>A glossy splat (Shaders/ParticleSolid.shader: the lowest bit of its glow): its face flashes where it
+        /// turns the light toward the camera, and is seen into a little more face on: a crystal's facets, honey, resin
+        /// (a crystal's faces all matt read as plaster, "没有那种质感").</summary>
+        public static SolidPoint Glossy(SolidPoint p)
+        {
+            p.col |= 1u << 24;
+            return p;
+        }
+
+        /// <summary>A splat turned toward a colour (linear) by mix, and glowing this much of itself.</summary>
+        public static SolidPoint Glowing(SolidPoint p, Color toward, float mix, float glow)
+        {
+            var c = new Color(ToLinear(p.col & 255), ToLinear((p.col >> 8) & 255), ToLinear((p.col >> 16) & 255));
+            p.col = Pack(Color.Lerp(c, toward, mix), glow) | (p.col & (1u << 24));
+            return p;
+        }
+
+        static float ToLinear(uint b)
+        {
+            float x = b / 255f;
+            return x <= 0.04045f ? x / 12.92f : (float)System.Math.Pow((x + 0.055) / 1.055, 2.4);
+        }
+
         static uint Pack(Color c, float glow)
         {
             uint r = (uint)Mathf.Clamp(Mathf.RoundToInt(ToGamma(c.r) * 255f), 0, 255);
             uint g = (uint)Mathf.Clamp(Mathf.RoundToInt(ToGamma(c.g) * 255f), 0, 255);
             uint b = (uint)Mathf.Clamp(Mathf.RoundToInt(ToGamma(c.b) * 255f), 0, 255);
-            uint a = (uint)Mathf.Clamp(Mathf.RoundToInt(glow * 255f), 0, 255);
+            uint a = (uint)Mathf.Clamp(Mathf.RoundToInt(glow * 255f), 0, 255) & 254u;   // (its lowest bit: glossy, Glossy)
             return r | (g << 8) | (b << 16) | (a << 24);
         }
 

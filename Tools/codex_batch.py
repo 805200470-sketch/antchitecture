@@ -22,6 +22,8 @@ def run(job):
     env = dict(os.environ)
     if job.get('refs'):   # reference images for style, relative to the project folder
         env['CODEX_REFS'] = ','.join(os.path.join(ROOT, r) for r in job['refs'])
+    if job.get('edit'):   # the first reference is the image to edit (a game still), not a style reference
+        env['CODEX_EDIT'] = '1'
     r = subprocess.run([os.path.join(TOOLS, 'codex_image.sh'), out, job['prompt']], capture_output=True, text=True, env=env)
     return r.stdout.strip() or r.stderr.strip()
 
@@ -37,7 +39,7 @@ def main():
             if (not only or os.path.splitext(os.path.basename(j['out']))[0] in only)
             and ('--force' in sys.argv or not os.path.exists(os.path.join(ROOT, j['out'])))]
     print(f'codex_batch: {len(todo)} image(s) to make', flush=True)
-    with concurrent.futures.ThreadPoolExecutor(3) as ex:
+    with concurrent.futures.ThreadPoolExecutor(int(os.environ.get('CODEX_JOBS', '3'))) as ex:   # (CODEX_JOBS=2 when the service limits the rate)
         for line in ex.map(run, todo):
             print(line, flush=True)
     return 0

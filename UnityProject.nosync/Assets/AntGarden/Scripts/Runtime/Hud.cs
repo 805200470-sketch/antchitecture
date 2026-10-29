@@ -22,6 +22,9 @@ namespace AntGarden
         RectTransform minimap, playerMarker;
         RectTransform objective;
         Text objectiveLabel;
+        RectTransform controls;
+        Text controlsLabel;
+        bool controlsWanted;
         MapPainter map;
         float fps = 60, statTimer, regionTimer, regionDuration = 2.8f;
 
@@ -40,6 +43,13 @@ namespace AntGarden
             objective = UiKit.Rect(root, "Objective", 0, 1, new Vector2(28, -28), new Vector2(760, 40));
             objectiveLabel = UiKit.Label(objective, "ObjectiveText", "", 21, UiKit.Warm, TextAnchor.MiddleLeft);
             objective.gameObject.SetActive(false);
+
+            // the pad's controls, a small panel under the goal, while the game is shown to people (-controls)
+            controls = UiKit.Rect(root, "Controls", 0, 1, new Vector2(24, -76), new Vector2(300, 262));
+            UiKit.Panel(controls, UiKit.PanelBg);
+            controlsLabel = UiKit.Label(controls, "ControlsText", "", 19, UiKit.Ink, TextAnchor.UpperLeft);
+            Pad(controlsLabel.rectTransform, 16, 12);
+            controls.gameObject.SetActive(false);
 
             stats = UiKit.Rect(root, "Stats", 0, 0, new Vector2(24, 24), new Vector2(520, 64));
             UiKit.Panel(stats, UiKit.PanelBg);
@@ -137,6 +147,7 @@ namespace AntGarden
                       "M map & teleport (click anywhere on it)\n" +
                       "Tab quality · F full screen · L 中文 · H hide help\n" +
                       "<color=#9bbcbc>Pad: left stick crawl · right stick look · RT run · A interact · B antennae / back · Y map · LB/RB zoom · ☰ help</color>") + "</size>";
+            if (controlsWanted) SetControlsVisible(true);   // (in the language just chosen)
         }
 
         public void ToggleHelp() => SetHelpVisible(!helpWanted);
@@ -144,6 +155,18 @@ namespace AntGarden
         {
             helpWanted = on;
             help.gameObject.SetActive(helpWanted && !mapOpen);
+            controls.gameObject.SetActive(controlsWanted && !helpWanted && !mapOpen);
+        }
+
+        /// <summary>The pad's controls, top left under the goal (the full help, ☰, has them too and takes their place).</summary>
+        public void SetControlsVisible(bool on)
+        {
+            controlsWanted = on;
+            const string k = "<color=#e9d7a8>";
+            controlsLabel.text = Loc.T(
+                $"<b>手柄操作</b>\n{k}左摇杆</color>  爬行\n{k}右摇杆</color>  转镜头\n{k}RT</color>  快爬\n{k}A</color>  互动\n{k}B</color>  触角 / 返回\n{k}Y</color>  地图\n{k}LB / RB</color>  拉远 / 拉近\n{k}☰</color>  完整说明",
+                $"<b>Pad controls</b>\n{k}Left stick</color>  crawl\n{k}Right stick</color>  look\n{k}RT</color>  run\n{k}A</color>  interact\n{k}B</color>  antennae / back\n{k}Y</color>  map\n{k}LB / RB</color>  zoom\n{k}☰</color>  all controls");
+            controls.gameObject.SetActive(controlsWanted && !helpWanted && !mapOpen);
         }
 
         /// <summary>The big map covers the screen: the help panel steps aside so the two do not overlap.</summary>
@@ -152,6 +175,7 @@ namespace AntGarden
             if (open == mapOpen) return;
             mapOpen = open;
             help.gameObject.SetActive(helpWanted && !mapOpen);
+            controls.gameObject.SetActive(controlsWanted && !helpWanted && !mapOpen);
         }
         public void SetStatsVisible(bool on) => stats.gameObject.SetActive(on);
 

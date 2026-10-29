@@ -48,6 +48,7 @@ Shader "AntGarden/ParticleLook"
             float4 _ShellFade, _NearDim;
             float _ShellGain;                    // the shell's brightness (a new one fades in over the old)
             float4 _CarpetFade;                  // the carpet round the ant (x..y units): plain ground points give way to it
+            float4 _WallFade;                    // and the walls' opaque splats (x..y units): the walls' points give way to them
             float _CoverGain;                    // the floor's small things (ground points of sizes 1-9): their brightness
             float _FlareCount;                   // plants an antenna has lit: where, and how far / high / bright
             float4 _Flares[16], _FlareInfo[16];
@@ -94,15 +95,20 @@ Shader "AntGarden/ParticleLook"
                 uint b = (p.col >> 24) & 255, kind = b >> 6, sz = b & 63;
                 float glow = kind == 3 ? 1 : 0, ground = kind == 2 ? 1 : 0, dust = kind == 1 ? 1 : 0;
                 // plain ground points (sizes 10, 20, 40; the floor's small things use others) give way to the carpet
-                // round the ant, each at its own distance, so the two dissolve into each other
+                // round the ant, each at its own distance, so the two dissolve into each other; those on the walls and
+                // slopes, where the carpet does not lie (one size up: ParticleLook.Emit), to the walls' opaque splats
+                // (ParticleLook.WallShell)
                 if (kind == 2 && (sz == 10 || sz == 20 || sz == 40) && _CarpetFade.y > 0
                     && length(p.pos.xz - _TrailPlayer.xz) < lerp(_CarpetFade.x - 0.6, _CarpetFade.y - 0.4, frac(h * 13.7 + 0.31)))
+                    { o.pos = float4(0, 0, 0, 1); return o; }
+                if (kind == 2 && (sz == 11 || sz == 21 || sz == 41) && _WallFade.y > 0
+                    && length(p.pos.xz - _TrailPlayer.xz) < lerp(_WallFade.x - 0.6, _WallFade.y - 0.4, frac(h * 13.7 + 0.31)))
                     { o.pos = float4(0, 0, 0, 1); return o; }
                 bool plantKind = kind == 0 || kind == 3;
                 bool tinted = _UsePalette > 0.5 && plantKind && sz != 63;   // 63: a thing keeping its own colours
                 float scale = sz == 0 || plantKind ? 1 : sz * 0.125;
                 if (tinted) rgb *= kind == 3 ? _GlowPal[(sz >> 3) & 7].rgb : _BodyPal[sz & 7].rgb;
-                float t = _Time.y;
+                float t = AG_TIME;
                 float3 pos = p.pos + _Shimmer * (1 - ground) * float3(sin(t * (0.9 + h * 1.3) + h * 17.0), sin(t * (0.7 + h * 1.1) + h * 29.0), sin(t * (0.8 + h * 1.7) + h * 41.0));
                 // dust wanders slowly through the air, and round the ant it is drawn into a slow swirl
                 float pace = 0.35 + 0.65 * h;

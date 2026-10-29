@@ -93,10 +93,13 @@ Shader "AntGarden/ParticleSolid"
                 // round the ant, the plants' coarse splats (negative radius) give way to the fine ones (the shell): each
                 // at its own distance, so the change is dithered over a few units, never a line
                 float rad = abs(p.radius);
+                // (a giant beyond the walls, ParticleLook.FarSplats: coarse and ranked 127, its splats as small as its
+                // distance wants already; it has no fine set, and is never thinned further off)
+                bool giant = p.radius < 0 && ((p.nrm >> 24) & 127u) == 127u;
                 if (_NearFade.y > 0)
                 {
                     float da = length(p.pos.xz - _TrailPlayer.xz), edge = lerp(_NearFade.x, _NearFade.y, Hash(i + 31337u));
-                    if ((_Shell > 0.5 && da > edge) || (_Shell < 0.5 && p.radius < 0 && da < edge)) return o;
+                    if ((_Shell > 0.5 && da > edge) || (_Shell < 0.5 && p.radius < 0 && !giant && da < edge)) return o;
                 }
                 // far away: fewer splats, the rest a little larger
                 float dist = distance(p.pos, _WorldSpaceCameraPos);
@@ -104,6 +107,8 @@ Shader "AntGarden/ParticleSolid"
                 if (_Shell > 0.5 && p.radius > 0)
                 {
                     float want = clamp(_NearDensity.x * _NearDensity.x / max(dist * dist, 1e-4), _NearDensity.y, 1);
+                    // (a building's, bit 31, at least its nest's share however far: z, NestTheme.relicKeep; 0 elsewhere)
+                    if ((p.nrm >> 31) != 0) want = max(want, _NearDensity.z);
                     if (((p.nrm >> 24) & 127u) / 128.0 >= want) return o;
                     rad /= sqrt(want);
                 }
@@ -117,12 +122,14 @@ Shader "AntGarden/ParticleSolid"
                     if ((rk - 1) / 127.0 >= want) return o;
                     rad /= sqrt(want);
                 }
-                float keep = lerp(1, _Lod.z, saturate((dist - _Lod.x) / max(1e-3, _Lod.y - _Lod.x)));
+                float keep = giant ? 1.0 : lerp(1, _Lod.z, saturate((dist - _Lod.x) / max(1e-3, _Lod.y - _Lod.x)));
                 if (h > keep) return o;
                 // alive: what stands up from the floor sways in the wind, low things part round the ant, and rings
                 // from its steps run under them
                 float floorY = NestFloor(p.pos.xz), above = floorY > -999 ? p.pos.y - floorY : 0;
-                float3 pos = p.pos + NestSway(p.pos, above, h) + NestPart(p.pos, above, _TrailPlayer.xz);
+                // (a building, and a crystal, stand still: ThingPen.Building)
+                bool building = (p.nrm >> 31) != 0;
+                float3 pos = p.pos + (building ? float3(0, 0, 0) : NestSway(p.pos, above, h) + NestPart(p.pos, above, _TrailPlayer.xz));
                 float low = 1 - smoothstep(0.15, 0.6, above);
                 float rip = NestRipple(pos.xz) * low;
                 pos.y += 0.03 * rip;
@@ -187,18 +194,31 @@ Shader "AntGarden/ParticleSolid"
                 o.shape = h2;
                 // lit from its normal: moonlight from above, a soft fill, a thin rim; brighter near the ant
                 float3 albedo = GammaToLinearSpace(float3(p.col & 255, (p.col >> 8) & 255, (p.col >> 16) & 255) / 255.0);
-                float glow = ((p.col >> 24) & 255) / 255.0;
+                float glow = ((p.col >> 24) & 254u) / 255.0;
+                bool glossy = ((p.col >> 24) & 1u) != 0;   // (ThingPen.Glossy: a crystal's facets, honey, resin)
+                // the ground itself (ThingPen.Terrain: the walls round the ant): no glow, no rim, no glints
+                bool terrain = building && ((p.col >> 24) & 255u) == 2u;
+                if (terrain) glow = 0;
                 float key = saturate(dot(n, _MoonDir.xyz) * 0.85 + 0.15);
-                float rim = pow(1 - saturate(dot(n, V)), 3);
+                float rim = terrain ? 0.0 : pow(1 - saturate(dot(n, V)), 3);
                 // a building (ThingPen.Building: the kiln's spires, arches, chimneys and cells) lights only where it glows,
                 // along its paths and at a few points, when the ant comes near, walks past or touches it; not the whole of it
-                bool building = (p.nrm >> 31) != 0;
                 float near = 1 + _NearLift * (1 - smoothstep(0.8, 4.5, length(pos.xz - _TrailPlayer.xz))) * (building ? 0.3 : 1);
                 float3 lit = albedo * (_FillColor.rgb + _MoonColor.rgb * key * key) * near + rim * 0.08 * albedo * 4;
                 // a thin silvery light along the outlines, as in a scan; a few splats glint now and then
                 lit += _RimColor.rgb * rim * (0.5 + 0.5 * key);
-                float tw = 0.5 + 0.5 * sin(_Time.y * (0.45 + 1.1 * h) + h * 61);
-                lit += _GlintColor.rgb * step(0.972, Hash(i + 555u)) * pow(tw, 8);
+                if (glossy)
+                {
+                    // glossy: its face flashes where it turns the light toward the camera (a facet lights whole, its
+                    // neighbour not), a little more at a grazing angle; face on, seen into, a little darker
+                    float3 H = normalize(_MoonDir.xyz + V);
+                    float spec = pow(saturate(dot(n, H)), 16);   // (at 40 no face of a cluster caught it in a still)
+                    float fres = pow(1 - saturate(dot(n, V)), 4);
+                    lit = lit * (0.86 + 0.14 * fres) + _GlintColor.rgb * spec * (0.55 + 0.4 * fres) * near;   // (a sheen: stronger, dark faces with it read as metal)
+                }
+                float tw = 0.5 + 0.5 * sin(AG_TIME * (0.45 + 1.1 * h) + h * 61);
+                // (far fewer on a building or a crystal: their splats dense and pale, the glints read as white specks all over)
+                lit += _GlintColor.rgb * step(terrain ? 2.0 : building ? 0.997 : 0.972, Hash(i + 555u)) * pow(tw, 8);
                 // the steps' rings and the threads' pools of light
                 lit *= 1 + 1.2 * rip;
                 lit += albedo * NestBeacon(pos) * _BeaconColor.rgb * lerp(1.2, 4.5, low);

@@ -10,21 +10,25 @@ namespace AntGarden
     /// (AssetBuilder.SaveAntPoints: spread over its surface, each with its normal and the two bones that move it
     /// most) sit in one buffer; every frame each shown ant's bone × bindpose matrices go into another, and the GPU skins the points
     /// with them. The ants' meshes are not drawn, but their animation and procedural legs run as before, so the
-    /// points walk, step and touch antennae with them. The points are lit opaque beads of different sizes and
-    /// colours, over the ant's own mesh drawn dark (nothing behind shows through), so the body's detail reads,
-    /// not just its outline. Far ants get fewer points.
+    /// points walk, step and touch antennae with them. The ant is made of its points: lit flakes of different sizes
+    /// and colours, as many and as large as cover its surface, over its own mesh drawn dark (nothing behind shows
+    /// through; between the flakes only dark, never a smooth body). Far ants get fewer points.
     /// </summary>
     [DefaultExecutionOrder(1000)]   // after the ants have moved and been posed
     public class ParticleAnts : MonoBehaviour
     {
-        public float size = 0.003f;     // a point's radius (units): fine, so thin legs stay thin and the waist narrow
-        public float gain = 1.15f;
+        public float size = 0.003f;     // a point's radius (units) for an ant whose points file has no area (AGA2)
+        public float cover = 0.7f;      // otherwise: its radius, of the spacing of its points (0.62 just covers the surface)
+        // (1.15 made every nest's ant nearly white, the brightest thing in view with the bloom round it: the user,
+        // 10-27, "蚂蚁亮度太亮了". The grading squeezes its highlights, so halving it moved its flakes' median luma only
+        // 0.85 → 0.78 in the honey nest, 0.81 → 0.68 in the leafcut garden)
+        public float gain = 0.4f;
         public float pale = 0.06f;      // how far colours go from the ant's own toward a pale glow
         public float contrast = 1.2f;   // how much the texture's light and dark are exaggerated
         public Color bodyColour = new Color(0.02f, 0.05f, 0.06f);   // the ant's own mesh, dark, under its points
-        public float bodyTexture = 0.5f;   // and its own texture on it, dim: the gaps show the ant, not black stripes
-        public float fullUntil = 6f;    // all its points this close to the camera
-        public float fewBeyond = 18f;   // a third of them from here on
+        public float bodyTexture = 0f;  // and its own texture on it (0.5 showed a smooth model between the points)
+        public float fullUntil = 2.5f;  // all its points this close to the camera (the player's ant, one beside it)
+        public float fewBeyond = 7f;    // a third of them from here on (with 160000 points each, more left frames running late)
 
         struct AntPoint { public Vector3 pos; public Vector3 nrm; public uint col; public uint slots; public float w; }
 
@@ -32,6 +36,7 @@ namespace AntGarden
         {
             public ComputeBuffer points;
             public int count;
+            public float area;          // its surface in bind space (0: not known)
             public string[] paths;
             public Matrix4x4[] poses;
         }
@@ -98,7 +103,8 @@ namespace AntGarden
             if (asset == null) return null;
             using (var r = new BinaryReader(new MemoryStream(asset.bytes)))
             {
-                if (r.ReadInt32() != 0x32414741) return null;   // "AGA2"
+                int magic = r.ReadInt32();
+                if (magic != 0x32414741 && magic != 0x33414741) return null;   // "AGA2", "AGA3" (with its area)
                 int ns = r.ReadInt32();
                 var paths = new string[ns];
                 var poses = new Matrix4x4[ns];
@@ -110,6 +116,7 @@ namespace AntGarden
                     poses[i] = m;
                 }
                 int n = r.ReadInt32();
+                float area = magic == 0x33414741 ? r.ReadSingle() : 0f;
                 var pts = new AntPoint[n];
                 for (int i = 0; i < n; i++)
                 {
@@ -120,7 +127,7 @@ namespace AntGarden
                     pts[i] = new AntPoint { pos = pos, nrm = nrm, col = cr | (cg << 8) | (cb << 16) | (ck << 24), slots = s0 | (s1 << 16), w = r.ReadSingle() };
                 }
                 if (n == 0) return null;
-                k = new Kind { count = n, paths = paths, poses = poses, points = new ComputeBuffer(n, 36) };
+                k = new Kind { count = n, area = area, paths = paths, poses = poses, points = new ComputeBuffer(n, 36) };
                 k.points.SetData(pts);
             }
             kinds[id] = k;
@@ -153,7 +160,10 @@ namespace AntGarden
                 s.block.SetFloat("_SkinBase", s.skinBase);
                 s.block.SetFloat("_Hue", 0f);   // every kind in its own colours (the theme's tint, _AntTint, leans them to the nest's)
                 s.block.SetFloat("_Sat", s.ant.Saturation);
-                s.block.SetFloat("_Size", size);
+                // just large enough to cover the ant (its points' spacing in bind space, scaled as its skin scales it)
+                float bindToWorld = ((Vector3)skinData[s.skinBase].GetColumn(0)).magnitude;
+                float r = s.kind.area > 0 ? cover * Mathf.Sqrt(s.kind.area / s.kind.count) * bindToWorld : size;
+                s.block.SetFloat("_Size", r);
                 s.block.SetFloat("_Gain", gain);
                 s.block.SetFloat("_Pale", pale);
                 s.block.SetFloat("_Contrast", contrast);

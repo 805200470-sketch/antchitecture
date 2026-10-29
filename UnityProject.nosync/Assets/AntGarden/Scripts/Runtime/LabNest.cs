@@ -7,9 +7,9 @@ namespace AntGarden
     /// The particle nest (world "lab:path-012@blue"), chapter one, an experiment toward the texture of Marshmallow
     /// Laser Feast's "Dream". One nest, its canyons narrowed into passages (labWidth), made only of dense pale
     /// points (ParticleLook, replace mode), in a darker, bluer night with golden motes. Warm specks lie on the floor
-    /// from the way in to the nest's heart, its deepest chamber, and living pulses run along them ahead of the ant
-    /// (GuideTrail). A chapter card opens it, one quiet goal at a time sits top left, and reaching the heart closes
-    /// the chapter.
+    /// from where the ant starts through the nest to its way out, a light gate (no heart: "不要用心脏的概念了"), and
+    /// living pulses run along them ahead of the ant (GuideTrail). A chapter card opens it, one quiet goal at a time
+    /// sits top left, and reaching the way out closes the chapter. (Heart, in the code: the way's end.)
     /// </summary>
     public class LabNest
     {
@@ -22,13 +22,13 @@ namespace AntGarden
         Vector2 heart;
         const float HeartRadius = 2.6f;
         const float PulseSpeed = 3.6f, PulsePeriod = 8f;   // the guiding pulses: units/s, and units apart (one every 2.2 s)
-        int beat;              // 0 walking in, 1 a plant lit on the way, 2 the heart reached
+        int beat;              // 0 walking in, 1 a plant lit on the way, 2 the way out reached
         float cardIn = 1.5f;   // the chapter card comes a moment after the nest appears
         bool begun;
         float shownD = -1;   // the ant's distance to the heart along the way, as the pulses on the floor are shown
 
         public Vector2 Heart => heart;
-        /// <summary>The main glowing track, from the way in to the heart.</summary>
+        /// <summary>The main glowing track, from where the ant starts to the way out.</summary>
         public List<Vector2> Track => route?.mainFull;
         /// <summary>All the glowing tracks (the main one and the other ways in).</summary>
         public List<List<Vector2>> Tracks
@@ -62,7 +62,7 @@ namespace AntGarden
             this.refs = refs;
         }
 
-        /// <summary>The heart and the glowing way to it (before the plants grow: its lane is kept clear).</summary>
+        /// <summary>The way out and the glowing way to it (before the plants grow: its lane is kept clear).</summary>
         public void Plan(Vector2 spawn)
         {
             // the nest as a graph of its canyons
@@ -79,7 +79,7 @@ namespace AntGarden
                 pos[e.target] = e.pts[e.pts.Count - 1];
             }
             if (pos.Count == 0) return;
-            // from the node nearest where the ant starts, the deepest inner dead end is the heart
+            // distances along the canyons from the node nearest where the ant starts
             string start = null;
             float best = float.MaxValue;
             foreach (var kv in pos) { float d = (kv.Value - spawn).sqrMagnitude; if (d < best) { best = d; start = kv.Key; } }
@@ -101,23 +101,55 @@ namespace AntGarden
                     open.Add(v);
                 }
             }
-            WNode heartNode = null;
-            foreach (WNode n in world.nodes)
-            {
-                if (n.region != region.index || !n.inside || !dist.ContainsKey(n.id)) continue;
-                bool deadEnd = n.degree == 1;
-                if (heartNode == null || (deadEnd && (heartNode.degree != 1 || dist[n.id] > dist[heartNode.id]))
-                    || (!deadEnd && heartNode.degree != 1 && n.clear > heartNode.clear)) heartNode = n;
-            }
-            if (heartNode == null) return;
-            heart = new Vector2(heartNode.x, heartNode.z);
-            // the way in ends at the heart: any canyon that reaches it
+            // the way leads through the nest and out, to the exit farthest along the canyons from where the ant starts,
+            // where a light gate stands (the user, 2026-10-27: "不要用心脏的概念了"; landmarks beside the way, its light
+            // leading to the way out): no chamber it ends in, nothing standing at its end. (Heart keeps its name: the
+            // way's end.) A nest with no exit: its deepest inner dead end, as before
             WEdge main = null;
-            foreach (var (e, _, _) in adj[heartNode.id]) { main = e; break; }
-            if (main == null) return;
-            route = GuideTrail.Plan(world, region, main, main.target == heartNode.id, spawn, heart, HeartRadius, 9001);
+            bool forward = false;
+            float far = -1f;
+            foreach (WExit ex in world.exits)
+            {
+                if (ex.region != region.index) continue;
+                var at = new Vector2(ex.x, ex.z);
+                // the canyon it runs out along (the exit is one of its points), and that canyon's end beyond the frame
+                WEdge edge = null;
+                float bd = 9f;
+                foreach (WEdge e in world.edges)
+                {
+                    if (e.region != region.index || e.pts.Count < 2) continue;
+                    foreach (Vector2 q in e.pts) { float d2 = (q - at).sqrMagnitude; if (d2 < bd) { bd = d2; edge = e; } }
+                }
+                if (edge == null) continue;
+                Vector2 s = edge.pts[0], t = edge.pts[edge.pts.Count - 1];
+                bool fwd = world.HexDist(t.x, t.y) > world.HexDist(s.x, s.y);
+                if (!dist.TryGetValue(fwd ? edge.target : edge.source, out float d) || d <= far) continue;
+                far = d;
+                main = edge;
+                forward = fwd;
+                heart = at;
+            }
+            if (main == null)
+            {
+                WNode endNode = null;
+                foreach (WNode n in world.nodes)
+                {
+                    if (n.region != region.index || !n.inside || !dist.ContainsKey(n.id)) continue;
+                    bool deadEnd = n.degree == 1;
+                    if (endNode == null || (deadEnd && (endNode.degree != 1 || dist[n.id] > dist[endNode.id]))
+                        || (!deadEnd && endNode.degree != 1 && n.clear > endNode.clear)) endNode = n;
+                }
+                if (endNode == null) return;
+                heart = new Vector2(endNode.x, endNode.z);
+                foreach (var (e, _, _) in adj[endNode.id]) { main = e; break; }
+                if (main == null) return;
+                forward = main.target == endNode.id;
+                far = dist[endNode.id];
+            }
+            route = GuideTrail.Plan(world, region, main, forward, spawn, heart, HeartRadius, 9001);
             GuideTrail.Reserve(world, region, route);
-            Debug.Log($"[AntGarden] particle nest: heart at ({heart.x:F0}, {heart.y:F0}), {dist[heartNode.id]:F0} units of canyon from the way in");
+            Debug.Log($"[AntGarden] particle nest: the way leads to ({heart.x:F0}, {heart.y:F0}), " + (world.exits.Exists(x => x.region == region.index) ? "its way out" : "its deepest dead end (no exit)")
+                + $", {far:F0} units of canyon from where the ant starts");
         }
 
         static void Add(Dictionary<string, List<(WEdge, string, float)>> adj, string key, (WEdge, string, float) v)
@@ -145,6 +177,9 @@ namespace AntGarden
             var rng = new System.Random(5150);
             float U(float a, float b) => a + (b - a) * (float)rng.NextDouble();
             string what = (NestTheme.Current ?? NestTheme.Cyan).objects;
+            // (the kiln's burnt log lies along its model's z, its closed end to +z, the view it was made from, its carved open
+            // end to -z: turned this far, the open end looks at the way slantwise, so its charred side shows as well)
+            const float EmberLogOpen = 150f;
             var plan = new List<(string id, float size, float at, int side, bool walk, bool flat)>();
             if (what == "relics")
                 plan.AddRange(new (string, float, float, int, bool, bool)[]
@@ -178,6 +213,48 @@ namespace AntGarden
                     ("relic_coins", 1.3f, 0.48f, -1, true, false),
                     ("relic_button", 2.4f, 0.66f, 1, true, true),
                     ("relic_key", 2.6f, 0.82f, 1, true, false),
+                });
+            else if (what == "moss")
+                plan.AddRange(new (string, float, float, int, bool, bool)[]
+                {
+                    // the moss forest's landmarks beside the way (no heart: "不要用心脏的概念了"), its own Tripo plants as
+                    // large as the ant's landmarks should be: a liverwort colony with its parasols a third of the way in,
+                    // a grove of moss capsules hanging like lamps halfway, pixie-cup lichens with their scarlet caps two
+                    // thirds in, and a smaller one of each near the way in and the way out (02_Concepts/Moss_v1); the
+                    // capsules three side by side, a grove (one alone read thin, review k12)
+                    ("pixie_cup_lichen", 2.4f, 0.12f, 1, false, false),
+                    ("liverwort_parasols", 4.0f, 0.33f, 1, false, false),
+                    ("moss_capsules", 2.2f, 0.5f, -1, false, false),
+                    ("moss_capsules", 1.8f, 0.49f, -1, false, false),
+                    ("moss_capsules", 1.6f, 0.51f, -1, false, false),
+                    ("pixie_cup_lichen", 3.2f, 0.66f, -1, false, false),
+                    ("liverwort_parasols", 3.0f, 0.85f, 1, false, false),
+                });
+            else if (what == "ember")
+                plan.AddRange(new (string, float, float, int, bool, bool)[]
+                {
+                    // the kiln temple (02_Concepts/Kiln_Redesign_v1): its temple a cluster of charred stumps grown together
+                    // like a cathedral termite mound (the user: "神殿的建筑去找一下pinterest上的参考，现在这个太简单了";
+                    // Docs/参考_神殿/分析.md), in the chamber where the way forks, its split side and its carved galleries to
+                    // the way (a landmark, not the goal: k1 put it a little before halfway, where the narrow way left it no
+                    // room on the floor, so it stood up on the rim, far and small); a burnt log fallen across the way from
+                    // it, open end to the way (k2 laid it at the temple's foot, between it and the way: it hid the temple);
+                    // two smaller pieces of log halfway and at the wide place near the way out. (The temple taller than the
+                    // canyon's walls, about 6 high, so it reads as a temple to an ant: at 3.8 it stood half as high as the
+                    // earth pillars behind it, k1 plant review)
+                    ("char_stump_temple", 6.0f, 0.03f, -1, false, false),
+                    ("ember_log", 3.2f, 0.08f, 1, false, false),
+                    ("ember_log", 2.6f, 0.45f, 1, false, false),
+                    ("ember_log", 3.0f, 0.86f, -1, false, false),
+                });
+            else if (what == "amber")
+                plan.AddRange(new (string, float, float, int, bool, bool)[]
+                {
+                    // the amber nest's landmarks beside the way (no heart): a fallen pine cone, giant to an ant, beads and
+                    // tears of resin on its scales (02_Concepts/Amber_v1_候选/A), near the way in; a smaller one further on
+                    // (planned a third of the way in, at this size there was room for it only up on the rim, out of sight)
+                    ("resin_cone", 5.4f, 0.06f, 1, false, false),   // (at 4.2, in the game's view, only twice the ant: not yet a landmark)
+                    ("resin_cone", 3.6f, 0.74f, -1, false, false),
                 });
             else if (what == "temple")
             {
@@ -255,6 +332,9 @@ namespace AntGarden
                 if (!found) { skipped.Add(o.id); continue; }
                 float yaw = o.id == "relic_key" ? Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg + 90f
                     : o.id.StartsWith("temple_arch") ? Mathf.Atan2(a.x - c.x, a.y - c.y) * Mathf.Rad2Deg   // an arch faces the way
+                    : o.id == "ember_log" ? Mathf.Atan2(a.x - c.x, a.y - c.y) * Mathf.Rad2Deg + EmberLogOpen + U(-12f, 12f)   // its open end to the way
+                    : o.id == "char_stump_temple" ? Mathf.Atan2(a.x - c.x, a.y - c.y) * Mathf.Rad2Deg   // its split side (its model's front) to the way
+                    : o.id == "resin_cone" ? Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg + 90f + U(-15f, 15f)   // lying along the way, its side to it (end on, its scales read as a gold flower)
                     : (float)rng.NextDouble() * 360f;
                 float y = world.Height(c.x, c.y);
                 for (int q = 0; q < 6; q++)
@@ -267,7 +347,10 @@ namespace AntGarden
                 Quaternion rot = o.id == "relic_teacup" ? Quaternion.Euler(14f, yaw, -9f) : Quaternion.Euler(0, yaw, 0);
                 var go = Object.Instantiate(p.prefab, new Vector3(c.x, y, c.y), rot, root);
                 go.transform.localScale = Vector3.one * scale;
-                world.plantInstances.Add(new PlantInstance { plant = p, t = go.transform, hue = 0, sat = 1, glow = new Color(1f, 0.82f, 0.5f), scan = new Color(1f, 0.93f, 0.8f), relic = true });
+                // (the moss forest's landmarks are living plants: drawn as its plants are, with their markings, not as relics)
+                // (the kiln's burnt wood glows in its own ember red: in the relics' pale amber its embers read white, k4)
+                Color objGlow = what == "ember" && NestTheme.Current != null ? NestTheme.Current.glowDeep : new Color(1f, 0.82f, 0.5f);
+                world.plantInstances.Add(new PlantInstance { plant = p, t = go.transform, hue = 0, sat = 1, glow = objGlow, scan = new Color(1f, 0.93f, 0.8f), relic = what != "moss" });
                 world.placements.Add(new Placement { plant = o.id, region = region.index, x = c.x, z = c.y, height = scale });
                 world.reserved.Add(new Circle(c.x, c.y, r + 0.4f, 1f));
                 // the key, the coins and the button: ants climb onto them; the rest block
@@ -285,8 +368,9 @@ namespace AntGarden
                 else if (o.walk) world.steps.Add(new Circle(c.x, c.y, r * 1.05f, top * 0.9f));
                 else world.colliders.Add(new Circle(c.x, c.y, r, scale));
                 Objects.Add((o.id, c, a));
+                if (what == "amber") Debug.Log($"[AntGarden] particle nest: {o.id} at ({c.x:F1}, {c.y:F1}), {o.size:F1} long, planned {o.at:P0} along the way");
                 // the temple's spires, arches and cells answer an antenna as its relics did in the ruin: they light up
-                if (what == "temple" && world.glow != null) world.glow.AddTouchable(new Vector3(c.x, y, c.y), r, top, (NestTheme.Current ?? NestTheme.Cyan).glow[0]);
+                if ((what == "temple" || what == "moss" || what == "ember" || what == "amber") && world.glow != null) world.glow.AddTouchable(new Vector3(c.x, y, c.y), r, top, (NestTheme.Current ?? NestTheme.Cyan).glow[0]);
                 placed++;
             }
             Debug.Log($"[AntGarden] particle nest: {placed} things left beside the way" + (skipped.Count > 0 ? $" (no room for {string.Join(", ", skipped)})" : ""));
@@ -368,7 +452,7 @@ namespace AntGarden
         {
             if (beat != 0) return;
             beat = 1;
-            hud.SetObjective(Loc.T("继续往深处走，找到蚁穴的心脏", "Go on, deeper, to the heart of the nest"));
+            hud.SetObjective(Loc.T("继续跟着光走，它通向出口", "Go on: the light leads to the way out"));
         }
 
         /// <summary>The nest's living field: the wind, and no rings yet.</summary>
@@ -378,7 +462,7 @@ namespace AntGarden
             Shader.SetGlobalVector("_NestWind", new Vector4(0.045f, 0.35f, 6f, 0));
             // a few grains of the floor glow faintly and breathe (NestField.cginc), in the cool glow colour
             Color grain = (NestTheme.Current ?? NestTheme.Cyan).grainGlow.linear;
-            Shader.SetGlobalVector("_GrainGlow", new Vector4(grain.r, grain.g, grain.b, 0.35f));
+            Shader.SetGlobalVector("_GrainGlow", new Vector4(grain.r, grain.g, grain.b, 0.35f * (NestTheme.Current ?? NestTheme.Cyan).grainGain));
         }
 
         /// <summary>Now and then, at irregular times, a faint ring spreads over the floor somewhere round the ant (never at
@@ -408,8 +492,8 @@ namespace AntGarden
             {
                 begun = true;
                 // the same chapter, with the same words, in every nest (each colour of the room's lights opens its own)
-                hud.ShowChapter(Loc.T("第一章 · 入口", "Chapter One · The Way In"), Loc.T("跟着地上的光，找到蚁穴的心脏", "Follow the light on the ground to the heart of the nest"));
-                hud.SetObjective(Loc.T("跟着地上的光往深处走", "Follow the light deeper in"));
+                hud.ShowChapter(Loc.T("第一章 · 入口", "Chapter One · The Way In"), Loc.T("跟着地上的光，穿过蚁穴", "Follow the light on the ground through the nest"));
+                hud.SetObjective(Loc.T("跟着地上的光走", "Follow the light on the ground"));
             }
             float playerD = route != null ? GuideTrail.PlayerD(route, ant) : -1;
             // eased over a few frames (a change of track, or the heart's ring, would otherwise move the pulses at once)

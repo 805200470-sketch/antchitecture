@@ -44,6 +44,15 @@ namespace AntGarden
         public bool solidPlants;
         public float solidCoarse = 240f;    // splats per unit² of a plant's surface in the coarse set (along the ways)
         public int solidCoarseBudget = 1500000;
+        // the giants beyond the walls (Scatter.Surroundings: trunks, fan trees, spires 26-48 tall): their splats as big as
+        // their size wants, splatFrac of their height, never smaller than splatMin nor larger than splatMax, as many as
+        // cover them, not thinned further off (FarSplats). (They had 8000 each, as large as needed to cover them: up to
+        // 0.6 across, twice that from 30 units off, so the far fan trees read as blobby mushrooms; the user, 10-27:
+        // "背景远处大蘑菇素材的粒子太大了，完全没有细节，可以根据物件大小调整粒子大小，但是最好设定一个最大和最小值")
+        public float splatFrac = 0.006f;
+        public float splatMin = 0.04f;      // (the nest's own plants have 0.04 along the ways, 0.055 off them, as before)
+        public float splatMax = 0.2f;
+        public int farBudget = 1200000;     // at most this many splats for all of them
         public float solidFine = 1500f;     // and in the fine one, round the ant (as far from the camera as it thins to)
         public int solidFineCap = 42000;    // at most this many for one plant (the old fine set; see solidNear)
         public float solidNear = 16000f;    // the fine set right in front of the camera: splats per unit² (detail, form)
@@ -54,12 +63,271 @@ namespace AntGarden
         // plants whose glowing part is glass (a mesh can only make it an opaque lump): there a thin, broken shell of
         // splats round a light of its own inside, as a capture of something translucent looks
         public string[] glassKinds = { "spore_stalk" };
-        // plants whose glowing part is only their head (the curl of a lollipop-like curl): glowing from this far up
+        // crystals (Tripo, 02_Concepts/Crystals_v1): solid and faceted (CrystalSplat). As glass, a thin broken shell round
+        // a light, they read as an outline (the user: "只有一个外形，没有那种质感，也没有一些棱棱角角…只有一个剪影形状")
+        public string[] crystalKinds = { "crystal_a_spray", "crystal_b_fan", "crystal_c_mixed" };
+        public float crystalAlbedo = 0.35f;     // how light their faces are (as albedo), before each face's light and dark (0.3 smoky quartz;
+                                                // 0.21-0.24 with a strong sheen, metal; 0.45-0.6 plaster)
+        public float crystalOwn = 0.35f;        // how much of their texture's own colour their faces keep (its patches of colour more)
+        public float crystalGlow = 0.4f;        // a light of their own from inside, more toward their points
+        public float crystalCloud = 0.5f;       // and in soft clouds inside them, one or two to a prism, more toward their points
+        public float crystalCore = 0.3f;        // and at the cores of their faces, away from their ridges (its growth map's s: depth)
+        public float crystalInner = 2.4f;       // and more in the patches of colour inside them (lavender, green)
+        public float crystalLine = 0.7f;        // how much their ridges and points glow
+        public float crystalDensity = 4f;       // their fine splats per unit², of a plant's (fewer, larger ones rounded the thin prisms into tubes)
+        public float crystalWarm = 0.55f;       // their upper inside taking the nest's light colour ("冷灰色，里面不透光")
+        public float crystalLit = 0.35f;        // and glowing this much more there
+        public float crystalRidgeShare = 2.5f;  // their ridges' points drawn this many times as often as their faces' (CrystalOrder)
+        public float emberShare = 2f;           // a relic's embers' points drawn this many times as often as the rest (EmberOrder)
+        // (the night's fifteen rounds, 2026-10-27: v10, these, was the reviews' best in the game; a sheen (Glossy) and darker
+        // faces read as metal, coloured patches as painted on, brighter glow as plaster. The next step is translucency, a
+        // pass of its own: the user to decide, Docs/报告/2026-10-28_场景报告/共用改动.md)
+        public Vector3 crystalKey = new Vector3(0.55f, 0.62f, -0.56f);   // their faces lit from this side (toward the light),
+        public Vector3 crystalFill = new Vector3(-0.7f, -0.05f, 0.7f);   // and dimly from this one
+        // plants whose glowing part is only their head (the curl of a lollipop-like curl): glowing from this far up (under
+        // 0, set by a nest for a kind: no part of it glows, its texture's glow flags ignored, its light its markings alone)
         public readonly Dictionary<string, float> glowFrom = new Dictionary<string, float>
         {
             { "curl_glow", 0.5f }, { "curl_a_crozier", 0.6f }, { "curl_b_double", 0.62f }, { "curl_c_hook", 0.5f }, { "curl_d_cluster", 0.55f },
         };
         public int glassCore = 1400;        // splats in that light (all in the fine set, a sixth in the coarse one)
+        // the particle nest's finely made plants (Tripo v3.1 and their splat captures). Drawn with the same grain and
+        // the same share of their own colour as the nest's other plants (finer points stood apart from the scene); lit
+        // so their form reads: dark at the foot, a light of their own growing toward the top (a flat light of their own
+        // made them read flat); their glowing parts (a curl's head, a lantern) glow in the nest's light only a little,
+        // their pattern kept. They grow in tufts (Game.LabPlants). (Thickening them, their points spread through a
+        // layer round the surface, blurred the curls' detail; drawing all their points made them finer than the rest.)
+        public string[] finePlants = { "curl_a_crozier", "curl_b_double", "curl_c_hook", "curl_d_cluster", "curl_e_corkscrew",
+            "frond_a_feather", "puff_a_stalked", "puff_b_lantern", "coral_b_branching",
+            "liverwort_parasols", "pixie_cup_lichen", "moss_capsules",   // (these three the moss forest's own)
+            "tear_tree", "gumweed" };   // (and these two the amber nest's)
+        public float fineOwnLight = 0.26f;  // its light of its own at the top (its lighter parts more), none at its foot (at 0.32, over bioFaint, pale young leaves lit whole)
+        public float fineFoot = 0.72f;      // how dark its foot is, of its upper part's colour (at 0.5 the change read as a band)
+        public float fineGlow = 1f;         // how strongly its glowing parts glow (a curl's head, a lantern), of what the others' do
+        // and a light of its own in places, as on a dandelion: a puffball's middle strongest and the small balls round
+        // it a little less ("中心可以强一些，四周的小球可以稍微弱一些"), a crozier's coil, the tips of curls and fronds
+        // (SpotTable), in its markings' colour; never taking the scene over
+        public float fineSpotGlow = 1f;
+        // plants whose middle has a light in it too (GlassLamps), seen through what surrounds it: a puffball's, among its rays
+        public string[] heartLamps = { "puff_a_stalked" };
+        public int fineMotes = 3;           // and motes of light slowly circling each (GlassLamps), as fireflies round a plant
+        // a light of their own, as on another world rather than in a garden (the user: "素材都可以有一些微光，然后同时有
+        // 一些纹理发一些强光，参考阿凡达的世界观，我们要和普通真实的植物做出区分"): every plant faintly lit of itself, more
+        // toward its top (bioFaint), and most kinds marked with a pattern that glows strongly (BioTable: spots, rings up
+        // it, rows of dots, its texture's palest veins and rims, its tips), the same on every plant of a kind as a
+        // species' markings are, a little stronger or weaker plant by plant; in its light's colour (now and then an
+        // accent's, as the palette gives it) and small in area, so it marks the plant without lighting the scene
+        public float bioFaint = 0.15f;   // (at 0.2, over the scene's lifted light, the bodies glowed as much as their parts: "身子暗、部位亮")
+        public float bioStrong = 1f;
+        public float bioAlbedo = 0.62f;     // how light the markings' colour is (as albedo: they glow by it; near white read as frost)
+        public float accentArea = 6f;       // a plant with more surface than this (units²) never takes an accent colour
+        /// <summary>Replace, solid plants: the motes circling the finely made plants (GlassLamps): the plant's foot, how
+        /// far round, between which heights, how fast (radians a second; the sign the way round), where they start,
+        /// how big, their colour.</summary>
+        public readonly List<(Vector3 centre, float radius, Vector2 height, float speed, float phase, float size, Color col)> orbitLamps =
+            new List<(Vector3, float, Vector2, float, float, float, Color)>();
+        readonly Dictionary<PlantRef, float[]> spotCache = new Dictionary<PlantRef, float[]>();
+        readonly Dictionary<PlantRef, Vector4> spotHearts = new Dictionary<PlantRef, Vector4>();   // a glowing core's middle (xyz) and its part's mean radius (w)
+
+        // where each finely made plant lights a little of its own (kind 0: a soft core round the middle of what is above
+        // `from`, 1: that part's rim, 2: its growing tips; size: the core's radius or where the rim starts, of that
+        // part's mean radius; amount)
+        static readonly Dictionary<string, Vector4[]> SpotTable = new Dictionary<string, Vector4[]>
+        {
+            { "puff_a_stalked", new[] { new Vector4(0, 0.62f, 0.5f, 1f), new Vector4(1, 0.62f, 1.02f, 0.3f) } },   // its hub; its balls, a little
+            { "curl_a_crozier", new[] { new Vector4(0, 0.68f, 0.4f, 0.7f) } },
+            { "curl_d_cluster", new[] { new Vector4(2, 0.82f, 0f, 0.2f) } },
+            { "curl_b_double", new[] { new Vector4(2, 0.85f, 0f, 0.4f) } },
+            { "curl_e_corkscrew", new[] { new Vector4(2, 0.86f, 0f, 0.45f) } },
+            { "frond_a_feather", new[] { new Vector4(2, 0.78f, 0f, 0.4f) } },
+        };
+
+        // each kind's markings (bioFaint), following how it grows (its growth map, Tools/plants/growth_map.py; the user,
+        // on bands cut level through a corkscrew's stem and leaves alike: "要顺着植物本身的生长逻辑去生长 … 要贴合它的形
+        // 体"): pattern, size, width, strength. 1 spots on its surface (size: the cell of the grid they sit in, of its
+        // height; width: a spot's radius, of the cell), 2 nodes: rings round its stems, square to them wherever they turn
+        // (size: how many from its foot to its farthest point; width: half a ring, of their spacing), 4 its texture's
+        // palest parts, its own veins, rims and flecks (size: their share of its points: its texture's mean says
+        // nothing, some kinds are pale all over), 5 its growing tips, the ends of its shoots, leaflets, branches and
+        // leaves (size: how far back from a tip they glow, of its height), 6 growth zones: rings out from its foot over
+        // all of it, as on a cup fungus (size, width: as 2), 7 a crozier's: thin rings up it at even steps of its growth,
+        // brighter toward its coil, and its coil's tip (size, width: as 2), 8 its growing tips alone, softly (as 5 without
+        // its specks); 0 none (stone, soil, what
+        // glows already). 2, 5, 6, 7 and 8 need its growth map
+        // (without one: none). A kind not listed gets one by its name; a nest may give a kind its own (NestTheme.bio).
+        static readonly Dictionary<string, Vector4> BioTable = new Dictionary<string, Vector4>
+        {
+            { "curl_a_crozier", new Vector4(5, 0.045f, 0, 1f) }, { "curl_b_double", new Vector4(5, 0.03f, 0, 1f) },
+            { "curl_c_hook", new Vector4(5, 0.045f, 0, 1f) }, { "curl_d_cluster", new Vector4(1, 0.09f, 0.34f, 1f) },
+            { "curl_e_corkscrew", new Vector4(5, 0.028f, 0, 1f) }, { "frond_a_feather", new Vector4(5, 0.03f, 0, 1f) },
+            { "puff_a_stalked", Vector4.zero }, { "puff_b_lantern", new Vector4(4, 0.07f, 0, 1f) },   // (a puffball's light: SpotTable)
+            { "coral_b_branching", new Vector4(5, 0.035f, 0, 1f) },
+            { "tiny_mushrooms", new Vector4(1, 0.12f, 0.34f, 0.8f) }, { "sponge_mound", new Vector4(1, 0.1f, 0.32f, 0.8f) },
+            { "coral_fungus", new Vector4(5, 0.045f, 0, 0.9f) }, { "fallen_leaf", new Vector4(4, 0.05f, 0, 0.8f) },
+            { "dry_grass_tuft", new Vector4(5, 0.035f, 0, 0.55f) }, { "trunk_night", new Vector4(1, 0.06f, 0.3f, 0.7f) },
+            { "fan_tree", new Vector4(4, 0.05f, 0, 0.8f) }, { "fungus_garden", new Vector4(1, 0.08f, 0.34f, 0.9f) },
+            { "anemone_fungus", new Vector4(5, 0.045f, 0, 1f) }, { "cup_fungus", new Vector4(6, 6, 0.05f, 0.9f) },
+            { "jelly_fungus", new Vector4(4, 0.06f, 0, 0.9f) }, { "bracket_shelf", new Vector4(1, 0.08f, 0.3f, 0.8f) },
+            { "thorn_succulent", new Vector4(5, 0.035f, 0, 0.9f) }, { "lantern_pods", new Vector4(4, 0.06f, 0, 0.9f) },
+            { "glass_sponge", new Vector4(4, 0.06f, 0, 0.8f) }, { "dry_mushroom", new Vector4(1, 0.12f, 0.34f, 0.8f) },
+            { "root_arch", new Vector4(1, 0.07f, 0.3f, 0.7f) }, { "boulder_moss", new Vector4(1, 0.08f, 0.3f, 0.7f) },
+            { "pebble_cluster", Vector4.zero }, { "soil_spire", Vector4.zero }, { "seed_pile", Vector4.zero },
+            { "spore_stalk", Vector4.zero }, { "amber_resin", Vector4.zero }, { "seed_husk", Vector4.zero },
+            { "crystal_a_spray", Vector4.zero }, { "crystal_b_fan", Vector4.zero }, { "crystal_c_mixed", Vector4.zero },   // (their light: CrystalSplat)
+        };
+        // and kinds whose growing tips glow as well (how far back from a tip, of its height)
+        static readonly Dictionary<string, float> BioTips = new Dictionary<string, float>();
+
+        /// <summary>0 below a, 1 above b, smooth between (as a shader's smoothstep; Mathf.SmoothStep is another thing).</summary>
+        static float Smooth(float a, float b, float x)
+        {
+            float t = Mathf.Clamp01((x - a) / (b - a));
+            return t * t * (3f - 2f * t);
+        }
+
+        static uint KindHash(string name)
+        {
+            uint h = 2166136261u;
+            foreach (char ch in name) h = (h ^ ch) * 16777619u;
+            return h;
+        }
+
+        readonly Dictionary<PlantRef, Vector2> paleCuts = new Dictionary<PlantRef, Vector2>();
+
+        /// <summary>Where a kind's palest parts begin and are full (against its mean lightness): about share of its points
+        /// lie above the middle of the two. The same for every plant of a kind.</summary>
+        Vector2 PaleCut(PlantRef plant, float meanLum, float share)
+        {
+            if (paleCuts.TryGetValue(plant, out Vector2 cut)) return cut;
+            var pale = new List<float>(plant.points.Length / 5 + 1);
+            for (int k = 0; k < plant.points.Length; k += 5)
+            {
+                Color32 c = plant.pointColors[k];
+                pale.Add(Lum(new Color(Linear[c.r], Linear[c.g], Linear[c.b])) / meanLum);
+            }
+            pale.Sort();
+            float At(float q) => pale[Mathf.Clamp(Mathf.RoundToInt(q * (pale.Count - 1)), 0, pale.Count - 1)];
+            return paleCuts[plant] = new Vector2(At(1f - share * 1.6f), At(1f - share * 0.45f));
+        }
+
+        /// <summary>A kind's markings (BioTable; for a kind not listed, one picked by its name).</summary>
+        static Vector4 Bio(string name)
+        {
+            if (BioTable.TryGetValue(name, out Vector4 b)) return b;
+            switch (KindHash(name) % 5)
+            {
+                case 1: return new Vector4(1, 0.1f, 0.32f, 0.8f);
+                case 2: return new Vector4(2, 8, 0.065f, 0.8f);
+                case 3: return new Vector4(4, 0.06f, 0, 0.8f);
+                case 4: return new Vector4(5, 0.06f, 0, 0.8f);
+                default: return Vector4.zero;
+            }
+        }
+
+        /// <summary>How much stored point k (at p) of a plant lies in its kind's markings (0..1); never at its foot. pale:
+        /// how pale its texture is there, against the plant's mean. Plain arithmetic only.</summary>
+        static float BioMark(SolidSlot s, int k, Vector3 p, float y01, float pale)
+        {
+            if (y01 < 0.1f) return 0f;
+            float mark = 0f;
+            switch (s.bio)
+            {
+                case 1:
+                {
+                    // a spot in about half the cells of a grid through it, each well inside its cell
+                    float c = s.bioSize * s.top, gx = p.x / c + 17.3f * s.bioSeed, gy = p.y / c, gz = p.z / c - 11.1f * s.bioSeed;
+                    int ix = (int)System.Math.Floor(gx), iy = (int)System.Math.Floor(gy), iz = (int)System.Math.Floor(gz);
+                    int cell = ix * 73856093 ^ iy * 19349663 ^ iz * 83492791;
+                    if (PointHash(cell) > 0.5f) break;
+                    float r = s.bioWidth, span = 1f - 2f * r;
+                    float dx = gx - (ix + r + span * PointHash(cell + 1)), dy = gy - (iy + r + span * PointHash(cell + 2)), dz = gz - (iz + r + span * PointHash(cell + 3));
+                    mark = 1f - Smooth(0.55f, 1f, (float)System.Math.Sqrt(dx * dx + dy * dy + dz * dz) / r);
+                    break;
+                }
+                case 2:
+                case 6:
+                {
+                    // rings at even steps of its growth from its foot: square to a stem wherever it turns (2: on its stems
+                    // only), round a cup as its growth zones (6)
+                    if (s.growth == null) break;
+                    float t = s.growth[k] * s.bioSize + s.bioSeed;
+                    mark = 1f - Smooth(0.5f, 1f, Mathf.Abs(t - Mathf.Round(t)) / s.bioWidth);
+                    if (s.bio == 2) mark *= Smooth(0.35f, 0.7f, s.stem[k] / 255f);
+                    break;
+                }
+                case 4: mark = Smooth(s.bioLo, s.bioHi, pale); break;
+                case 5:
+                    if (s.tip == null) break;
+                    // its tips: bright at the very end, the light fading back along it over twice as far, softly; and a few
+                    // brighter specks scattered just behind them
+                    mark = (1f - Smooth(0f, 2.2f * s.bioSize, s.tip[k])) * (0.55f + 0.45f * (1f - Smooth(0f, 0.6f * s.bioSize, s.tip[k])));
+                    if (s.tip[k] < 3f * s.bioSize && PointHash(k * 31 + 7) < 0.035f) mark = 1f;
+                    break;
+                case 7:
+                {
+                    // nodes up its stem, rings square to it wherever it turns, brighter toward its coil, and its coil's
+                    // tip (a crozier; its texture's pale line up the stem, lit with dots, read as frost, coarse as specks)
+                    if (s.growth == null) break;
+                    float t = s.growth[k] * s.bioSize + s.bioSeed;
+                    mark = (1f - Smooth(0.5f, 1f, Mathf.Abs(t - Mathf.Round(t)) / s.bioWidth)) * Smooth(0.25f, 0.85f, s.growth[k]);
+                    if (s.tip != null) mark = Mathf.Max(mark, (1f - Smooth(0f, 0.09f, s.tip[k])) * Smooth(0.55f, 0.8f, s.growth[k]));   // (the coil's, not the leaflets' at its foot)
+                    break;
+                }
+                case 8:
+                    // its growing tips alone, soft, with no specks round them (5's specks read as frost on a cluster's heads)
+                    if (s.tip == null) break;
+                    mark = (1f - Smooth(0f, 2.2f * s.bioSize, s.tip[k])) * (0.55f + 0.45f * (1f - Smooth(0f, 0.6f * s.bioSize, s.tip[k])));
+                    break;
+            }
+            if (s.tipsToo > 0 && s.tip != null) mark = Mathf.Max(mark, 1f - Smooth(0f, 2.2f * s.tipsToo, s.tip[k]));
+            return Smooth(0.1f, 0.25f, y01) * mark;
+        }
+
+        /// <summary>How much each of a finely made plant's stored points lights of its own (SpotTable; null: none). The
+        /// same for every plant of a kind.</summary>
+        float[] Spots(PlantRef plant, float top)
+        {
+            if (spotCache.TryGetValue(plant, out float[] w)) return w;
+            Vector4[] spots = null;   // (a nest's own for a kind first: NestTheme.spots)
+            if (NestTheme.Current?.spots == null || !NestTheme.Current.spots.TryGetValue(plant.name, out spots))
+                if (!SpotTable.TryGetValue(plant.name, out spots)) return spotCache[plant] = null;
+            Vector3[] pts = plant.points;
+            w = new float[pts.Length];
+            foreach (Vector4 sp in spots)
+            {
+                int kind = (int)sp.x;
+                float from = sp.y;
+                if (kind == 2)
+                {
+                    // its tips: its growing tips as its growth map has them (back half as far as `from` is from its top),
+                    // or without one, its top (a band cut level through it)
+                    float back = (1f - from) * 0.5f;
+                    for (int k = 0; k < pts.Length; k++)
+                        w[k] = Mathf.Max(w[k], (plant.pointTip != null ? 1f - Smooth(0.45f * back, back, plant.pointTip[k])
+                            : Mathf.SmoothStep(0f, 1f, (pts[k].y / top - from) / (1f - from))) * sp.w);
+                    continue;
+                }
+                // the part above `from`: its middle and its mean radius
+                Vector3 c = Vector3.zero;
+                int n = 0;
+                for (int k = 0; k < pts.Length; k++) if (pts[k].y / top >= from) { c += pts[k]; n++; }
+                if (n < 20) continue;
+                c /= n;
+                float mean = 0;
+                for (int k = 0; k < pts.Length; k++) if (pts[k].y / top >= from) mean += (pts[k] - c).magnitude;
+                mean = Mathf.Max(1e-4f, mean / n);
+                if (kind == 0) spotHearts[plant] = new Vector4(c.x, c.y, c.z, mean);
+                for (int k = 0; k < pts.Length; k++)
+                {
+                    if (pts[k].y / top < from - 0.05f) continue;
+                    float d = (pts[k] - c).magnitude / mean;
+                    float v = kind == 0 ? 1f - Mathf.SmoothStep(0f, 1f, d / sp.z) : Mathf.SmoothStep(0f, 1f, (d - sp.z) / Mathf.Max(0.05f, 1.25f - sp.z));
+                    w[k] = Mathf.Max(w[k], v * sp.w);
+                }
+            }
+            return spotCache[plant] = w;
+        }
+        public Vector2 fineLean = new Vector2(0.3f, 0.15f);   // how far a head's glow (x) and its texture's glowing parts (y) lean to the nest's light
 
         /// <summary>A plant as the solid shell sees it (copied on the main thread: workers cannot touch transforms).</summary>
         public sealed class SolidSlot
@@ -78,17 +346,35 @@ namespace AntGarden
             public Color baseTint, tipTint, glow;
             public float keepOwn, contrast, mottle, mottleScale, mottleSeed, band, bandFreq, glowGain;
             public float faint;             // a faint light of its own in its lightest parts (veins, rims, pale spots)
+            public bool fine;               // a finely made plant (finePlants)
+            public float[] spots;           // and how much each of its points lights of its own (Spots; null: none)
+            public int bio;                 // its kind's markings (BioTable; 0 none): their size, width, strength on this
+            public float bioSize, bioWidth, bioAmt, bioSeed;   // plant, where its spots' grid and its rings start,
+            public float bioLo, bioHi;      // how pale its palest parts are (from: none of them, to: all; pattern 4)
+            public float tipsToo;           // its growing tips glow as well, this far back (BioTips; 0: not)
+            public float[] growth, tip;     // its kind's growth map (PlantRef.pointGrowth, pointTip, pointStem; null: none)
+            public byte[] stem;
+            public Color bioCol;            // and their colour (linear, as albedo: they glow by it)
             public Vector2 bendDir;
             public float bend, twist, sy, sxz;
             public bool rigid;              // a thing (relic): neither bent nor recoloured
             public bool glass;              // its glowing part is glass (glassKinds)
+            public bool crystal;            // a crystal (crystalKinds): CrystalSplat where it is crystal, still in the wind
+            public byte[] ridge;            // and how much each point lies on a ridge (PlantRef.pointRidge)
+            public int[] order;             // its points in the order its splats take them (CrystalOrder; null: as stored)
+            public Color crystalTint, crystalEdge, crystalLight;   // its faces' colour (the nest's, pale), its ridges', the light inside it
+            public float crystalLum;        // its crystal's mean lightness in its texture
+            public Vector2 crystalChroma;   // how coloured its texture is where its patches of colour begin, and where they are full
             public float glowFrom;          // its glowing part only from this far up (0..1 of its height)
-            public Color glowDeep;          // its glow colour, deeper (the palette's glow colours are pale: as light they read white)
+            public float sunk;              // lowered this far (of its height) so the lump of soil it stands on is under the floor (NestTheme.sunkKinds)
+            public float foot;              // how dark its foot is, if its nest wants it darker than fineFoot (NestTheme.kindFoot; 0: fineFoot)
+            public float gain = 1f;         // how light it is, if its nest wants a kind darker (NestTheme.kindGain)
+            public Color glowDeep;         // its glow colour, deeper (the palette's glow colours are pale: as light they read white)
             public float ownHue, ownSat = 1;   // its region's turn of the texture's own colour (a blue plant in the amber nest)
             public bool building;              // a prop that lights only in its glowing parts (NestTheme.buildingsGlowInParts)
             public bool far;                   // one of the huge trees beyond the walls (Scatter.Surroundings)
             public string name;                // its plant's (checks)
-            public float partFrom, partTo, partRel, partAmount;   // a part that glows a little in this nest only (NestTheme.glowParts)
+            public float partFrom, partTo, partRel, partAmount, partRed, partHot;   // a part that glows a little in this nest only (NestTheme.glowParts)
             public Vector4[] core;          // and the light inside it: where (xyz), how far out (w, 0 middle .. 1 edge)
         }
         readonly List<SolidSlot> solidSlots = new List<SolidSlot>();
@@ -130,6 +416,15 @@ namespace AntGarden
         public Vector2 carpetFade = new Vector2(3.5f, 6f);   // drawn out to y round the ant, thinning out from x
         public float carpetGain = 0.22f;
         public float carpetSize = 0.0075f;
+
+        // replace, solid plants: the walls round the ant as opaque splats, drawn with the plants' fine ones (SolidShell,
+        // WallShell): the carpet lies on the floor only, and up close the walls' glowing points were a snowfall over the
+        // smooth terrain (without them, 10-27, the bare terrain showed there)
+        public float wallDensity = 0f;      // splats per unit² of wall right in front of the camera (0: none; the walls'
+                                            // glowing points then give way round the ant as the floor's do)
+        public float wallReach = 9f;        // made this far round the ant
+        public float wallGain = 0.5f;       // their albedo against a ground point's colour (the solid shader lights them)
+        public Vector2 wallFade = new Vector2(3.5f, 6f);   // the walls' glowing points give way to them out to y, from x
 
         // replace: ground cover, the small things on the floor at ant scale (moss tufts, lichen rosettes, fallen
         // leaves, trefoils, grit and pebbles, now and then a sprout with a bead), in patches; the trodden way clearer
@@ -272,6 +567,8 @@ namespace AntGarden
                 mat.SetFloat("_MinPixels", mode == Mode.Replace ? 0.9f : 1.2f);
                 mat.SetVector("_NearDim", new Vector4(shellFade.x, shellFade.y, mode == Mode.Replace && shellPlantArea > 0 ? nearPlantGain : 1f, 0));
                 mat.SetVector("_CarpetFade", mode == Mode.Replace && carpet != null ? new Vector4(carpetFade.x, carpetFade.y, 0, 0) : Vector4.zero);
+                Vector2 wf = wallDensity > 0 && solidPlants ? wallFade : carpetFade;
+                mat.SetVector("_WallFade", mode == Mode.Replace && carpet != null ? new Vector4(wf.x, wf.y, 0, 0) : Vector4.zero);
                 mat.SetFloat("_CoverGain", coverBrightness);
                 bool pal = mode == Mode.Replace && bodyPalette != null && glowPalette != null && bodyPalette.Length >= 8 && glowPalette.Length >= 8;
                 mat.SetFloat("_UsePalette", pal ? 1f : 0f);
@@ -447,7 +744,7 @@ namespace AntGarden
                 float[] keep = replace ? Keep(pi.plant) : null;
                 Matrix4x4 m = pi.t.localToWorldMatrix;
                 Vector3[] src = pi.plant.points;
-                uint pal = replace ? (pi.relic ? 63u : Palette(pi, ord++)) << 24 : 0;   // 63: its own colours
+                uint pal = replace ? (pi.relic ? 63u : Palette(pi, ord++, 0f)) << 24 : 0;   // 63: its own colours
                 int taken = 0, k = 0;
                 for (; k < src.Length && k < cols.Length && taken < n; k++)
                 {
@@ -516,31 +813,44 @@ namespace AntGarden
             if (focusD2 == null) BuildFocus();
             solidSlots.Clear();
             glassLamps.Clear();
+            orbitLamps.Clear();
             int start = into.Count;
             var picks = new List<(PlantInstance pi, float area, int n)>();
             var census = new Dictionary<string, int>();
-            long wanted = 0;
+            long wanted = 0, farWanted = 0;
             foreach (PlantInstance pi in world.plantInstances)
             {
                 if (pi.t == null || pi.plant == null || !pi.plant.LoadPoints()) continue;
                 float sc = pi.t.lossyScale.y;
                 float area = (pi.plant.pointArea > 0 ? pi.plant.pointArea : 2.5f) * sc * sc;
                 Vector3 p0 = pi.t.position;
-                float density = solidCoarse * (pi.relic ? 2f : pi.far ? 0.15f : Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z)));
-                int n = Mathf.Clamp(Mathf.RoundToInt(area * density), 120, pi.far ? 8000 : pi.plant.points.Length);
+                census[pi.plant.name] = census.TryGetValue(pi.plant.name, out int c) ? c + 1 : 1;
+                if (pi.far)
+                {
+                    // a giant beyond the walls: as many as cover it at the size its height wants (FarSplats)
+                    float fr = FarRadius(sc);
+                    int nf = Mathf.Min(pi.plant.points.Length, Mathf.RoundToInt(0.385f * area / (fr * fr)));
+                    picks.Add((pi, area, nf));
+                    farWanted += nf;
+                    continue;
+                }
+                float density = solidCoarse * (pi.relic ? 2f : Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z)));
+                int n = Mathf.Clamp(Mathf.RoundToInt(area * density), 120, pi.plant.points.Length);
                 picks.Add((pi, area, n));
                 wanted += n;
-                census[pi.plant.name] = census.TryGetValue(pi.plant.name, out int c) ? c + 1 : 1;
             }
             float share = wanted > solidCoarseBudget ? (float)solidCoarseBudget / wanted : 1f;
+            float farCut = farWanted > farBudget ? (float)farBudget / farWanted : 1f;
+            var farJobs = new List<(SolidSlot slot, int n, float radius)>();
             int ord = 0;
             foreach (var (pi, area, n0) in picks)
             {
-                int n = Mathf.Max(100, Mathf.RoundToInt(n0 * share));
                 SolidSlot slot = Slot(pi, area, ord++);
-                float radius = Mathf.Min(pi.far ? 0.6f : 0.055f, 0.62f * Mathf.Sqrt(area / n));
+                if (pi.far) { farJobs.Add((slot, Mathf.Max(100, Mathf.RoundToInt(n0 * farCut)), FarRadius(pi.t.lossyScale.y))); continue; }
+                int n = Mathf.Max(100, Mathf.RoundToInt(n0 * share));
+                float radius = Mathf.Min(0.055f, 0.62f * Mathf.Sqrt(area / n));
                 for (int k = 0; k < n && k < slot.pts.Length; k++)
-                    into.Add(SolidSplat(slot, k, -radius));   // negative: coarse (left out round the ant)
+                    into.Add(SolidSplat(slot, slot.order != null ? slot.order[k] : k, -radius));   // negative: coarse (left out round the ant)
                 if (slot.core != null)
                 {
                     for (int j = 0, m = Mathf.Min(slot.core.Length, n / 6); j < m; j++) into.Add(CoreSplat(slot, j, -radius));
@@ -550,13 +860,145 @@ namespace AntGarden
                     glassLamps.Add((slot.m.MultiplyPoint3x4(mid), bulb.w * pi.t.lossyScale.y * slot.sxz, slot.glow));
                 }
                 if (!pi.far) solidSlots.Add(slot);
+                // a light in the middle of a plant whose middle glows (a puffball's hub), seen through its rays and balls
+                if (slot.fine && !pi.far && System.Array.IndexOf(heartLamps, pi.plant.name) >= 0 && spotHearts.TryGetValue(pi.plant, out Vector4 heart))
+                {
+                    Vector3 mid = heart, up = Vector3.up;
+                    Shape(slot, ref mid, ref up);
+                    // (wide and bright: inside the ball of rays most of it is hidden, it shows through the gaps)
+                    float lampGain = NestTheme.Current?.heartLampGain ?? 1f;   // (as its nest wants it: NestTheme.heartLampGain)
+                    glassLamps.Add((slot.m.MultiplyPoint3x4(mid), heart.w * 0.9f * pi.t.lossyScale.y * slot.sxz * (0.5f + 0.5f * lampGain), slot.glow * (1.5f * lampGain)));
+                }
+                // motes slowly circling a finely made plant, round its stem between a third and most of its height
+                if (slot.fine && !pi.far && fineMotes > 0)
+                {
+                    float h = pi.t.lossyScale.y * slot.top * slot.sy;
+                    var mr = new Rng((uint)(ord * 7919 + 17));
+                    Vector3 foot = slot.m.MultiplyPoint3x4(Vector3.zero);
+                    float moteSize = NestTheme.Current?.moteSize ?? 1f, moteGain = NestTheme.Current?.moteGain ?? 1f;   // (its nest's: NestTheme)
+                    for (int q = 0; q < fineMotes; q++)
+                        orbitLamps.Add((foot, h * (0.18f + 0.2f * mr.Next()), new Vector2(h * (0.3f + 0.2f * mr.Next()), h * (0.7f + 0.25f * mr.Next())),
+                            (0.22f + 0.25f * mr.Next()) * (mr.Next() < 0.5f ? -1f : 1f), mr.Next() * 6.2832f, Mathf.Max(0.02f, h * 0.012f) * moteSize, slot.glow * moteGain));
+                }
             }
+            int nearMade = into.Count - start;
+            if (farJobs.Count > 0) FarSplats(farJobs, into, farCut);
             var top = new List<KeyValuePair<string, int>>(census);
             top.Sort((a, b) => b.Value.CompareTo(a.Value));
             var line = new System.Text.StringBuilder();
             foreach (var kv in top) line.Append($" {kv.Key} {kv.Value},");
-            Debug.Log($"[AntGarden] solid plants: {into.Count - start} coarse splats from {picks.Count} plants" + (share < 1 ? $" (each at {share:P0})" : "") + $"; kinds:{line}");
+            Debug.Log($"[AntGarden] solid plants: {nearMade} coarse splats from {picks.Count - farJobs.Count} plants" + (share < 1 ? $" (each at {share:P0})" : "")
+                + $", {into.Count - start - nearMade} for the {farJobs.Count} beyond the walls; kinds:{line}");
+            // (checks) how much of each kind its markings cover: the share of its stored points well inside them
+            var marks = new System.Text.StringBuilder();
+            var seen = new HashSet<string>();
+            foreach (SolidSlot sl in solidSlots)
+            {
+                if ((sl.bio == 0 && sl.tipsToo <= 0) || !seen.Add(sl.name)) continue;
+                int on = 0, all = 0;
+                for (int k = 0; k < sl.pts.Length; k += 11, all++)
+                {
+                    Color32 c = sl.raw[k];
+                    float pale = Lum(new Color(Linear[c.r], Linear[c.g], Linear[c.b])) / sl.meanLum;
+                    if (BioMark(sl, k, sl.pts[k], Mathf.Clamp01(sl.pts[k].y / sl.top), pale) > 0.5f) on++;
+                }
+                marks.Append($" {sl.name} {(float)on / Mathf.Max(1, all):P0}" + (sl.growth == null && (sl.bio == 2 || sl.bio == 5 || sl.bio == 6) ? " (no growth map: none)" : "") + ",");
+            }
+            Debug.Log($"[AntGarden] plant markings (of each kind's points):{marks}");
             return into.Count - start;
+        }
+
+        /// <summary>The splats' size for a giant beyond the walls h tall: splatFrac of its height, within splatMin..splatMax.</summary>
+        float FarRadius(float h) => Mathf.Clamp(splatFrac * h, splatMin, splatMax);
+
+        /// <summary>
+        /// The giants beyond the walls (BuildSolidPlants' far ones), each made on a core of its own: splats of the size its
+        /// height wants, each larger or smaller as the detail there is (as a plant's are) but within splatMin..splatMax, and
+        /// as many more as cover what that took off; those on its sides that can never be seen from inside the nest (facing
+        /// away from wherever the camera can be: Eyes) one in four, twice as large, so that from above it keeps its body.
+        /// Ranked 127 with a negative radius: the shader neither thins them further off (they are as small as their
+        /// distance wants already) nor leaves them out round the ant (they have no fine set).
+        /// </summary>
+        void FarSplats(List<(SolidSlot slot, int n, float radius)> jobs, List<SolidPoint> into, float cut)
+        {
+            Vector3[] eyes = Eyes();
+            var made = new List<SolidPoint>[jobs.Count];
+            int unseen = 0;
+            var cores = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = Mathf.Max(1, System.Environment.ProcessorCount - 2) };
+            System.Threading.Tasks.Parallel.For(0, jobs.Count, cores, j =>
+            {
+                var (slot, n0, r) = jobs[j];
+                // (SolidSplat's own spread of sizes, capped: the cover it would have had over the cover it has)
+                double was = 0, now = 0;
+                for (int k = 0, probe = Mathf.Min(1024, slot.pts.Length); k < probe; k++)
+                {
+                    float v = (0.72f + 0.56f * PointHash(k)) / Mathf.Sqrt(Mathf.Clamp(slot.density != null ? slot.density[k] : 1f, 0.25f, 9f));
+                    float vc = Mathf.Clamp(v * r, splatMin, splatMax) / r;
+                    was += v * v;
+                    now += vc * vc;
+                }
+                int n = Mathf.Min(slot.pts.Length, Mathf.RoundToInt(n0 * (float)(was / System.Math.Max(1e-6, now))));
+                var list = new List<SolidPoint>(n);
+                int hid = 0;
+                for (int k = 0; k < n; k++)
+                {
+                    SolidPoint sp = SolidSplat(slot, k, -r);
+                    float rad = Mathf.Clamp(-sp.radius, splatMin, splatMax);
+                    Vector3 nn = ThingPen.UnpackNormal(sp.nrm);
+                    bool seen = eyes.Length == 0;
+                    foreach (Vector3 e in eyes)
+                    {
+                        Vector3 d = e - sp.pos;
+                        if (Vector3.Dot(nn, d) > -0.2f * d.magnitude) { seen = true; break; }
+                    }
+                    if (!seen)
+                    {
+                        if (PointHash(k + 7717) >= 0.25f) continue;
+                        rad *= 2f;
+                        hid++;
+                    }
+                    sp.radius = -rad;
+                    list.Add(ThingPen.WithRank(sp, 127));
+                }
+                made[j] = list;
+                System.Threading.Interlocked.Add(ref unseen, hid);
+            });
+            int count = 0;
+            float rMin = float.MaxValue, rMax = 0f;
+            foreach (var (_, _, r) in jobs) { rMin = Mathf.Min(rMin, r); rMax = Mathf.Max(rMax, r); }
+            foreach (List<SolidPoint> list in made) { into.AddRange(list); count += list.Count; }
+            Debug.Log($"[AntGarden] beyond the walls: {jobs.Count} giants, {count} splats of {rMin:F3}-{rMax:F3} (height × {splatFrac}, within {splatMin}-{splatMax})"
+                + (cut < 1f ? $", each at {cut:P0} of its cover" : "") + $"; {unseen} of them on sides never seen from the nest (one in four, twice as large), {eyes.Length} eyes");
+        }
+
+        /// <summary>Where the camera can be in the nest, for which sides of the giants beyond its walls can ever be seen:
+        /// just inside its rim all round, half way in and in its middle, low and high over the floor. None if its middle is
+        /// not in it (all their sides are then kept).</summary>
+        Vector3[] Eyes()
+        {
+            var eyes = new List<Vector3>();
+            float cx = (world.minX + world.maxX) / 2, cz = (world.minZ + world.maxZ) / 2;
+            if (world.HexDist(cx, cz) >= -1f) return eyes.ToArray();
+            float reach = Mathf.Max(world.maxX - world.minX, world.maxZ - world.minZ);
+            void Eye(float x, float z)
+            {
+                float y = world.Height(x, z);
+                eyes.Add(new Vector3(x, y + 0.3f, z));
+                eyes.Add(new Vector3(x, y + 5f, z));
+            }
+            Eye(cx, cz);
+            for (int i = 0; i < 24; i++)
+            {
+                float a = i * Mathf.PI / 12f, c = Mathf.Cos(a), s = Mathf.Sin(a), lo = 0f, hi = reach;
+                for (int it = 0; it < 16; it++)
+                {
+                    float mid = (lo + hi) / 2;
+                    if (world.HexDist(cx + c * mid, cz + s * mid) < -1f) lo = mid; else hi = mid;
+                }
+                Eye(cx + c * lo, cz + s * lo);
+                Eye(cx + c * lo * 0.5f, cz + s * lo * 0.5f);
+            }
+            return eyes.ToArray();
         }
 
         /// <summary>A plant's own look and shape (from its place, so it is the same every time the nest is made).</summary>
@@ -581,13 +1023,17 @@ namespace AntGarden
             var rng = new Rng((uint)Mathf.RoundToInt(p0.x * 73.1f) * 73856093u ^ (uint)Mathf.RoundToInt(p0.z * 91.7f) * 19349663u ^ (uint)ord);
             float R() => rng.Next();
             Color[] body = bodyPalette, glowPal = glowPalette;
-            uint pal = pi.relic ? 63u : Palette(pi, ord);
+            Vector2 keepRange = NestTheme.Current != null ? NestTheme.Current.plantKeep : new Vector2(0.5f, 0.8f);
+            uint pal = pi.relic ? 63u : Palette(pi, ord, area);
             Color b0 = body != null && pal != 63 ? body[pal & 7] : Color.white;
             // the tip a neighbour of the base tint in the palette (or the same, lighter), each jittered
             Color b1 = body != null && pal != 63 ? body[(int)((pal & 7) + 1 + (int)(R() * 2.99f)) % 8] : Color.white;
             if (R() < 0.35f) b1 = Color.Lerp(b0, Color.white, 0.25f);
-            Color Jitter(Color c, float hueDeg, float v) => (HueShift(c.linear, hueDeg, 0.85f + 0.4f * R()) * v);
-            float hue = (R() - 0.5f) * 26f;
+            if (NestTheme.Current != null && System.Array.IndexOf(NestTheme.Current.plainTips, plant.name) >= 0) b1 = b0;   // (NestTheme.plainTips)
+            // (each plant its own: hue, saturation and value a little off its palette colour, as far as the theme says)
+            float jit = NestTheme.Current != null ? NestTheme.Current.tintJitter : 1f;
+            Color Jitter(Color c, float hueDeg, float v) => (HueShift(c.linear, hueDeg, 1f + (0.4f * R() - 0.15f) * jit) * (1f + (v - 1f) * jit));
+            float hue = (R() - 0.5f) * 26f * jit;
             var slot = new SolidSlot
             {
                 pts = plant.points, raw = plant.pointColors, nrms = plant.pointNormals, density = plant.pointDensity, open = plant.pointOpen,
@@ -597,7 +1043,7 @@ namespace AntGarden
                 baseTint = Jitter(b0, hue, 0.8f + 0.3f * R()),
                 tipTint = Jitter(b1, hue + (R() - 0.5f) * 20f, 0.9f + 0.35f * R()),
                 glow = glowPal != null && pal != 63 ? HueShift(glowPal[(pal >> 3) & 7].linear, (R() - 0.5f) * 30f, 1f) : Color.white,
-                keepOwn = pi.relic ? 0.8f : 0.5f + 0.3f * R(),   // mostly its own colours (their detail), the nest's palette over them
+                keepOwn = pi.relic ? 0.8f : Mathf.Lerp(keepRange.x, keepRange.y, R()),   // mostly its own colours (their detail), the nest's palette over them
                 contrast = 1.1f + 0.25f * R(),
                 mottle = 0.06f + 0.16f * R(), mottleScale = 2.5f + 7f * R(), mottleSeed = R() * 97f,
                 band = R() < 0.3f ? 0.1f + 0.15f * R() : 0f, bandFreq = 8f + 22f * R(),
@@ -619,21 +1065,172 @@ namespace AntGarden
                 slot.glowFrom = from;
                 slot.band = 0;   // no bands across a glowing head: it grows out of its stick in one sweep
             }
+            int sunkAt = NestTheme.Current != null && !pi.relic ? System.Array.IndexOf(NestTheme.Current.sunkKinds, plant.name) : -1;
+            if (sunkAt >= 0) slot.sunk = NestTheme.Current.sunkBy[sunkAt];
+            if (!pi.relic && System.Array.IndexOf(finePlants, plant.name) >= 0)
+            {
+                slot.fine = true;
+                slot.band = 0;   // (its own pattern is finer than any band)
+                slot.spots = Spots(plant, st.top);
+                if (NestTheme.Current?.kindFoot != null && NestTheme.Current.kindFoot.TryGetValue(plant.name, out float foot)) slot.foot = foot;
+            }
             if ((!pi.relic || slot.building) && NestTheme.Current != null)
                 foreach (NestTheme.GlowPart part in NestTheme.Current.glowParts)
-                    if (part.plant == plant.name) { slot.partFrom = part.from; slot.partTo = part.to; slot.partRel = part.lumMin; slot.partAmount = part.amount; }
+                    if (part.plant == plant.name) { slot.partFrom = part.from; slot.partTo = part.to; slot.partRel = part.lumMin; slot.partAmount = part.amount; slot.partRed = part.red; slot.partHot = part.hot; }
+            // (a relic glowing where it is red, the kiln's: its thin cracks' points first as it thins, EmberOrder)
+            if (slot.building && slot.partRed > 0f) slot.order = EmberOrder(plant, slot.partRed);
             // a plant of its region's own kinds keeps its colours (the backdrop's are turned whatever they are)
             bool native = GameConfig.InList(world.RegionAt(p0.x, p0.z).biome.nativePlants, plant.name);
             slot.ownHue = native ? 0 : pi.hue;
             slot.ownSat = native ? 1 : pi.sat;
+            // (a kind whose own colour a nest mutes: NestTheme.kindSat)
+            if (NestTheme.Current?.kindSat != null && NestTheme.Current.kindSat.TryGetValue(plant.name, out float kindSat)) slot.ownSat *= kindSat;
+            if (NestTheme.Current?.kindGain != null && NestTheme.Current.kindGain.TryGetValue(plant.name, out float kindGain)) slot.gain = kindGain;   // (and darkens: NestTheme.kindGain)
             // as light, the palette's pale glow colours read white: deeper, and toward the nest's teal
             slot.glowDeep = Color.Lerp(HueShift(slot.glow, 0f, 1.9f), (NestTheme.Current ?? NestTheme.Cyan).glowDeep, slot.glowFrom > 0 ? 0.55f : 0.3f);
+            if (pi.relic && NestTheme.Current != null && NestTheme.Current.relicGlow.a > 0f) slot.glow = slot.glowDeep = NestTheme.Current.relicGlow;   // (a nest's own: NestTheme.relicGlow)
+            // its markings: its kind's, a little stronger or weaker on this plant (now and then hardly lit), in its light's
+            // colour a little deepened, as light as bioAlbedo
+            if (!pi.relic && !pi.far)
+            {
+                Vector4 b = NestTheme.Current?.bio != null && NestTheme.Current.bio.TryGetValue(plant.name, out Vector4 own) ? own : Bio(plant.name);   // (its nest's own: NestTheme.bio)
+                uint kh = KindHash(plant.name);
+                slot.bio = (int)b.x;
+                slot.bioSize = b.y;
+                slot.bioWidth = b.z;
+                slot.bioAmt = b.w * (R() < 0.15f ? 0.3f : 0.75f + 0.25f * R());
+                slot.bioSeed = (kh & 0xFF) / 255f;
+                slot.faint *= NestTheme.Current?.faintGain ?? 1f;   // (its nest's: a pale head lit whole by it reads as one blob)
+                slot.growth = plant.pointGrowth;
+                slot.tip = plant.pointTip;
+                slot.stem = plant.pointStem;
+                slot.tipsToo = BioTips.TryGetValue(plant.name, out float tt) ? tt : 0f;
+                if (slot.bio == 4)
+                {
+                    Vector2 cut = PaleCut(plant, st.mean, b.y);
+                    slot.bioLo = cut.x;
+                    slot.bioHi = Mathf.Max(cut.y, cut.x + 0.05f);
+                }
+                Color bc = Color.Lerp(slot.glow, slot.glowDeep, NestTheme.Current?.markDeep ?? 0.55f);   // (as deep as its nest wants: NestTheme)
+                if (NestTheme.Current != null && NestTheme.Current.markColor.a > 0f) bc = NestTheme.Current.markColor.linear;   // (or its own colour)
+                if (NestTheme.Current?.kindMark != null && NestTheme.Current.kindMark.TryGetValue(plant.name, out Color km)) bc = km;   // (or its kind's: NestTheme.kindMark)
+                bc *= bioAlbedo / Mathf.Max(0.05f, Lum(bc));
+                float mx = Mathf.Max(bc.r, Mathf.Max(bc.g, bc.b));
+                slot.bioCol = mx > 1f ? bc * (1f / mx) : bc;
+            }
             if (!pi.relic && glassKinds != null && System.Array.IndexOf(glassKinds, plant.name) >= 0)
             {
                 slot.glass = true;
                 slot.core = GlassCore(plant);
             }
+            if (!pi.relic && crystalKinds != null && System.Array.IndexOf(crystalKinds, plant.name) >= 0)
+            {
+                // a crystal: straight (neither bent nor twisted: its faces stay flat), pale in the nest's colour, its ridges
+                // near white leaning to its light; never glass, though a nest's theme names it so (no shell, no light inside)
+                slot.crystal = true;
+                slot.glass = false;
+                slot.core = null;
+                slot.bend = slot.twist = 0f;
+                slot.sy = slot.sxz = 1f;
+                slot.ridge = plant.pointRidge;
+                slot.order = CrystalOrder(plant);
+                slot.crystalTint = Color.Lerp(slot.tipTint, Color.white, 0.5f);
+                slot.crystalEdge = Color.Lerp(Color.white, slot.glow, 0.3f) * 0.95f;
+                slot.crystalLight = Color.Lerp(slot.glow, slot.glowDeep, 0.3f);
+                Vector3 st2 = CrystalStats(plant);
+                slot.crystalLum = st2.x;
+                slot.crystalChroma = new Vector2(st2.y, st2.z);
+            }
             return slot;
+        }
+
+        readonly Dictionary<PlantRef, Vector3> crystalStats = new Dictionary<PlantRef, Vector3>();
+        readonly Dictionary<PlantRef, int[]> crystalOrders = new Dictionary<PlantRef, int[]>();
+
+        /// <summary>A crystal's points in the order its splats take them (a plant draws its first so many, as many as its
+        /// distance wants): its ridges' and points' points crystalRidgeShare times as often as its faces', so however it
+        /// is thinned its ridges stay lines (in their stored order, which is random, thinned they broke into dots). The
+        /// same for every crystal of a kind; null without a ridge map.</summary>
+        int[] CrystalOrder(PlantRef plant)
+        {
+            if (crystalOrders.TryGetValue(plant, out int[] order)) return order;
+            if (plant.pointRidge == null) return crystalOrders[plant] = null;
+            int n = plant.points.Length;
+            var ridge = new List<int>();
+            var face = new List<int>();
+            for (int k = 0; k < n; k++)
+                (plant.pointRidge[k] > 128 ? ridge : face).Add(k);
+            // after each face's point, the ridges' at crystalRidgeShare times their share, till they run out
+            order = new int[n];
+            float per = crystalRidgeShare * ridge.Count / Mathf.Max(1, face.Count), owe = 0f;
+            int w = 0, ri = 0;
+            foreach (int f in face)
+            {
+                order[w++] = f;
+                for (owe += per; owe >= 1f && ri < ridge.Count; owe -= 1f) order[w++] = ridge[ri++];
+            }
+            while (ri < ridge.Count) order[w++] = ridge[ri++];
+            return crystalOrders[plant] = order;
+        }
+
+        readonly Dictionary<PlantRef, int[]> emberOrders = new Dictionary<PlantRef, int[]>();
+
+        /// <summary>A relic's points in the order its splats take them, as CrystalOrder's: those where it is red (a glow
+        /// part's red, NestTheme.GlowPart: the embers in the kiln's charred log's and temple's cracks) emberShare times as
+        /// often as the rest, so thinned further off its thin cracks still glow (in their stored order they thinned away
+        /// with the charcoal round them: from the way, a tenth of its points drawn, none red, k6). The same for every
+        /// relic of a kind.</summary>
+        int[] EmberOrder(PlantRef plant, float red)
+        {
+            if (emberOrders.TryGetValue(plant, out int[] order)) return order;
+            int n = plant.points.Length;
+            var ember = new List<int>();
+            var rest = new List<int>();
+            for (int k = 0; k < n; k++)
+            {
+                Color32 c = plant.pointColors[k];
+                var lin = new Color(Linear[c.r], Linear[c.g], Linear[c.b]);
+                bool hot = Lum(lin) > 0.03f && (lin.r - Mathf.Max(lin.g, lin.b)) / Mathf.Max(1e-3f, lin.r) > red;
+                (hot ? ember : rest).Add(k);
+            }
+            // after each of the rest's points, the embers' at emberShare times their share, till they run out
+            order = new int[n];
+            float per = emberShare * ember.Count / Mathf.Max(1, rest.Count), owe = 0f;
+            int w = 0, ei = 0;
+            foreach (int f in rest)
+            {
+                order[w++] = f;
+                for (owe += per; owe >= 1f && ei < ember.Count; owe -= 1f) order[w++] = ember[ei++];
+            }
+            while (ei < ember.Count) order[w++] = ember[ei++];
+            Debug.Log($"[AntGarden] {plant.name}: {ember.Count} of {n} points embers ({100f * ember.Count / Mathf.Max(1, n):F1} %), drawn {emberShare}× as often as it thins");
+            return emberOrders[plant] = order;
+        }
+
+        /// <summary>A crystal's texture where it is all crystal (above the rock it grows from, a third of its height up): its
+        /// mean lightness, and how coloured it is at the 80th and the 97th hundredth of its points (its patches of colour:
+        /// lavender, green).</summary>
+        Vector3 CrystalStats(PlantRef plant)
+        {
+            if (crystalStats.TryGetValue(plant, out Vector3 st)) return st;
+            var chroma = new List<float>();
+            double sum = 0;
+            float top = 0.01f;
+            for (int k = 0; k < plant.points.Length; k += 5) top = Mathf.Max(top, plant.points[k].y);
+            for (int k = 0; k < plant.points.Length; k += 5)
+            {
+                Color32 c = plant.pointColors[k];
+                if (plant.points[k].y < 0.33f * top) continue;
+                var lin = new Color(Linear[c.r], Linear[c.g], Linear[c.b]);
+                float lum = Mathf.Max(1e-4f, Lum(lin));
+                sum += lum;
+                Color own = lin * (1f / lum);
+                chroma.Add(Mathf.Max(own.r, Mathf.Max(own.g, own.b)) - Mathf.Min(own.r, Mathf.Min(own.g, own.b)));
+            }
+            if (chroma.Count < 20) return crystalStats[plant] = new Vector3(0.4f, 0.2f, 0.4f);
+            chroma.Sort();
+            float lo = chroma[(int)(chroma.Count * 0.5f)], hi = chroma[(int)(chroma.Count * 0.99f)];   // (80th to 97th: hard-edged blocks of colour; from the 65th, the green hardly showed)
+            return crystalStats[plant] = new Vector3((float)(sum / chroma.Count), lo, Mathf.Max(hi, lo + 0.02f));
         }
 
         /// <summary>
@@ -684,15 +1281,24 @@ namespace AntGarden
                 if (d < bd) { bd = d; best = s; }
             }
             if (best == null) return "no plant near";
-            int full = Mathf.Max(1, Mathf.Min(Mathf.Min(solidNearCap, best.pts.Length), Mathf.RoundToInt(best.area * solidNear)));
-            float r = Mathf.Max(0.0018f, 0.62f * Mathf.Sqrt(best.area / full));
             float height = best.reach / 0.8f, dist = Vector3.Distance(cam, best.pos + Vector3.up * height * 0.5f);
+            int full = ShellFull(best, out float r);
             float want = Mathf.Clamp(nearDist * nearDist / (dist * dist), Mathf.Clamp01(solidFine / solidNear), 1f);
+            if (best.building && NestTheme.Current != null) want = Mathf.Max(want, NestTheme.Current.relicKeep);   // (NestTheme.relicKeep)
             float px = 2f * dist * Mathf.Tan(fovDeg * 0.5f * Mathf.Deg2Rad) / screenH;
             int split = want > 0.2f && dist < nearDist * 1.6f ? Mathf.Clamp(Mathf.CeilToInt(best.area * solidNear / full - 0.25f), 1, splitMax) : 1;
             if (split > 1) r *= 1.15f / Mathf.Sqrt(split);
             return $"{best.name}: height {height:F2}, surface {best.area:F1} u², {best.pts.Length} points, {full} splats at full" + (split > 1 ? $" (each split in {split} up close)" : "")
-                + $", {want:P0} kept at {dist:F1} from the camera, dab {2 * r / Mathf.Sqrt(want) / px:F1} px across";
+                + $", {want:P0} kept at {dist:F1} from the camera, dab {2 * r / Mathf.Sqrt(want) / px:F1} px across" + (best.fine ? ", fine" : "");
+        }
+
+        /// <summary>How many fine splats a plant has right in front of the camera (its share of them further off goes by
+        /// rank), and how big each is: as many as its surface wants, at most all its stored points.</summary>
+        int ShellFull(SolidSlot s, out float radius)
+        {
+            int full = Mathf.Max(1, Mathf.Min(Mathf.Min(solidNearCap, s.pts.Length), Mathf.RoundToInt(s.area * solidNear * (s.crystal ? crystalDensity : 1f))));
+            radius = Mathf.Max(0.0018f, 0.62f * Mathf.Sqrt(s.area / full));
+            return full;
         }
 
         /// <summary>The fine splats of the plants round at (into, grown as needed; returns how many), made plant by plant
@@ -712,9 +1318,12 @@ namespace AntGarden
                 float cx = slot.pos.x - cam.x, cz = slot.pos.z - cam.z;
                 float dc = Mathf.Max(0.4f, Mathf.Sqrt(cx * cx + cz * cz) - slot.reach * 0.5f - slack);
                 float want = Mathf.Clamp(nearDist * nearDist / (dc * dc), floor, 1f);
-                int full = Mathf.Max(1, Mathf.Min(Mathf.Min(solidNearCap, slot.pts.Length), Mathf.RoundToInt(slot.area * solidNear)));
+                int full = ShellFull(slot, out float radius);
+                // a nest's relics kept denser further off (NestTheme.relicKeep: the kiln's stump temple, 6 high and seen
+                // from 9, drawn with a tenth of its points, showed neither its embers' cracks nor its carved galleries,
+                // k6-k7): as many made, and the shader keeps that share of a building's however far (_NearDensity.z)
+                if (slot.building && NestTheme.Current != null) want = Mathf.Max(want, NestTheme.Current.relicKeep);
                 int n = Mathf.Min(full, Mathf.CeilToInt(full * want));
-                float radius = Mathf.Max(0.0018f, 0.62f * Mathf.Sqrt(slot.area / full));
                 // a big plant whose stored points are too few for that (a giant mushroom, a boulder): near the camera
                 // each of them is drawn as several smaller ones, so its grain is as fine as what stands beside it
                 int split = want > 0.2f ? Mathf.Clamp(Mathf.CeilToInt(slot.area * solidNear / full - 0.25f), 1, splitMax) : 1;
@@ -728,8 +1337,8 @@ namespace AntGarden
             SolidPoint[] arr = into;
             var made = new int[jobs.Count];
             float splitReach = nearDist * 1.6f + slack;
-            // (on all but three cores: the main and render threads keep theirs, or a frame stalls while a big shell is made)
-            var cores = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = Mathf.Max(1, System.Environment.ProcessorCount - 3) };
+            // (on all but four cores: the main and render threads keep theirs, or frames run late while a big shell is made)
+            var cores = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = Mathf.Max(1, System.Environment.ProcessorCount - 4) };
             System.Threading.Tasks.Parallel.For(0, jobs.Count, cores, j =>
             {
                 var (slot, full, n, radius, coreFull, m, o, split) = jobs[j];
@@ -738,7 +1347,7 @@ namespace AntGarden
                 for (int k = 0; k < n; k++)
                 {
                     int rank = k * 128 / full;
-                    SolidPoint sp = SolidSplat(slot, k, radius);
+                    SolidPoint sp = SolidSplat(slot, slot.order != null ? slot.order[k] : k, radius);
                     if ((sp.pos - cam).sqrMagnitude >= near2) { arr[w++] = ThingPen.WithRank(sp, rank); continue; }
                     Vector3 nn = ThingPen.UnpackNormal(sp.nrm);
                     NestThingsGrowth.Perp(nn, out Vector3 u, out Vector3 v);
@@ -764,7 +1373,109 @@ namespace AntGarden
                 if (jobs[j].at != end) System.Array.Copy(arr, jobs[j].at, arr, end, made[j]);
                 end += made[j];
             }
+            if (wallDensity > 0 && tris != null) end = WallShell(at, cam, slack, ref into, end);
             return end;
+        }
+
+        readonly List<int> wallTris = new List<int>(1 << 14);
+        readonly List<SolidPoint>[] wallParts = new List<SolidPoint>[12];
+
+        /// <summary>The walls round at as opaque splats, and anything steep (the carpet lies on the floor only, and thins
+        /// on a slope; Emit's points there give way to these round the ant), appended to into from end; returns the new
+        /// end. Made on all but four cores, a share of the triangles each (into lists kept from one shell to the next:
+        /// nothing allocated, no collection mid-walk).</summary>
+        int WallShell(Vector2 at, Vector3 cam, float slack, ref SolidPoint[] into, int end)
+        {
+            wallTris.Clear();
+            float reach2 = wallReach * wallReach;
+            int r = Mathf.CeilToInt(wallReach / CellSize);
+            int cx = Mathf.FloorToInt(at.x / CellSize), cz = Mathf.FloorToInt(at.y / CellSize);
+            for (int z = cz - r; z <= cz + r; z++)
+            for (int x = cx - r; x <= cx + r; x++)
+            {
+                if (!cells.TryGetValue(CellKey(x, z), out var bin)) continue;
+                foreach (int i in bin)
+                {
+                    float dx = tris[i].x - at.x, dz = tris[i].z - at.y;
+                    if (dx * dx + dz * dz > reach2) continue;
+                    var (_, nr, c, t, _) = meshes[tris[i].mesh];
+                    int ia = t[tris[i].k], ib = t[tris[i].k + 1], ic = t[tris[i].k + 2];
+                    // all floor and flat: the carpet's
+                    if (Mathf.Min(c[ia].r, Mathf.Min(c[ib].r, c[ic].r)) > 0.75f && Mathf.Min(nr[ia].y, Mathf.Min(nr[ib].y, nr[ic].y)) > 0.7f) continue;
+                    wallTris.Add(i);
+                }
+            }
+            for (int j = 0; j < wallParts.Length; j++) wallParts[j] ??= new List<SolidPoint>(1 << 15);
+            var cores = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = Mathf.Max(1, System.Environment.ProcessorCount - 4) };
+            System.Threading.Tasks.Parallel.For(0, wallParts.Length, cores, j =>
+            {
+                List<SolidPoint> part = wallParts[j];
+                part.Clear();
+                for (int q = j; q < wallTris.Count; q += wallParts.Length) WallTri(wallTris[q], at, cam, slack, part);
+            });
+            int total = end;
+            foreach (List<SolidPoint> part in wallParts) total += part.Count;
+            if (into.Length < total)
+            {
+                var bigger = new SolidPoint[Mathf.NextPowerOfTwo(total)];
+                System.Array.Copy(into, bigger, end);
+                into = bigger;
+            }
+            foreach (List<SolidPoint> part in wallParts)
+            {
+                part.CopyTo(into, end);
+                end += part.Count;
+            }
+            return end;
+        }
+
+        /// <summary>A wall triangle's opaque splats: as many as the nearest the camera may come wants (a share of the
+        /// slack only: the walls are wide), ranked as a plant's fine splats are, so the shader keeps those their distance
+        /// wants; thinning out over the last two units of wallReach; coloured as the ground's points are (wallGain), the
+        /// texture's darkest parts left as gaps (fewer than the carpet's); the ground's own (they stand still, no rim, no
+        /// glints: ThingPen.Terrain).</summary>
+        void WallTri(int i, Vector2 at, Vector3 cam, float slack, List<SolidPoint> into)
+        {
+            GroundTri g = tris[i];
+            var (v, nr, c, t, look) = meshes[g.mesh];
+            int ia = t[g.k], ib = t[g.k + 1], ic = t[g.k + 2];
+            // (a little larger than covering: the dark terrain showed through as black holes)
+            float floor = Mathf.Clamp01(solidFine / solidNear), radius = 0.78f / Mathf.Sqrt(wallDensity);
+            float dc = Mathf.Max(0.4f, Vector3.Distance((v[ia] + v[ib] + v[ic]) / 3f, cam) - Mathf.Sqrt(g.area) - slack * 0.5f);
+            float full = g.area * wallDensity, many = full * Mathf.Clamp(nearDist * nearDist / (dc * dc), floor, 1f);
+            var rng = new Rng((uint)i * 3266489917u ^ 0x68e31da4u);
+            int n = (int)many;
+            if (rng.Next() < many - n) n++;
+            bool textured = look != null && look.floor != null;
+            for (int k = 0; k < n; k++)
+            {
+                float u = rng.Next(), w = rng.Next();
+                if (u + w > 1) { u = 1 - u; w = 1 - w; }
+                float s = 1 - u - w;
+                float roll = rng.Next(), gap = rng.Next(), jitter = rng.Next(), edge = rng.Next();
+                float gN = (rng.Next() + rng.Next() + rng.Next() - 1.5f) * 1.6f;
+                Vector3 p = v[ia] * s + v[ib] * u + v[ic] * w;
+                float ex = p.x - at.x, ez = p.z - at.y;
+                if (ex * ex + ez * ez > (wallReach - 2f * edge) * (wallReach - 2f * edge)) continue;
+                Vector3 nn = (nr[ia] * s + nr[ib] * u + nr[ic] * w).normalized;
+                Color lw = c[ia] * s + c[ib] * u + c[ic] * w;   // floor, bank, plateau, open
+                if (roll < Smooth(0.25f, 0.75f, lw.r) * Smooth(0.45f, 0.7f, nn.y)) continue;   // the carpet's
+                float lum = (0.3f * lw.r + 0.75f * lw.g + 0.32f * lw.b + 1.4f * lw.g * lw.b) * (0.55f + 0.45f * lw.a);
+                Color col;
+                if (textured)
+                {
+                    Color albedo = Albedo(look, p, nn, lw);
+                    float al = Lum(albedo), rel = al / look.meanLum;
+                    if (gap > Mathf.Lerp(1f, Mathf.Clamp(0.6f + 0.4f * rel * Mathf.Sqrt(rel), 0.05f, 1f), grain)) continue;
+                    lum *= (0.85f + 0.3f * jitter) * Mathf.Lerp(1f, Mathf.Clamp(0.08f + 0.92f * rel * rel, 0.04f, 3.2f), grain);
+                    // (as much of the texture's own colour as the ground's points: more, and leafcut's walls turned from
+                    // its 119° to 85-102°, the textures' own khaki and brown)
+                    col = Color.Lerp(FloorPatches(LayerTint(lw), p, lw.r) * lum, albedo * (lum / Mathf.Max(1e-4f, al)), groundTexMix);
+                }
+                else col = LayerTint(lw) * (lum * (0.6f + 0.8f * jitter));
+                float rad = radius * Mathf.Exp(gN * 0.42f);
+                into.Add(ThingPen.WithRank(ThingPen.Terrain(ThingPen.Splat(p + nn * 0.012f, nn, col * wallGain, rad, 0f)), (int)(k * 128 / Mathf.Max(1f, full))));
+            }
         }
 
         /// <summary>
@@ -780,13 +1491,20 @@ namespace AntGarden
             Vector3 p = s.pts[k];
             Vector3 n = s.nrms != null ? ThingPen.DecodeNormal(s.nrms[k]) : Vector3.up;
             float y01 = Mathf.Clamp01(p.y / s.top);
+            // how far along its growth (its growth map: along its surface from its foot), for its gradients from foot to
+            // tip, soft and following its form as the references' do (by height they cut it in bands); its height without one
+            float g01 = s.growth != null ? s.growth[k] : y01;
             Shape(s, ref p, ref n);
+            // a plant on a lump of its own soil (the tiny mushrooms' pot, a hard-edged saucer on the floor): the lump
+            // under the floor, which hides it, the rest lowered to rise out of it
+            if (s.sunk > 0f) p.y -= (y01 < s.sunk + 0.03f ? 1f + s.sunk : s.sunk) * s.top * s.sy;
             float open = s.open != null ? s.open[k] / 255f : 1f;
             float shade = 0.3f + 0.7f * Mathf.Pow(open, 1.1f);
             // the texture's light and dark against the plant's own mean (a little exaggerated), some of its own colour,
             // the rest this plant's tints from base to tip; its glowing parts lean to its glow colour but keep the
             // pattern, and glow most where the texture is lightest (veins, rims)
             float lum = Mathf.Max(1e-4f, Lum(lin));
+            if (s.crystal) return CrystalSplat(s, k, p, n, lin, lum, g01, y01, shade, radius);
             // (a plant whose head glows: its texture's light and dark softened, so its pale head and dark stalk do not
             // read as two parts)
             float rel = Mathf.Clamp(Mathf.Pow(lum / s.meanLum, s.glowFrom > 0 ? s.contrast * 0.8f : s.contrast), 0.05f, 3.2f);
@@ -795,21 +1513,40 @@ namespace AntGarden
             // this nest (a mushroom's gills), where its texture is light
             // its head: over a wide soft band from well down the stalk, not at the line where the texture's glow flags
             // start (those switch on at one height; a plant with a head glows by the band alone)
-            float head = s.glowFrom > 0 ? Mathf.SmoothStep(0f, 1f, (y01 - s.glowFrom + 0.32f) / 0.52f) : 1f;
-            float gw = s.glowFrom > 0 ? head : c.a > 127 && !s.building ? 1f : 0f;   // (a building's texture flags are ignored: its glow parts say)
-            if (s.partAmount > 0)
+            float head = s.glowFrom > 0 ? Smooth(s.glowFrom - 0.4f, s.glowFrom + 0.3f, g01) : 1f;
+            float gw = s.glowFrom > 0 ? head : c.a > 127 && !s.building && s.glowFrom == 0 ? 1f : 0f;   // (a building's texture flags are ignored: its glow parts say; glowFrom under 0, its markings)
+            float ember = 0f, paleWood = 0f;
+            if (s.partAmount > 0 || s.partRed > 0)   // (a part glowing where red may leave its pale parts unlit: amount 0)
             {
                 float band = Mathf.SmoothStep(0f, 1f, (y01 - s.partFrom) / 0.08f) * (1f - Mathf.SmoothStep(0f, 1f, (y01 - s.partTo) / 0.08f));
-                gw = Mathf.Max(gw, band * Mathf.SmoothStep(0f, 1f, (rel - s.partRel) / 0.4f) * s.partAmount);
+                if (s.partRed > 0f)
+                {
+                    // (or where it is red, the redder the more: the kiln's log and temple, the embers in their cracks bright,
+                    // at partHot, not their red-brown charcoal, nor its darkest crumbs, however red; and their carved pale
+                    // wood, where it is warm, a little: not the charcoal's grey sheen, however light)
+                    float red = (lin.r - Mathf.Max(lin.g, lin.b)) / Mathf.Max(1e-3f, lin.r);
+                    ember = band * Smooth(s.partRed, s.partRed + 0.18f, red) * Smooth(0.025f, 0.05f, lum);
+                    gw = Mathf.Max(gw, ember * s.partHot);
+                    paleWood = band * Mathf.SmoothStep(0f, 1f, (rel - s.partRel) / 0.4f) * Smooth(0.25f, 0.38f, red);
+                    gw = Mathf.Max(gw, paleWood * s.partAmount);
+                }
+                else gw = Mathf.Max(gw, band * Mathf.SmoothStep(0f, 1f, (rel - s.partRel) / 0.4f) * s.partAmount);
             }
             bool glows = gw > 0.5f;
             Color own = lin * (1f / lum);                                   // the texture's own hue, at unit brightness
             if (s.ownHue != 0 || s.ownSat != 1) own = HueShift(own, s.ownHue, s.ownSat);   // turned as its region turns its plants
             NestTheme th = NestTheme.Current;
             if (th != null && th.ownBand.y > 0) own = Fold(own, th.ownBand.x, th.ownBand.y);
-            Color tint = Color.Lerp(s.baseTint, s.tipTint, Mathf.SmoothStep(0.15f, 1f, y01));
+            Color tint = Color.Lerp(s.baseTint, s.tipTint, Smooth(0.05f, 1f, g01));
             Color col = s.rigid ? (th == null ? lin * 1.6f : Color.Lerp(lin, th.body[0].linear * (lum / Mathf.Max(1e-3f, Lum(th.body[0].linear))), th.rigidTint) * (1.6f * th.rigidGain))
                 : Color.Lerp(tint, own * 0.75f, s.keepOwn) * (s.meanLum * rel * 2.2f);
+            // (a relic's pale carved wood weathered toward a cool silver grey, as far as its nest has it: the kiln's,
+            // NestTheme.relicPaleGrey; in its own tan it read gold, the amber nest's colour, k7-k8)
+            if (paleWood > 0f && th != null && th.relicPaleGrey > 0f)
+            {
+                float lg = Lum(col);
+                col = Color.Lerp(col, new Color(lg * 0.9f, lg * 0.98f, lg * 1.14f), paleWood * th.relicPaleGrey);   // (a little bluer since k11: one of its cool notes)
+            }
             if (!s.rigid)
             {
                 // a lollipop's stick is darker, brightening up into its head
@@ -817,29 +1554,62 @@ namespace AntGarden
                 if (gw > 0)
                 {
                     // the glowing part leans to the glow colour, paler toward a head's tip, its pattern kept
-                    float tipward = s.glowFrom > 0 ? Mathf.Clamp01((y01 - s.glowFrom) / Mathf.Max(0.05f, 1f - s.glowFrom)) : 0f;
+                    float tipward = s.glowFrom > 0 ? Mathf.Clamp01((g01 - s.glowFrom) / Mathf.Max(0.05f, 1f - s.glowFrom)) : 0f;
                     Color light = Color.Lerp(s.glowDeep, s.glow, 0.4f * tipward);
-                    col = Color.Lerp(col, light * Mathf.Clamp(s.meanLum * rel * 2.4f, 0.22f, 0.55f), (s.glowFrom > 0 ? 0.45f : 0.8f) * Mathf.Min(1f, gw));
+                    // (a finely made plant keeps its own colours and pattern under the glow: a curl's scales, a
+                    // lantern's paper, a coral's pale tips)
+                    float lean = s.fine ? (s.glowFrom > 0 ? fineLean.x : fineLean.y) : s.glowFrom > 0 ? 0.45f : 0.8f;
+                    col = Color.Lerp(col, light * Mathf.Clamp(s.meanLum * rel * 2.4f, 0.22f, 0.55f), lean * Mathf.Min(1f, gw));
                 }
             }
             // mottling in this plant's own pattern, and now and then faint bands along its height
             float mot = Noise(p.x * s.mottleScale + s.mottleSeed, p.z * s.mottleScale + p.y * s.mottleScale * 0.7f);
             col *= 1f + s.mottle * (mot * 2f - 1f) + (s.band > 0 ? s.band * Mathf.Sin(p.y * s.bandFreq + s.mottleSeed) : 0f);
-            Color albedo = col * (solidAlbedo * shade);
+            // a finely made plant: dark at its foot, lighter up its body (it stands in the floor's shadow; its form reads)
+            if (s.fine) shade *= Mathf.Lerp(s.foot > 0f ? s.foot : fineFoot, 1f, Smooth(0f, 0.6f, g01));
+            Color albedo = col * (solidAlbedo * shade * s.gain);
             float bright = s.glowFrom > 0 ? 0.7f + 0.3f * Mathf.Clamp01(rel) : Mathf.Clamp01(s.glowGain * (0.55f + 0.4f * Mathf.Clamp01(rel * 0.8f)));
+            if (s.fine) bright *= fineGlow;
             float glow = Mathf.Max(gw * bright, s.building ? 0f : s.faint * Mathf.SmoothStep(0f, 1f, (rel - 1.05f) / 1.2f));   // and its own faint light, in its lightest parts
+            if (s.fine) glow = Mathf.Max(glow, (th != null && th.fineLight >= 0f ? th.fineLight : fineOwnLight) * (0.55f + 0.45f * Mathf.Clamp01(rel)) * Smooth(0f, 1f, g01));
+            if (s.spots != null && s.spots[k] > 0.01f)
+            {
+                // a spot of its own light (a puffball's middle and its balls, a coil, a tip): toward its markings' colour,
+                // glowing
+                float lit = s.spots[k];
+                albedo = Color.Lerp(albedo, s.bioCol, Mathf.Min(1f, 0.8f * lit));
+                glow = Mathf.Max(glow, fineSpotGlow * lit * (0.75f + 0.25f * Mathf.Clamp01(rel)));
+            }
+            if (s.bio > 0)
+            {
+                // its kind's markings: in their colour, glowing strongly
+                float mark = BioMark(s, k, s.pts[k], y01, lum / s.meanLum) * s.bioAmt;
+                if (mark > 0.01f)
+                {
+                    albedo = Color.Lerp(albedo, s.bioCol, Mathf.Min(1f, mark * 1.25f));
+                    glow = Mathf.Max(glow, bioStrong * (th != null ? th.markGain : 1f) * mark);
+                }
+            }
+            // and every plant a faint light of its own, more toward its top
+            if (!s.rigid && !s.building) glow = Mathf.Max(glow, bioFaint * (0.45f + 0.55f * Smooth(0f, 0.9f, g01)));
             if (s.building)
             {
                 // a building glows only along its paths (its texture's glowing parts) and at a few points, embers in its
                 // pores; those lean to its glow colour
                 if (PointHash(k + 911) < 0.012f) glow = Mathf.Max(glow, 0.55f + 0.3f * PointHash(k + 913));
                 if (glow > 0) albedo = Color.Lerp(albedo, s.glowDeep * 0.55f, 0.6f * Mathf.Min(1f, glow));
+                // (the kiln's embers in their cracks: bright, in their own red, however deep in the crack; leaned as above
+                // they stayed a dark rust, k7)
+                if (ember > 0f) albedo = Color.Lerp(albedo, s.glowDeep * 0.9f, ember);   // (at 1.4 they bloomed salmon pink, k7b)
             }
-            if (s.far && th != null && th.farDim < 1f)
+            if (s.far && th != null && (th.farDim < 1f || th.farFog > 0f))
             {
-                // a tree beyond the walls: a dark, muted shape in the fog
+                // a tree beyond the walls: a dark, muted shape in the fog; in a nest whose palette is turned from v15's, in
+                // the fog's colour (its texture's own, kept, put a navy column at the end of the granary's way)
                 float l = Lum(albedo);
-                albedo = Color.Lerp(new Color(l, l, l), albedo, 0.5f) * th.farDim;
+                Color fog = th.fog.linear;
+                Color muted = th.farFog > 0f ? Color.Lerp(albedo, fog * (l / Mathf.Max(1e-3f, Lum(fog))), th.farFog) : Color.Lerp(new Color(l, l, l), albedo, 0.5f);
+                albedo = muted * th.farDim;
                 glow *= th.farDim * 0.5f;
             }
             if (s.glass && glows)
@@ -868,6 +1638,69 @@ namespace AntGarden
             Color col = Color.Lerp(s.glow, Color.white, 0.45f * (1 - f)) * (1f - 0.45f * f);
             float glow = Mathf.Clamp01(1.25f - 0.6f * f);
             return ThingPen.Splat(s.m.MultiplyPoint3x4(p), s.m.MultiplyVector(n), col, radius * (0.35f + 0.3f * PointHash(j + 77)), glow);
+        }
+
+        /// <summary>
+        /// Splat k of a crystal (crystalKinds): where it is crystal, solid, its points covering it; pale, in the nest's
+        /// colour, keeping some of its texture's own, more of it in the patches of colour inside it; each face its own
+        /// light and dark, lit from one side as by a lamp, so a prism's faces read apart; its ridges and points catching
+        /// the light as thin pale lines (its ridge map, Tools/plants/growth_map.py; the references' crystals: "棱和边缘
+        /// 接住光，底部暗，越往上越亮"); dark at its foot, lighter toward its point; a light of its own from inside, more
+        /// in its patches of colour, least at its ridges (they shine, they do not glow). Where it is the rock it grows
+        /// from, dark and rough, as a plant's foot is; the one going over into the other at the crystals' feet by the
+        /// texture's lightness and the height together (its texture marks no glowing part: by height alone it would
+        /// cut the crystals level). A building to the shader: it stands still in the wind. Plain arithmetic only.
+        /// </summary>
+        SolidPoint CrystalSplat(SolidSlot s, int k, Vector3 p, Vector3 n, Color lin, float lum, float g01, float y01, float shade, float radius)
+        {
+            Vector3 wn = s.m.MultiplyVector(n).normalized;
+            Color own = lin * (1f / lum);
+            // how much it is crystal: everything a third of the way up; below, its pale parts (the rock is dark)
+            float crystal = Mathf.Max(Smooth(0.22f, 0.36f, y01), Smooth(0.06f, 0.16f, lum) * Smooth(0.02f, 0.1f, y01));
+            // the rock: dark, its own colour mostly, the nest's base tint over it, faintly lit of itself as every plant is
+            Color rock = Color.Lerp(s.baseTint, own * 0.75f, s.keepOwn) * (Mathf.Clamp(lum, 0.015f, 0.15f) * 3f * solidAlbedo * shade);
+            float rockGlow = bioFaint * 0.45f;
+            // the crystal
+            float ridge = (s.ridge != null ? s.ridge[k] / 255f : 0f) * crystal;
+            float point = (s.tip != null ? 1f - Smooth(0f, 0.06f, s.tip[k]) : 0f) * crystal;
+            // (its ridges held to their middles: their soft edges lit the thin blades' points as scattered dots; its points
+            // only where ridges meet: the growth map's tips also fall on its flat faces, where they lit white blots)
+            float line = Mathf.Max(Smooth(0.5f, 0.8f, ridge), Mathf.Min(1f, 1.3f * point * Smooth(0.15f, 0.4f, ridge)));
+            float key = Mathf.Max(0f, Vector3.Dot(wn, crystalKey.normalized)), fill = Mathf.Max(0f, Vector3.Dot(wn, crystalFill.normalized));
+            // (and a third, faint, from below the other side: the faces turned from the key light were one grey)
+            float under = Mathf.Max(0f, Vector3.Dot(wn, new Vector3(0.35f, -0.45f, 0.82f)));
+            float face = 0.42f + 0.95f * key * key + 0.25f * fill + 0.2f * under;
+            float chroma = Mathf.Max(own.r, Mathf.Max(own.g, own.b)) - Mathf.Min(own.r, Mathf.Min(own.g, own.b));
+            float patch = Smooth(s.crystalChroma.x, s.crystalChroma.y, chroma);
+            float up = Smooth(0f, 1f, g01);
+            float light = Mathf.Clamp(Mathf.Sqrt(lum / s.crystalLum), 0.95f, 1.05f);   // its texture's cloudiness, nearly gone (wider, grey blotches on its faces: granite, frost)
+            // (its patches of colour a little more vivid than the texture's: as a light inside, its own pale tints read grey)
+            Color vivid = Color.LerpUnclamped(Color.white, own, 1.8f);
+            vivid = new Color(Mathf.Max(0f, vivid.r), Mathf.Max(0f, vivid.g), Mathf.Max(0f, vivid.b));
+            Color body = Color.Lerp(s.crystalTint, Color.Lerp(own, vivid, patch), Mathf.Lerp(crystalOwn, 0.5f, patch));   // (at 0.9 its colour sat on its surface: its light shows it)
+            Color albedo = body * (crystalAlbedo * face * light * Mathf.Lerp(0.45f, 1f, up) * Mathf.Lerp(0.85f, 1f, shade));
+            // its depth: a darker band along its ridges' inner side, its faces' cores lighter (a crystal's growth map's s:
+            // how far from its nearest ridge, 1 at a face's middle); as one even grey it read as frosted stone
+            float core = s.stem != null ? Smooth(0f, 0.85f, s.stem[k] / 255f) : 0.5f;
+            albedo *= Mathf.Lerp(0.72f, 1.06f, core);
+            albedo = Color.Lerp(albedo, s.crystalEdge, 0.85f * line);
+            // the light inside, in its nest's light colour (a warm gold in the granary): up each prism, away from its
+            // ridges (they stay pale), brightest toward its point (cold grey, it read as plain quartz, not lit within)
+            float inside = (1f - line) * up * up;
+            Color lightCol = s.crystalLight * (Lum(albedo) / Mathf.Max(1e-3f, Lum(s.crystalLight)));
+            albedo = Color.Lerp(albedo, lightCol, crystalWarm * inside);
+            // (lit from within, more toward its point; least at its ridges, which shine rather than glow) and in soft clouds
+            // of light inside it, large, more toward its point, more at its faces' cores
+            float cloud = Smooth(0.4f, 0.85f, Noise(s.pts[k].x * 3.2f + s.mottleSeed, s.pts[k].y * 2.4f + s.pts[k].z * 3.2f));
+            float glow = (crystalGlow + crystalInner * patch) * (0.2f + 0.8f * up * up) * (1f - 0.8f * line) + crystalLine * line + crystalLit * inside
+                + (crystalCloud * cloud * Mathf.Lerp(0.3f, 1.2f, core) + crystalCore * core) * up * (1f - line);
+            albedo = Color.Lerp(rock, albedo, crystal);
+            glow = Mathf.Lerp(rockGlow, glow, crystal);
+            float dens = s.density != null ? s.density[k] : 1f;
+            // its faces' splats larger and alike (smaller and varied, the dark behind showed through: frost, sugar), its
+            // ridges' smaller (a fine line; at 0.6 a dashed one)
+            float vary = (0.9f + 0.2f * PointHash(k)) / Mathf.Sqrt(Mathf.Clamp(dens, 0.25f, 9f));
+            return ThingPen.Building(ThingPen.Splat(s.m.MultiplyPoint3x4(p), wn, albedo, radius * vary * Mathf.Lerp(1.3f, 0.85f, line), glow));
         }
 
         /// <summary>A point of a plant (and its normal) stretched, twisted about its stem and bent over (the higher, the
@@ -899,7 +1732,7 @@ namespace AntGarden
 
         /// <summary>A plant's tints: its kind picks one of the near colours for its body and one for its glow; now and
         /// then (by the plant itself) a warm one instead. Glow index in bits 3-5, body in 0-2.</summary>
-        uint Palette(PlantInstance pi, int index)
+        uint Palette(PlantInstance pi, int index, float area)
         {
             if (bodyPalette == null || glowPalette == null) return 0;
             uint kind = 2166136261u;
@@ -907,7 +1740,8 @@ namespace AntGarden
             uint own = (uint)index * 2654435761u ^ kind;
             own ^= own >> 15; own *= 2246822519u; own ^= own >> 13;
             float r1 = (own & 0xFFFF) / 65535f, r2 = ((own >> 16) & 0xFFFF) / 65535f;
-            uint body = r1 < bodyAccent ? 6u + ((own >> 3) & 1u) : kind % 6u;
+            // (an accent only on a small plant: a trunk in one made a large patch of it, a navy column in the granary)
+            uint body = r1 < bodyAccent && area < accentArea ? 6u + ((own >> 3) & 1u) : kind % 6u;
             uint[] coolGlow = { 0, 1, 2, 6 }, warmGlow = { 3, 4, 5, 7 };
             uint glow = r2 < glowAccent ? warmGlow[(own >> 7) % 4] : coolGlow[(kind >> 4) % 4];
             return (glow << 3) | body;
@@ -1074,6 +1908,9 @@ namespace AntGarden
             carpetBlock.SetFloat("_MinPixels", 0.8f);
             carpetBlock.SetFloat("_Grain", grain);
             carpetBlock.SetFloat("_TexMix", groundTexMix);
+            carpetBlock.SetFloat("_Vary", NestTheme.Current != null ? NestTheme.Current.floorVary : 22f);
+            carpetBlock.SetVector("_PatchA", NestTheme.Current != null ? (Vector4)NestTheme.Current.floorPatchA.linear : Vector4.zero);
+            carpetBlock.SetVector("_PatchB", NestTheme.Current != null ? (Vector4)NestTheme.Current.floorPatchB.linear : Vector4.zero);
             carpetBlock.SetVector("_TintFloor", floorTintL);
             carpetBlock.SetVector("_TintBank", bankTintL);
             if (look != null && look.floorTex != null)
@@ -1273,7 +2110,7 @@ namespace AntGarden
                     if (roll > Mathf.Lerp(1f, Mathf.Clamp(0.05f + 0.95f * Mathf.Pow(rel, 2f), 0.05f, 1f), grain)) continue;
                     lum *= (0.9f + 0.2f * jitter) * Mathf.Lerp(1f, Mathf.Clamp(0.06f + 0.94f * Mathf.Pow(rel, 2.4f), 0.03f, 3.5f), grain);
                     Color own = albedo * (lum / Mathf.Max(1e-4f, al));   // its own colour, as bright as the pale one
-                    col = Color.Lerp(LayerTint(lw) * lum, own, groundTexMix);
+                    col = Color.Lerp(FloorPatches(LayerTint(lw), p, lw.r) * lum, own, groundTexMix);
                 }
                 else
                 {
@@ -1284,12 +2121,30 @@ namespace AntGarden
                 }
                 // like a splat capture: most points fine, some soft middling splats, a few large faint ones under them
                 bool large = splatRoll < splats * 0.2f, middling = !large && splatRoll < splats;
-                into.Add(new Point { pos = p + n * 0.035f, col = PackLinear(col * (bright * (large ? 0.14f : middling ? 0.4f : 1f)), Ground, large ? 40u : middling ? 20u : 10u) });
+                uint size = large ? 40u : middling ? 20u : 10u;
+                // round the ant these sizes give way to the carpet (ParticleLook.shader), which lies on the floor only and
+                // thins out on a slope: on the walls and anything steep they are one size up and stay (the smooth terrain
+                // showed there, close by, behind the plants)
+                if (Hash(Mathf.FloorToInt(p.x * 9973f), Mathf.FloorToInt(p.z * 9967f + p.y * 997f)) >= Smooth(0.25f, 0.75f, lw.r) * Smooth(0.45f, 0.7f, n.y)) size++;
+                into.Add(new Point { pos = p + n * 0.035f, col = PackLinear(col * (bright * (large ? 0.14f : middling ? 0.4f : 1f)), Ground, size) });
             }
         }
 
         /// <summary>The pale tint of a ground point by layer: floor, bank, plateau, and the bank's top edge (where it meets
         /// the plateau, the outline of the passage) leaning to the edge colour.</summary>
+        /// <summary>A nest's floor in patches of other materials (NestTheme.floorPatchA, B: dark earth, pale straw...),
+        /// in broad soft-edged patches, on the floor only (floor, its weight in the layer map), as the carpet's are.</summary>
+        static Color FloorPatches(Color tint, Vector3 p, float floor)
+        {
+            NestTheme th = NestTheme.Current;
+            if (th == null || floor <= 0) return tint;
+            if (th.floorPatchA.a > 0)
+                tint = Color.Lerp(tint, th.floorPatchA.linear, th.floorPatchA.a * floor * Mathf.SmoothStep(0f, 1f, (Noise(p.x / 3.7f + 63.1f, p.z / 3.7f + 63.1f) - 0.42f) / 0.25f));
+            if (th.floorPatchB.a > 0)
+                tint = Color.Lerp(tint, th.floorPatchB.linear, th.floorPatchB.a * floor * Mathf.SmoothStep(0f, 1f, (Noise(p.x / 2.9f - 27.7f, p.z / 2.9f + 11.3f) - 0.5f) / 0.25f));
+            return tint;
+        }
+
         Color LayerTint(Color lw)
         {
             float total = Mathf.Max(1e-3f, lw.r + lw.g + lw.b);
@@ -1410,6 +2265,9 @@ namespace AntGarden
                 Color col = golden ? gold * (0.5f + 0.9f * (float)rng.NextDouble())
                           : rosy ? rose * (0.4f + 0.7f * (float)rng.NextDouble())
                           : pale * (0.25f + 0.6f * (float)rng.NextDouble());
+                // (a nest's own dust colour, as light: NestTheme.dustTint)
+                Color tint = NestTheme.Current != null ? NestTheme.Current.dustTint : Color.clear;
+                if (tint.a > 0f) col = Color.Lerp(col, tint.linear * (Lum(col) / Mathf.Max(1e-3f, Lum(tint.linear))), tint.a);
                 points.Add(new Point { pos = new Vector3(x, y, z), col = Pack(col.gamma, Dust, golden ? 10u : 0u) });
             }
         }

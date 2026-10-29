@@ -12,18 +12,58 @@
   "plants": {
     "fan_tree": {
       "glow": {
-        "canopy": {"rule": "widest_component"},
-        "drops": {"rule": "small_components", "max_share": 0.02}
+        "canopy": {
+          "rule": "widest_component"
+        },
+        "drops": {
+          "rule": "small_components",
+          "max_share": 0.02
+        }
       }
     },
     "curl_glow": {
       "glow": {
-        "curl": {"rule": "above_base_component"}
+        "curl": {
+          "rule": "above_base_component"
+        }
       }
     },
     "spore_stalk": {
       "glow": {
-        "pod": {"rule": "bulb_top", "factor": 2.0}
+        "pod": {
+          "rule": "bulb_top",
+          "factor": 2.0
+        }
+      }
+    },
+    "crystal_a_spray": {
+      "glow": {
+        "crystal": {
+          "range": [
+            0.14,
+            1.0
+          ]
+        }
+      }
+    },
+    "crystal_b_fan": {
+      "glow": {
+        "crystal": {
+          "range": [
+            0.14,
+            1.0
+          ]
+        }
+      }
+    },
+    "crystal_c_mixed": {
+      "glow": {
+        "crystal": {
+          "range": [
+            0.14,
+            1.0
+          ]
+        }
       }
     }
   }

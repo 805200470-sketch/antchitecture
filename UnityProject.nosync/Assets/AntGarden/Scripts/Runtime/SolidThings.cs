@@ -40,6 +40,9 @@ namespace AntGarden
             // a nest's own (NestTheme.things)
             GoldBalls, ResinDrops, WaxComb, AmberShards, EmberCracks, ClayChimney, HexCells, PotShards,
             HoneyDrops, LeafSail, DewDrop, Gear, Puddle, Wire, Sporophyte, StarMoss,
+            SugarCrystals, PollenPellets, HoneyDrip, FungusTuft, BittenLeaf, LeafBits, Gleanings, SoilPatch,
+            AmberNodules, ResinRun,
+            CharTwigs, CharBalls, AshStones, AshDrift,   // the kiln's (after the fire)
         }
 
         static bool Own(Kind k) => k >= Kind.GoldBalls;
@@ -99,9 +102,9 @@ namespace AntGarden
             Owned.Clear();
             if (mat == null || world == null || look == null || !look.HasMaps) { enabled = false; return; }
             var made = new List<SolidPoint>(1 << 20);
-            var pen = new ThingPen(made) { PerArea = perArea, Keep = 0.3f };   // the palette over each thing's own colours
+            var pen = new ThingPen(made) { PerArea = perArea, Keep = (NestTheme.Current ?? NestTheme.Cyan).thingKeep };   // the palette over each thing's own colours
             float t0 = Time.realtimeSinceStartup;
-            int heart = Heart(pen);
+            int heart = Heart(pen) + Landmarks(pen);
             int things = Place(pen), rootsMade = Roots(pen), thingSplats = made.Count * Fine;
             var splats = new List<SolidPoint>(thingSplats + (1 << 21));
             Densify(made, splats);
@@ -191,6 +194,11 @@ namespace AntGarden
             {
                 float r = Footprint(kind, size);
                 if (look.WayDistance(x, z) < gap) { why[0]++; return false; }
+                // (the leafcutters' bitten leaves out of the guiding beams' pools of light: in one, the green leaf itself read
+                // as light and its bites were lost)
+                if (kind == Kind.BittenLeaf)
+                    foreach (Vector2 b in GuideThreads.BeamFeet)
+                        if ((b - new Vector2(x, z)).sqrMagnitude < 9f) { why[1]++; return false; }
                 if (!lane && world.reserved.Overlaps(x, z, r * 0.8f)) { why[1]++; return false; }
                 if (world.colliders.Overlaps(x, z, r * 0.6f)) { why[2]++; return false; }
                 if (occupied.Overlaps(x, z, r * 0.85f)) { why[3]++; return false; }
@@ -251,9 +259,18 @@ namespace AntGarden
                 float pick = R() * (wl + wd + ws);
                 Kind kind = pick < wl ? Pick(KLitter, WLitter) : pick < wl + wd ? Pick(KDamp, WDamp) : Pick(KStony, WStony);
                 if (theme.things.Length > 0 && R() < theme.ownShare) kind = PickOwn();   // one of this nest's own
-                else if (theme.noKinds.Length > 0 && System.Array.IndexOf(theme.noKinds, kind.ToString()) >= 0) kind = R() < 0.6f ? Kind.Leaf : Kind.Seed;
+                else if (theme.noKinds.Length > 0 && System.Array.IndexOf(theme.noKinds, kind.ToString()) >= 0)
+                {
+                    kind = R() < 0.6f ? Kind.Leaf : Kind.Seed;
+                    if (kind == Kind.Seed && System.Array.IndexOf(theme.noKinds, "Seed") >= 0) kind = Kind.Leaf;   // (a nest without seeds: a leaf)
+                    // (and one without leaves either, the kiln's burnt floor: nothing there, its ash bare; before, every
+                    // thing it left out came back as a leaf, pale leaves in front of its temple, k3 content review; as
+                    // stones, k5, pale pebbles all over)
+                    if (kind == Kind.Leaf && System.Array.IndexOf(theme.noKinds, "Leaf") >= 0) continue;
+                }
                 float size = Size(kind);
-                Put(kind, x, z, size, Footprint(kind, size) + 0.7f);
+                // (the leafcutters' dropped bits may lie on the way itself, as on their trails; everything else clear of it)
+                Put(kind, x, z, size, kind == Kind.LeafBits ? 0.3f : Footprint(kind, size) + 0.7f, kind == Kind.LeafBits);
             }
             return made;
         }
@@ -315,7 +332,7 @@ namespace AntGarden
                 case Kind.ClayChimney: return 0.8f + 1.5f * u;
                 case Kind.HexCells: return 0.9f + 1.0f * u;
                 case Kind.PotShards: return 0.5f + 0.8f * u;
-                case Kind.HoneyDrops: return 0.4f + 0.7f * u;
+                case Kind.HoneyDrops: return 0.3f + 0.45f * u;
                 case Kind.LeafSail: return 0.5f + 0.9f * u;
                 case Kind.DewDrop: return 0.4f + 0.8f * u;
                 case Kind.Gear: return 0.8f + 1.6f * u;
@@ -323,6 +340,20 @@ namespace AntGarden
                 case Kind.Wire: return 1.0f + 2.0f * u;
                 case Kind.Sporophyte: return 0.8f + 1.6f * u;
                 case Kind.StarMoss: return 0.5f + 0.9f * u;
+                case Kind.SugarCrystals: return 0.5f + 0.7f * u;
+                case Kind.PollenPellets: return 0.4f + 0.6f * u;
+                case Kind.HoneyDrip: return 1.5f + 1.1f * u;   // (taller than the ant: smaller, in the game's view it read as a little candle)
+                case Kind.FungusTuft: return 0.4f + 0.5f * u;   // (smaller: beside the garden landmark it read as the same thing)
+                case Kind.BittenLeaf: return 1.5f + 1.3f * u;   // (from 1.2: the small ones did not read from the way)
+                case Kind.LeafBits: return 1.2f + 1.4f * u;
+                case Kind.Gleanings: return 1.0f + 0.8f * u;
+                case Kind.SoilPatch: return 1.6f + 1.2f * u;
+                case Kind.AmberNodules: return 0.6f + 1.0f * u;
+                case Kind.ResinRun: return 0.6f + 0.6f * u;   // (from 0.45: the small ones' resin did not read from the way)
+                case Kind.CharTwigs: return 1.3f + 1.5f * u;   // (the longest twig of the few)
+                case Kind.CharBalls: return 0.8f + 0.8f * u;   // (the cluster's width)
+                case Kind.AshStones: return 0.16f + 0.18f * u;   // (small: a third of the ant at most)
+                case Kind.AshDrift: return 0.8f + 0.9f * u;   // (its width; 0.5-1.1 in k11, hardly seen in the main views)
                 default: return 0.6f + 0.7f * u;   // shell
             }
         }
@@ -352,6 +383,18 @@ namespace AntGarden
                 case Kind.Wire: return size * 0.45f;
                 case Kind.Sporophyte: return size * 0.12f;
                 case Kind.StarMoss: return size * 0.5f;
+                case Kind.SugarCrystals: return size * 0.6f;
+                case Kind.PollenPellets: return size * 0.5f;
+                case Kind.HoneyDrip: return size * 0.45f;
+                case Kind.FungusTuft: return size * 0.55f;
+                case Kind.BittenLeaf: return size * 0.38f;   // (its mean radius, long and narrow: at its half length a big one found no room near the way)
+                case Kind.LeafBits: return size * 0.4f;
+                case Kind.Gleanings: return size * 0.5f;
+                case Kind.SoilPatch: return size * 0.5f;
+                case Kind.AmberNodules: return size * 0.6f;
+                case Kind.ResinRun: return size * 0.45f;   // (a stub standing, its runs down its side, a pool at its foot)
+                case Kind.CharTwigs: return size * 0.42f;
+                case Kind.CharBalls: return size * 0.5f;
                 default: return size * 0.52f;
             }
         }
@@ -369,6 +412,8 @@ namespace AntGarden
                 case Kind.Moss: if (size > 1.3f) { r = size * 0.35f; h = size * 0.35f; } break;
                 case Kind.GoldBalls: r = size * 0.12f; h = size; break;
                 case Kind.AmberShards: r = size * 0.3f; h = size; break;
+                case Kind.AmberNodules: if (size > 0.8f) { r = size * 0.32f; h = size * 0.3f; } break;
+                case Kind.ResinRun: r = size * 0.2f; h = size * 0.9f; break;
                 case Kind.ClayChimney: r = size * 0.24f; h = size; break;
                 case Kind.HexCells: r = size * 0.45f; h = size * 0.4f; break;
                 case Kind.ResinDrops: if (size > 0.7f) { r = size * 0.3f; h = size * 0.4f; } break;
@@ -400,6 +445,10 @@ namespace AntGarden
             new[] { 4, 7 },         // shell
         };
 
+        /// <summary>The palette's tints a nest wants for a kind of thing, or for its roots ("Root"), not the table's
+        /// (NestTheme.thingTints; null: the table's).</summary>
+        static int[] OwnTints(string kind) => NestTheme.Current?.thingTints != null && NestTheme.Current.thingTints.TryGetValue(kind, out int[] own) ? own : null;
+
         Color TintFor(int[] choices)
         {
             Color[] pal = look.bodyPalette;
@@ -410,7 +459,8 @@ namespace AntGarden
 
         void Make(ThingPen pen, Kind k, float x, float z, float size, uint seed)
         {
-            pen.Tint = Own(k) ? Color.clear : TintFor(Tints[(int)k]);   // a nest's own things keep their own colours
+            pen.Tint = Own(k) ? Color.clear : TintFor(OwnTints(k.ToString()) ?? Tints[(int)k]);   // a nest's own things keep their own colours
+            if (!Own(k) && theme.thingColours != null && theme.thingColours.TryGetValue(k.ToString(), out Color tc)) pen.Tint = tc;   // or the colour its nest gives the kind (NestTheme.thingColours)
             // a nest's own things twice as dense: they are what it is about, seen close (at the floor's density a small
             // one, a cut leaf, read as a few flecks of colour up close)
             pen.PerArea = Own(k) ? perArea * 2f : perArea;
@@ -440,6 +490,12 @@ namespace AntGarden
                 case Kind.ResinDrops: NestThingsThemed.ResinDrops(pen, p, n, ta, tb, size); break;
                 case Kind.WaxComb: NestThingsThemed.WaxComb(pen, p, n, ta, tb, size); break;
                 case Kind.AmberShards: NestThingsThemed.AmberShards(pen, p, n, ta, tb, size); break;
+                case Kind.AmberNodules: NestThingsThemed.AmberNodules(pen, p, n, ta, tb, size); break;
+                case Kind.ResinRun: NestThingsThemed.ResinRun(pen, p, n, ta, tb, size); break;
+                case Kind.CharTwigs: NestThingsThemed.CharTwigs(pen, p, n, ta, tb, size); break;
+                case Kind.CharBalls: NestThingsThemed.CharBalls(pen, p, n, ta, tb, size); break;
+                case Kind.AshStones: NestThingsThemed.AshStones(pen, p, n, ta, tb, size); break;
+                case Kind.AshDrift: NestThingsThemed.AshDrift(pen, p, n, ta, tb, size); break;
                 case Kind.EmberCracks: NestThingsThemed.EmberCracks(pen, p, n, ta, tb, size); break;
                 case Kind.ClayChimney: NestThingsThemed.ClayChimney(pen, p, Vector3.up, Vector3.right, Vector3.forward, size); break;
                 case Kind.HexCells: NestThingsThemed.HexCells(pen, p, n, ta, tb, size); break;
@@ -452,11 +508,28 @@ namespace AntGarden
                 case Kind.Wire: NestThingsThemed.Wire(pen, p, n, ta, tb, size); break;
                 case Kind.Sporophyte: NestThingsThemed.Sporophyte(pen, p, Vector3.up, Vector3.right, Vector3.forward, size); break;   // upright
                 case Kind.StarMoss: NestThingsThemed.StarMoss(pen, p, n, ta, tb, size); break;
+                case Kind.SugarCrystals: NestThingsThemed.SugarCrystals(pen, p, n, ta, tb, size); break;
+                case Kind.PollenPellets: NestThingsThemed.PollenPellets(pen, p, n, ta, tb, size); break;
+                case Kind.HoneyDrip: NestThingsThemed.HoneyDrip(pen, p, n, ta, tb, size); break;
+                case Kind.FungusTuft: NestThingsThemed.FungusTuft(pen, p, n, ta, tb, size); break;
+                case Kind.BittenLeaf: NestThingsThemed.BittenLeaf(pen, p, n, ta, tb, size); break;
+                case Kind.LeafBits: NestThingsThemed.LeafBits(pen, p, n, ta, tb, size); break;
+                case Kind.Gleanings: NestThingsThemed.Gleanings(pen, p, n, ta, tb, size); break;
+                case Kind.SoilPatch: NestThingsThemed.SoilPatch(pen, p, n, ta, tb, size); break;
                 default: NestThingsGrowth.SnailShell(pen, p, n, ta, tb, size); break;
             }
-            // the kiln's clay buildings light only where they glow (their holes, mouths, cells), not whole
-            if (theme.buildingsGlowInParts && (k == Kind.ClayChimney || k == Kind.HexCells))
-                for (int i = from; i < pen.into.Count; i++) pen.into[i] = ThingPen.Building(pen.into[i]);
+            // the kiln's clay buildings light only where they glow (their holes, mouths, cells), not whole; and the amber
+            // nest's stones and bark, which stay still in the wind too
+            if ((theme.buildingsGlowInParts && (k == Kind.ClayChimney || k == Kind.HexCells)) || k == Kind.AmberNodules || k == Kind.ResinRun)
+                for (int i = from; i < pen.into.Count; i++)
+                {
+                    SolidPoint sp = ThingPen.Building(pen.into[i]);
+                    // (and the amber and the resin glossy, their stone and bark matt: the lit splats are the amber's; matt
+                    // all over, a window of amber read as gold dust)
+                    if ((k == Kind.AmberNodules || k == Kind.ResinRun) && ThingPen.GlowOf(sp) > 0.04f) sp = ThingPen.Glossy(sp);
+                    pen.into[i] = sp;
+                }
+            Bio(pen, k, from, size);
             // dew: a few beads on what holds it (leaves, moss, clover, lichen, petals, fronds), on parts that face up
             if (k == Kind.Leaf || k == Kind.Moss || k == Kind.Clover || k == Kind.Lichen || k == Kind.Petal || k == Kind.Fern || k == Kind.Seedling)
             {
@@ -474,7 +547,8 @@ namespace AntGarden
             // flat things drape over the floor: each splat keeps its height above the plane through p, over the floor
             // under it (so a big leaf follows the ground's rise and fall instead of floating or sinking)
             if (k == Kind.Leaf || k == Kind.Petal || k == Kind.Fern || k == Kind.Feather || k == Kind.Blossom || k == Kind.Lichen
-                || k == Kind.WaxComb || k == Kind.EmberCracks || k == Kind.PotShards || k == Kind.Puddle || k == Kind.Wire)
+                || k == Kind.WaxComb || k == Kind.EmberCracks || k == Kind.PotShards || k == Kind.Puddle || k == Kind.Wire
+                || k == Kind.BittenLeaf || k == Kind.HoneyDrip || k == Kind.LeafBits || k == Kind.Gleanings || k == Kind.SoilPatch)
                 for (int i = from; i < pen.into.Count; i++)
                 {
                     SolidPoint sp = pen.into[i];
@@ -485,18 +559,84 @@ namespace AntGarden
                 }
         }
 
+        // a living thing's light of its own, as the plants' (ParticleLook.bioFaint): faint all over (bioFaint); and on
+        // some of a kind (BioSpots: their share), spots that glow strongly in the nest's own light. (The nest's own
+        // things that glow in a pattern of their own draw it themselves: NestThingsThemed.)
+        public float bioFaint = 0.09f;
+        static bool Living(Kind k) => k <= Kind.Lichen && k != Kind.Twig && k != Kind.Feather
+            || k == Kind.Sporophyte || k == Kind.StarMoss || k == Kind.SugarCrystals
+            || k == Kind.PollenPellets || k == Kind.FungusTuft || k == Kind.CharBalls;   // (a fallen, bitten leaf and a cut piece are dead: lit only at their cuts and veins; the granary's drip stalk and litter too: lit, the stalk read as a candle)
+        static float BioSpots(Kind k) => k == Kind.Mushrooms ? 0.7f : k == Kind.Lichen ? 0.6f
+            : k == Kind.Moss || k == Kind.Fern || k == Kind.Seedling || k == Kind.Blossom ? 0.45f
+            : k == Kind.Leaf || k == Kind.Clover ? 0.35f : k == Kind.Petal ? 0.25f : 0f;
+
+        /// <summary>A living thing's own light (from: its first splat; size: its size): faint all over, and perhaps its
+        /// spots (one in about half the cells of a grid through it, each well inside its cell). Uses the pen's random
+        /// numbers, so the nest's layout is as it was.</summary>
+        void Bio(ThingPen pen, Kind k, int from, float size)
+        {
+            if (!Living(k)) return;
+            bool spotted = pen.R() < BioSpots(k);
+            float cell = Mathf.Max(0.04f, size * 0.16f), sx = pen.R() * 50f, sz = pen.R() * 50f;
+            Color c = theme.glow[(int)(pen.R() * 2.99f)].linear;   // the nest's own light
+            // (the moss forest's moss cushions: small gold specks, not broad blurred patches of light, on every one of them,
+            // review k12: some read as plain green: NestTheme.darkCushions)
+            if (theme.darkCushions && k == Kind.Moss) { cell = Mathf.Max(0.03f, size * 0.06f); c = new Color(0.95f, 0.84f, 0.45f).linear; spotted = true; }
+            c *= look.bioAlbedo / Mathf.Max(0.05f, c.r * 0.299f + c.g * 0.587f + c.b * 0.114f);
+            float mx = Mathf.Max(c.r, Mathf.Max(c.g, c.b));
+            if (mx > 1f) c *= 1f / mx;
+            for (int i = from; i < pen.into.Count; i++)
+            {
+                SolidPoint sp = pen.into[i];
+                float glow = Mathf.Max(ThingPen.GlowOf(sp), bioFaint), mark = 0f;
+                if (spotted)
+                {
+                    float gx = sp.pos.x / cell + sx, gy = sp.pos.y / cell, gz = sp.pos.z / cell + sz;
+                    int ix = Mathf.FloorToInt(gx), iy = Mathf.FloorToInt(gy), iz = Mathf.FloorToInt(gz);
+                    int id = ix * 73856093 ^ iy * 19349663 ^ iz * 83492791;
+                    if (Hash01(id) < 0.5f)
+                    {
+                        const float r = 0.3f;
+                        float dx = gx - (ix + r + 0.4f * Hash01(id + 1)), dy = gy - (iy + r + 0.4f * Hash01(id + 2)), dz = gz - (iz + r + 0.4f * Hash01(id + 3));
+                        float t = Mathf.Clamp01((Mathf.Sqrt(dx * dx + dy * dy + dz * dz) / r - 0.55f) / 0.45f);
+                        mark = 1f - t * t * (3f - 2f * t);
+                    }
+                }
+                pen.into[i] = mark > 0.01f ? ThingPen.Glowing(sp, c, Mathf.Min(1f, mark * 1.25f), Mathf.Max(glow, look.bioStrong * mark)) : ThingPen.WithGlow(sp, glow);
+            }
+        }
+
+        static float Hash01(int k)
+        {
+            uint h = (uint)k * 2654435761u;
+            h ^= h >> 15;
+            h *= 2246822519u;
+            h ^= h >> 13;
+            return (h & 0xFFFFFF) / 16777216f;
+        }
+
         /// <summary>A nest's own thing that glows: an antenna can light it (a touchable glow with no mesh of its own),
         /// and a glassy one has a light inside it (GlassLamps).</summary>
         void Lit(Kind k, float x, float z, float size, float footprint)
         {
-            float height = k == Kind.WaxComb || k == Kind.EmberCracks || k == Kind.PotShards || k == Kind.Puddle || k == Kind.Wire || k == Kind.StarMoss ? 0.25f : k == Kind.HexCells ? size * 0.4f
-                : k == Kind.ResinDrops || k == Kind.HoneyDrops ? size * 0.6f : k == Kind.DewDrop ? size * 0.9f : size;
+            // (the leafcutters' bitten leaf as if half its size tall: its close-ups stand back far enough to see it whole on
+            // the floor; at 0.25 the ant stood on the leaf's end. Their drifts of bits flat: further back, plants hid them)
+            // (the moss forest's star moss, its shoots now a third to two thirds of the ant tall, as half its patch's width;
+            // an antenna lights it)
+            float height = k == Kind.BittenLeaf ? size * 0.6f : k == Kind.StarMoss ? size * 0.5f
+                : k == Kind.WaxComb || k == Kind.EmberCracks || k == Kind.PotShards || k == Kind.Puddle || k == Kind.Wire
+                || k == Kind.Gleanings || k == Kind.SoilPatch || k == Kind.LeafBits ? 0.25f : k == Kind.HexCells ? size * 0.4f : k == Kind.HoneyDrip ? size * 0.6f
+                : k == Kind.SugarCrystals || k == Kind.PollenPellets || k == Kind.FungusTuft ? size * 0.5f
+                : k == Kind.ResinDrops || k == Kind.HoneyDrops ? size * 0.6f : k == Kind.DewDrop ? size * 0.9f
+                : k == Kind.AmberNodules ? size * 0.45f : k == Kind.ResinRun ? size * 0.9f
+                : k == Kind.CharTwigs ? 0.3f : k == Kind.CharBalls ? size * 0.4f : k == Kind.AshStones ? size * 0.3f : k == Kind.AshDrift ? 0.25f : size;
             Owned.Add((k.ToString(), new Vector2(x, z), height));
-            if (world.glow == null || k == Kind.PotShards || k == Kind.StarMoss) return;
+            if (world.glow == null || k == Kind.PotShards || k == Kind.PollenPellets || k == Kind.BittenLeaf || k == Kind.LeafBits || k == Kind.Gleanings || k == Kind.SoilPatch || k == Kind.AshStones || k == Kind.AshDrift) return;
             float y = look.HeightAt(x, z);
             world.glow.AddTouchable(new Vector3(x, y, z), footprint, height, theme.glow[0]);
             touchables++;
-            if (k == Kind.ResinDrops || k == Kind.HoneyDrops) ownLamps.Add((new Vector3(x, y + size * 0.18f, z), size * 0.32f, theme.glow[0]));
+            if (k == Kind.ResinDrops) ownLamps.Add((new Vector3(x, y + size * 0.18f, z), size * 0.32f, theme.glow[0]));
+            // (the granary's honey drops no lamp of their own: with it, their light inside spread as a halo over them)
             if (k == Kind.AmberShards) ownLamps.Add((new Vector3(x, y + size * 0.3f, z), size * 0.28f, theme.glow[0]));
             if (k == Kind.DewDrop) ownLamps.Add((new Vector3(x, y + size * 0.3f, z), size * 0.06f, theme.glow[1]));   // a glint deep in it, that an antenna's touch brightens
             if (k == Kind.ClayChimney) ownLamps.Add((new Vector3(x, y + size * 0.97f, z), size * 0.1f, theme.glow[2]));
@@ -508,6 +648,202 @@ namespace AntGarden
         /// verdigris city's pocket watch, the leafcutters' fungus garden, the granary's honeypot ants, the giant's
         /// button and needle. It stands in the middle of the heart, mostly blocks the ants, can be lit by an antenna and
         /// most have a light inside. Returns its splats.</summary>
+        /// <summary>A nest's featured things standing beside its way as landmarks, now that no nest has a heart (the user,
+        /// 2026-10-27: "不要用心脏的概念了", its own things beside the way): NestTheme.landmark at each of landmarkAt (shares
+        /// of the way's length), just off the way on alternate sides, its front toward the way, where the floor is flat and
+        /// clear of plants and props (looked for a little before and after the spot), as finely made as a heart was.
+        /// Returns their splats.</summary>
+        int Landmarks(ThingPen pen)
+        {
+            List<Vector2> t = nest?.Track;
+            if (t == null || t.Count < 4 || (theme.landmark != "seedcup" && theme.landmark != "nodule" && theme.landmark != "garden") || theme.landmarkAt == null) return 0;
+            var along = new float[t.Count];
+            for (int i = 1; i < t.Count; i++) along[i] = along[i - 1] + (t[i] - t[i - 1]).magnitude;
+            int from = pen.into.Count, side = 1, n = 0;
+            foreach (float share in theme.landmarkAt)
+            {
+                side = -side;
+                float size = (n++ % 2 == 0 ? 2.9f : 2.4f) * (theme.landmark == "seedcup" ? 1.05f : theme.landmark == "nodule" ? 0.85f : theme.landmark == "garden" ? 0.86f : 1f), half = size * 0.5f, wide = size * (theme.landmark == "nodule" || theme.landmark == "garden" ? 0.45f : 0.5f);   // its length; half of it, half its width (the amber boulder and the fungus garden round)
+                int k0 = 1;
+                while (k0 < t.Count - 2 && along[k0] < share * along[t.Count - 1]) k0++;
+                bool done = false;
+                for (int step = 0; step < (theme.landmark == "seedcup" || theme.landmark == "nodule" || theme.landmark == "garden" ? 80 : 40) && !done; step++)   // (the granary's cup, the amber boulder and the leafcutters' garden look further)
+                {
+                    int k = k0 + (step % 2 == 0 ? step / 2 : -(step + 1) / 2);   // there, then a little after and before
+                    if (k < 1 || k >= t.Count - 1) continue;
+                    Vector2 dir = (t[k + 1] - t[k - 1]).normalized, across = new Vector2(-dir.y, dir.x) * side;
+                    for (int s = 0; s < 2 && !done; s++, across = -across)
+                        for (float off = wide + 0.7f; off < wide + 2.6f && !done; off += 0.2f)
+                        {
+                            Vector2 c = t[k] + across * off;
+                            if (!LandmarkFits(c, dir, half, wide)) continue;
+                            if (theme.landmark == "nodule") StandNodule(pen, c, -across, size);
+                            else if (theme.landmark == "garden") StandGarden(pen, c, size);
+                            else StandSeedCup(pen, c, -across, size);
+                            done = true;
+                        }
+                }
+                if (!done) Debug.Log($"[AntGarden] landmark {theme.landmark} at {share:P0} of the way: no room");
+            }
+            return pen.into.Count - from;
+        }
+
+        /// <summary>Whether a landmark lying along dir (half its length, half its width) fits at c: on the canyon floor,
+        /// fairly flat, off the way, clear of props and of the plants.</summary>
+        bool LandmarkFits(Vector2 c, Vector2 dir, float half, float wide)
+        {
+            var across = new Vector2(-dir.y, dir.x);
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int i = 0; i < 9; i++)
+            {
+                float a = i * 0.7853982f;
+                Vector2 q = i == 8 ? c : c + dir * (Mathf.Cos(a) * half) + across * (Mathf.Sin(a) * wide);
+                if (world.HexDist(q.x, q.y) > -1.5f || world.Dist(q.x, q.y) > -0.15f || look.LayerAt(q.x, q.y).r < 0.55f
+                    || !float.IsInfinity(world.Ceiling(q.x, q.y))) return false;
+                float h = look.HeightAt(q.x, q.y);
+                lo = Mathf.Min(lo, h);
+                hi = Mathf.Max(hi, h);
+            }
+            float reach = half + 0.4f;
+            if (hi - lo > 0.35f || look.WayDistance(c.x, c.y) < wide + 0.5f) return false;
+            // (the leafcutters' fungus garden grows over what is low round it: only its middle need be clear; at a clear
+            // reach it found no room in their crowded garden, twice)
+            float clear = theme.landmark == "garden" ? half * 0.6f : reach;
+            if (world.colliders.Overlaps(c.x, c.y, clear) || world.reserved.Overlaps(c.x, c.y, clear)) return false;
+            // (the garden clear of the guiding beams and the vines round their feet: one stood through its middle; and
+            // nothing tall between it and the way: a coral in front of it hid it from the ant)
+            if (theme.landmark == "garden")
+            {
+                foreach (Vector2 b in GuideThreads.BeamFeet)
+                    if ((b - c).sqrMagnitude < (half + 2.2f) * (half + 2.2f)) return false;
+                float wayD = look.WayDistance(c.x, c.y);
+                foreach (Placement pl in world.placements)
+                {
+                    if (pl.height < 0.8f) continue;
+                    var q = new Vector2(pl.x, pl.z);
+                    float dq = (q - c).magnitude, wq = look.WayDistance(pl.x, pl.z);
+                    // a tall plant nearer the way than the garden is, and within the garden's own reach of it, stands in front
+                    if (dq < half + 1.6f && wq < wayD - 0.3f) return false;
+                }
+            }
+            foreach (Placement pl in world.placements)
+            {
+                float d2 = (pl.x - c.x) * (pl.x - c.x) + (pl.z - c.y) * (pl.z - c.y);
+                // (round the granary's cup the floor's low tufts and pebbles may stand, not in it)
+                if (d2 < reach * reach && ((theme.landmark != "seedcup" && theme.landmark != "garden") || pl.height >= 0.8f
+                    || d2 < (theme.landmark == "garden" ? clear * clear : half * half))) return false;
+            }
+            return true;
+        }
+
+        /// <summary>The granary's landmark at c (NestThingsThemed.HeartSeedCup), its front (the broken lip, the spill and
+        /// its pool) toward face, the way.</summary>
+        void StandSeedCup(ThingPen pen, Vector2 c, Vector2 face, float size)
+        {
+            float y = look.HeightAt(c.x, c.y);
+            for (int k = 0; k < 8; k++)
+            {
+                float a = k * Mathf.PI / 4f;
+                y = Mathf.Min(y, look.HeightAt(c.x + Mathf.Cos(a) * size * 0.3f, c.y + Mathf.Sin(a) * size * 0.3f));
+            }
+            var p = new Vector3(c.x, y - 0.03f, c.y);
+            int from = pen.into.Count;
+            pen.Tint = Color.clear;
+            pen.Begin(0x5eedc0u ^ (uint)Mathf.RoundToInt(c.x * 31f + c.y * 17f));
+            NestThingsThemed.HeartSeedCup(pen, p, Vector3.up, Vector3.right, Vector3.forward, size, 2600f, new Vector3(face.x, 0f, face.y));
+            // (no lamp in it: one read as a white blob over the honey)
+            // its low parts follow the floor (the pool, the spill's foot)
+            for (int i = from; i < pen.into.Count; i++)
+            {
+                SolidPoint sp = pen.into[i];
+                float above = sp.pos.y - p.y;
+                if (above >= 0.15f) continue;
+                sp.pos.y = look.HeightAt(sp.pos.x, sp.pos.z) + Mathf.Max(0.015f, above - 0.05f);
+                pen.into[i] = sp;
+            }
+            // the cup blocks the ants; an antenna lights it
+            world.colliders.Add(new Circle(c.x, c.y, size * 0.48f, size * 0.35f));
+            world.reserved.Add(new Circle(c.x, c.y, size * 0.6f, size * 0.3f));
+            world.glow?.AddTouchable(p, size * 0.4f, size * 0.3f, theme.glow[0]);
+            touchables++;
+            Owned.Add(("HoneyStore", c, size * 0.5f));
+            Debug.Log($"[AntGarden] landmark seedcup {size:F1} at ({c.x:F1}, {c.y:F1})");
+        }
+
+        /// <summary>The amber nest's landmark at c (NestThingsThemed.HeartNodule): a boulder of old amber weathering out
+        /// of the floor, broken open toward face, the way, a fern caught in it (no lamp: its light is the amber's own).</summary>
+        void StandNodule(ThingPen pen, Vector2 c, Vector2 face, float size)
+        {
+            float y = look.HeightAt(c.x, c.y);
+            for (int k = 0; k < 8; k++)
+            {
+                float a = k * Mathf.PI / 4f;
+                y = Mathf.Min(y, look.HeightAt(c.x + Mathf.Cos(a) * size * 0.35f, c.y + Mathf.Sin(a) * size * 0.35f));
+            }
+            var p = new Vector3(c.x, y - 0.03f, c.y);
+            int from = pen.into.Count;
+            pen.Tint = Color.clear;
+            pen.Begin(0xa3be4u ^ (uint)Mathf.RoundToInt(c.x * 31f + c.y * 17f));
+            NestThingsThemed.HeartNodule(pen, p, Vector3.up, Vector3.right, Vector3.forward, size, 2600f, new Vector3(face.x, 0f, face.y));
+            for (int i = from; i < pen.into.Count; i++)   // (still in the wind; touched, only its amber lights; its amber glossy)
+            {
+                SolidPoint sp = ThingPen.Building(pen.into[i]);
+                pen.into[i] = ThingPen.GlowOf(sp) > 0.04f ? ThingPen.Glossy(sp) : sp;
+            }
+            world.colliders.Add(new Circle(c.x, c.y, size * 0.38f, size * 0.45f));
+            world.reserved.Add(new Circle(c.x, c.y, size * 0.6f, size * 0.45f));
+            world.glow?.AddTouchable(p, size * 0.4f, size * 0.4f, theme.glow[0]);
+            touchables++;
+            Owned.Add(("AmberBoulder", c, size * 0.5f));
+            Debug.Log($"[AntGarden] landmark nodule {size:F1} at ({c.x:F1}, {c.y:F1})");
+        }
+
+        /// <summary>The leafcutters' landmark at c (NestThingsThemed.HeartGarden, the heart it had): their fungus garden,
+        /// a grey sponge holed and ridged, dotted with the small swollen tips the ants eat, cut leaf pieces round its foot.</summary>
+        void StandGarden(ThingPen pen, Vector2 c, float size)
+        {
+            float y = look.HeightAt(c.x, c.y);
+            for (int k = 0; k < 8; k++)
+            {
+                float a = k * Mathf.PI / 4f;
+                y = Mathf.Min(y, look.HeightAt(c.x + Mathf.Cos(a) * size * 0.35f, c.y + Mathf.Sin(a) * size * 0.35f));
+            }
+            var p = new Vector3(c.x, y - 0.05f, c.y);
+            int from = pen.into.Count;
+            pen.Tint = Color.clear;
+            pen.Begin(0x9a4de2u ^ (uint)Mathf.RoundToInt(c.x * 31f + c.y * 17f));
+            NestThingsThemed.HeartGarden(pen, p, Vector3.up, Vector3.right, Vector3.forward, size, 2600f);
+            // and the fresh cut pieces brought to it, standing round its foot, leaning on it (alone it read as a bigger
+            // fungus tuft, not the garden the leaves are carried to)
+            int pieces = 5 + (int)(R() * 3f);
+            for (int k = 0; k < pieces; k++)
+            {
+                float a = (k + 0.35f * R()) / pieces * 6.2831853f, d = size * (0.5f + 0.06f * R());   // (at its lobes' outer edge)
+                var at = new Vector3(c.x + Mathf.Cos(a) * d, 0f, c.y + Mathf.Sin(a) * d);
+                at.y = look.HeightAt(at.x, at.z) - 0.02f;
+                // (each leaning in on it, its face turned at random)
+                var lean = Quaternion.AngleAxis(-18f, new Vector3(-Mathf.Sin(a), 0f, Mathf.Cos(a)));
+                pen.Begin(0x5a17u ^ (uint)(k * 7919) ^ (uint)Mathf.RoundToInt(c.x * 13f));
+                NestThingsThemed.LeafSail(pen, at, lean * Vector3.up, lean * Vector3.right, lean * Vector3.forward, size * (0.24f + 0.1f * R()));
+            }
+            // its low parts follow the floor (its foot, the leaf pieces round it)
+            for (int i = from; i < pen.into.Count; i++)
+            {
+                SolidPoint sp = pen.into[i];
+                float above = sp.pos.y - p.y;
+                if (above >= 0.15f) continue;
+                sp.pos.y = look.HeightAt(sp.pos.x, sp.pos.z) + Mathf.Max(0.015f, above - 0.05f);
+                pen.into[i] = sp;
+            }
+            world.colliders.Add(new Circle(c.x, c.y, size * 0.52f, size * 0.42f));
+            world.reserved.Add(new Circle(c.x, c.y, size * 0.62f, size * 0.42f));
+            // an antenna lights its top, where its knobs are (lit whole it was one white blaze beside the ant)
+            world.glow?.AddTouchable(p + Vector3.up * (size * 0.36f), size * 0.16f, size * 0.12f, theme.glow[0]);
+            touchables++;
+            Owned.Add(("FungusGarden", c, size * 0.5f));
+            Debug.Log($"[AntGarden] landmark garden {size:F1} at ({c.x:F1}, {c.y:F1})");
+        }
+
         int Heart(ThingPen pen)
         {
             if (nest == null || string.IsNullOrEmpty(theme.heart)) return 0;
@@ -571,6 +907,11 @@ namespace AntGarden
                     for (int k = 0; k < 3; k++)
                         ownLamps.Add((cluster + new Vector3((k - 1) * 0.3f, (k % 2) * 0.2f - 0.1f, 0.1f * k), 0.22f, theme.glow[k % 2]));
                     world.colliders.Add(new Circle(h.x, h.y, 0.75f, 0.45f));
+                    break;
+                case "seedcup":
+                    size = 3.2f;
+                    ownLamps.Add((NestThingsThemed.HeartSeedCup(pen, p, up, ax, az, size, dense, face), 0.16f, theme.glow[1]));
+                    world.colliders.Add(new Circle(h.x, h.y, size * 0.4f, size * 0.3f));
                     break;
                 case "button":
                     size = 3.4f;
@@ -669,6 +1010,7 @@ namespace AntGarden
         int Roots(ThingPen pen)
         {
             int made = 0;
+            if (theme.rootWidth <= 0f) return 0;   // a nest without them (NestTheme.rootWidth)
             for (int tries = 0; tries < roots * 200 && made < roots; tries++)
             {
                 float x = Mathf.Lerp(world.minX, world.maxX, R()), z = Mathf.Lerp(world.minZ, world.maxZ, R());
@@ -679,12 +1021,13 @@ namespace AntGarden
                 // none round a heart that has its thing: they climbed its walls in the beam's light and hid it
                 if (nest != null && !string.IsNullOrEmpty(theme.heart) && (new Vector2(x, z) - nest.Heart).sqrMagnitude < 4.5f * 4.5f) continue;
                 pen.Begin((uint)made * 2246822519u ^ 0x27d4eb2fu);
-                Color rt = TintFor(RootTints);
+                Color rt = TintFor(OwnTints("Root") ?? RootTints);
                 pen.Tint = theme.vineDarken > 0.6f && rt.a > 0 ? Color.Lerp(new Color(0.3f, 0.28f, 0.26f), rt, 0.45f) : rt;   // (a vivid palette's roots dark and muted, as the vines are)
+                if (theme.rootColour.a > 0) pen.Tint = theme.rootColour;   // a nest's own bark (NestTheme.rootColour)
                 // into the canyon: down the slope of the distance field
                 float e = 0.3f, gx = world.Dist(x + e, z) - world.Dist(x - e, z), gz = world.Dist(x, z + e) - world.Dist(x, z - e);
                 float dir = Mathf.Atan2(-gz, -gx) + (pen.R() - 0.5f) * 1.4f;
-                Root(pen, x, z, dir, 2.2f + 3.8f * pen.R(), 0.07f + 0.08f * pen.R(), 0);
+                Root(pen, x, z, dir, 2.2f + 3.8f * pen.R(), (0.07f + 0.08f * pen.R()) * theme.rootWidth, 0);
                 made++;
             }
             return made;
@@ -769,7 +1112,8 @@ namespace AntGarden
         void UpdateShell()
         {
             var at = new Vector2(ant.position.x, ant.position.z);
-            if (shellTask == null && !shellPending && uploading < 0 && (at - shellAt).sqrMagnitude > 64f) { ShellNow(); return; }
+            // (12: a walking ant can get 8 ahead of a shell still being made, and making it at once stalled a second)
+            if (shellTask == null && !shellPending && uploading < 0 && (at - shellAt).sqrMagnitude > 144f) { ShellNow(); return; }
             if (shellTask != null && shellTask.IsCompleted)
             {
                 if (shellTask.IsFaulted) Debug.LogException(shellTask.Exception);
@@ -852,7 +1196,7 @@ namespace AntGarden
                 shellBlock.SetVector("_MoonColor", theme.moon);
                 shellBlock.SetVector("_FillColor", theme.fill);
                 shellBlock.SetVector("_NearFade", nearFade);
-                shellBlock.SetVector("_NearDensity", new Vector4(look.nearDist, Mathf.Clamp01(look.solidFine / look.solidNear), 0, 0));
+                shellBlock.SetVector("_NearDensity", new Vector4(look.nearDist, Mathf.Clamp01(look.solidFine / look.solidNear), theme.relicKeep, 0));   // (z: NestTheme.relicKeep)
                 shellBlock.SetFloat("_NearLift", theme.nearLift);
                 shellBlock.SetFloat("_Shell", 1f);
                 Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, shellCounts[shellFront] * 3, 1, null, shellBlock, ShadowCastingMode.Off, false, 0);

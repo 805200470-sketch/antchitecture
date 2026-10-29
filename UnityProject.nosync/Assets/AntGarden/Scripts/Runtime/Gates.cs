@@ -76,7 +76,12 @@ namespace AntGarden
         {
             if (id.StartsWith("honeycomb:") || id.Contains("|") || id.StartsWith("stitch:")) return Loc.T("蚁穴群岛", "the Archipelago");
             if (id.Contains("#")) return RuinScene.Title(id.Substring(id.LastIndexOf('#') + 1));
-            if (id.StartsWith("lab:")) return Loc.T("粒子蚁穴", "the Particle Nest");
+            if (id.StartsWith("lab:"))
+            {
+                // a particle nest: its own name, its colour segment's theme's
+                NestTheme t = id.Contains("@") ? NestTheme.For(id.Substring(id.IndexOf('@') + 1).Split('#')[0]) : null;
+                return t != null ? Loc.T(t.nameZh, t.nameEn) : Loc.T("粒子蚁穴", "the Particle Nest");
+            }
             return Loc.T("蚁穴 ", "Nest ") + id.Replace("path-", "").Split('@')[0];
         }
 
@@ -191,6 +196,39 @@ namespace AntGarden
             light.shadows = LightShadows.None;
 
             return new Gate { position = new Vector3(p.x, y, p.y), dir = d, radius = radius, region = region, portal = portal, go = go };
+        }
+
+        /// <summary>
+        /// A particle nest's gate drawn as points, as everything else in the nest is (SolidThings draws them with the floor's
+        /// things), its solid tube hidden: the arch a soft band of small lit points, thick along its middle line and
+        /// scattered round it, now and then a brighter grain; still in the wind (a building to the shader). (Its smooth
+        /// tube read as a flat ribbon laid over the nest.) col: linear.
+        /// </summary>
+        public static void ArchSplats(Gate g, float tube, Color col, List<SolidPoint> into, int seed)
+        {
+            Transform arch = g.go != null ? g.go.transform.Find("Arch") : null;
+            if (arch == null) return;
+            var mr = arch.GetComponent<MeshRenderer>();
+            if (mr != null) mr.enabled = false;
+            var rng = new System.Random(seed);
+            float R() => (float)rng.NextDouble();
+            float a0 = -0.08f, a1 = Mathf.PI + 0.08f;
+            int n = Mathf.RoundToInt(g.radius * (a1 - a0) * 5200f);
+            Transform t = g.go.transform;
+            for (int j = 0; j < n; j++)
+            {
+                float a = Mathf.Lerp(a0, a1, R()), b = R() * 6.2832f;
+                // out from its middle line: most close to it, a few far (a soft band, not a tube's hard edge)
+                float spread = tube * (R() < 0.75f ? 0.6f * R() : 0.6f + 1.6f * R() * R());
+                var outward = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f);
+                Vector3 off = outward * Mathf.Cos(b) + Vector3.forward * Mathf.Sin(b);
+                bool grain = R() < 0.04f;
+                float glow = grain ? 0.8f : 0.25f + 0.3f * Mathf.Clamp01(1f - spread / (tube * 2.2f));
+                Color albedo = (grain ? Color.Lerp(col, Color.white, 0.4f) : col) * (0.6f + 0.25f * R());
+                SolidPoint sp = ThingPen.Splat(t.TransformPoint(outward * g.radius + off * spread), t.TransformDirection(off), albedo,
+                    (grain ? 0.008f : 0.011f) * (0.7f + 0.6f * R()), glow);   // (at 0.018 near the camera a ring of foam)
+                into.Add(ThingPen.Building(ThingPen.Ranked(sp, j, n)));
+            }
         }
 
         /// <summary>A half torus standing in the local XY plane (feet slightly below the ground).</summary>

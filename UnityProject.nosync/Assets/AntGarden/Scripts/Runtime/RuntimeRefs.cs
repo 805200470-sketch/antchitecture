@@ -69,6 +69,11 @@ namespace AntGarden
         [NonSerialized] public float pointArea;       // the surface the points cover (model units²; 0: not known)
         [NonSerialized] public float[] pointDensity;  // how much denser than an even spread each point lies (null: even)
         [NonSerialized] public byte[] pointOpen;      // how open each point is, 0 (deep in a crevice) .. 255 (null: all open)
+        // its growth map (Tools/plants/growth_map.py; null: none): how far up the plant each point is along its surface
+        // from its foot (0..1 of the farthest), how far from the nearest growing tip (of its height), how much of a stem
+        [NonSerialized] public float[] pointGrowth, pointTip;
+        [NonSerialized] public byte[] pointStem;
+        [NonSerialized] public byte[] pointRidge;   // a crystal's: how much each point lies on a ridge or a point (null: none found)
         [NonSerialized] bool pointsTried;
 
         public bool LoadPoints()
@@ -148,7 +153,40 @@ namespace AntGarden
                     }
                 }
             }
+            LoadGrowth(n, asset.bytes);
             return n > 0;
+        }
+
+        /// <summary>Its growth map, from Resources/AntGarden/Points/<name>_growth.bytes ("AGG2": n, the points file's mark,
+        /// then per point g and t as 16-bit fractions, s a byte, a crystal's ridge a byte), if there is one made for these
+        /// points.</summary>
+        void LoadGrowth(int n, byte[] pointsFile)
+        {
+            var asset = Resources.Load<TextAsset>("AntGarden/Points/" + name + "_growth");
+            if (asset == null || n <= 0) return;
+            uint mark = 2166136261u;
+            for (int i = 0; i < pointsFile.Length; i += 997) mark = (mark ^ pointsFile[i]) * 16777619u;
+            using (var r = new System.IO.BinaryReader(new System.IO.MemoryStream(asset.bytes)))
+            {
+                if (r.ReadInt32() != 0x32474741 || r.ReadInt32() != n || r.ReadUInt32() != mark)
+                {
+                    Debug.LogWarning($"[AntGarden] {name}: its growth map was made for other points, left out (make it again: Tools/plants/growth_map.py)");
+                    return;
+                }
+                pointGrowth = new float[n];
+                pointTip = new float[n];
+                pointStem = new byte[n];
+                var ridge = new byte[n];
+                bool any = false;
+                for (int i = 0; i < n; i++)
+                {
+                    pointGrowth[i] = r.ReadUInt16() / 65535f;
+                    pointTip[i] = r.ReadUInt16() / 65535f;
+                    pointStem[i] = r.ReadByte();
+                    any |= (ridge[i] = r.ReadByte()) != 0;
+                }
+                pointRidge = any ? ridge : null;
+            }
         }
     }
 
