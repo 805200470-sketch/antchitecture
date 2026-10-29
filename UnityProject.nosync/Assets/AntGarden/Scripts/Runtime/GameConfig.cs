@@ -223,12 +223,14 @@ namespace AntGarden
             string path = Path.Combine(Application.streamingAssetsPath, "game_config.json");
             try
             {
-                if (File.Exists(path)) JsonUtility.FromJsonOverwrite(File.ReadAllText(path), cfg);
+                string json = StreamingFiles.Read(path);   // (inside the app's package on Android)
+                if (json != null) JsonUtility.FromJsonOverwrite(json, cfg);
             }
             catch (Exception e)
             {
                 Debug.LogWarning($"[AntGarden] game_config.json ignored: {e.Message}");
             }
+            if (QuestLook.On) QuestLook.Tune(cfg);
             return cfg;
         }
 

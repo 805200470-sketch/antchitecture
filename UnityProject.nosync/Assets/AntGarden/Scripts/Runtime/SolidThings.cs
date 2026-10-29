@@ -72,7 +72,8 @@ namespace AntGarden
         System.Threading.Tasks.Task shellTask;
         // (room for the largest shell up front: growing it mid-walk, on the GPU and here, cost a frame of 75-100 ms; a
         // big nest's shell reaches about 4.7 million splats with its big plants split near the camera)
-        const int ShellRoom = 1 << 23;
+        // (a standalone headset makes room for far fewer: QuestLook)
+        public static int ShellRoom = 1 << 23;
         SolidPoint[] shellWork = new SolidPoint[ShellRoom];
         int shellWorkCount;
         long shellMs;

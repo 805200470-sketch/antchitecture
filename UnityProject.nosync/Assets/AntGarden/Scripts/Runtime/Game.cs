@@ -482,6 +482,7 @@ namespace AntGarden
             if (Arg("-sfxdump") != null) { Sfx.Dump(Arg("-sfxdump")); Application.Quit(); }
             if (Lab) { cfg.atmosphere.exposure -= 0.28f - NestTheme.Current.exposureLift; cfg.atmosphere.fogDensity *= 1.35f; }   // the particle nest: a darker night, still lit
             spores = Atmosphere.Apply(cam, refs, cfg.atmosphere, Preset);
+            if (QuestLook.On) QuestLook.TuneView(cam);   // a standalone headset: the colour grading alone, no shadows
             if (Lab)
             {
                 // the particle nest's white balance from its theme (a cool grade turns a warm nest's gold green)
@@ -600,7 +601,7 @@ namespace AntGarden
         static Dictionary<string, string> ReadNetworks(string spec)
         {
             var texts = new Dictionary<string, string>();
-            foreach (string id in SelectionIds(spec)) texts[id] = File.ReadAllText(PathFile(id));
+            foreach (string id in SelectionIds(spec)) texts[id] = StreamingFiles.Read(PathFile(id)) ?? throw new FileNotFoundException(PathFile(id));
             return texts;
         }
 
@@ -815,19 +816,23 @@ namespace AntGarden
                         foreach (MeshFilter mf in t.GetComponentsInChildren<MeshFilter>())
                             if (mf.name != "SoilWalls") particleLook.ground.Add(mf);
             }
+            if (QuestLook.On) QuestLook.Tune(particleLook);   // a standalone headset: far fewer splats
             if (Lab || cfg.particleLook || Arg("-particlelook") != null) particleLook.SetOn(true);
             // the particle nest: the things on the floor, solid, at ant scale; and the pheromones, a sprite of arrows
             // of light leading the ant
             // the guiding light first: its vines are drawn with the floor's things
             GuideThreads guide = Lab && lab != null ? gameObject.AddComponent<GuideThreads>() : null;
             guide?.Init(lab, player.transform, refs.lightThread);
+            if (QuestLook.On && guide != null) QuestLook.Tune(guide);
             if (Lab && particleLook.On)
             {
                 guide?.VineSplats(particleLook.extraSolids, particleLook.bodyPalette, particleLook.glowPalette);
                 // its gates as points too (Gates.ArchSplats), in its own light
                 foreach (Gate g in gates)
                     if (g.world != null) Gates.ArchSplats(g, cfg.gates.tube, NestTheme.Current.threadHalo.linear * 0.75f, particleLook.extraSolids, gates.IndexOf(g) * 7919 + 13);
-                gameObject.AddComponent<SolidThings>().Init(world, particleLook, refs.particleSolid, player.transform, lab);
+                var solids = gameObject.AddComponent<SolidThings>();
+                if (QuestLook.On) QuestLook.Tune(solids);
+                solids.Init(world, particleLook, refs.particleSolid, player.transform, lab);
                 gameObject.AddComponent<WalkLight>().Init(player.transform);   // what the ant walks past lights up
                 // a light inside every glass bulb, through its broken shell; motes circling the finely made plants
                 if (particleLook.glassLamps.Count > 0 || particleLook.orbitLamps.Count > 0)

@@ -1,0 +1,21 @@
+{
+  "world": "",
+  "all": 1.0,
+  "plants": 0.25,
+  "far": 0.08,
+  "giants": 10,
+  "things": 0.35,
+  "fine": 1,
+  "ground": 0.15,
+  "dust": 0.2,
+  "carpet": 3.0,
+  "shell": 0.06,
+  "walls": 0.08,
+  "groundShell": 0.2,
+  "vines": 0.5,
+  "shellRoom": 1048576,
+  "post": "grade",
+  "shadows": false,
+  "resolution": 1.0,
+  "fpsLog": 5.0
+}
