@@ -43,6 +43,7 @@ namespace AntGarden
             SugarCrystals, PollenPellets, HoneyDrip, FungusTuft, BittenLeaf, LeafBits, Gleanings, SoilPatch,
             AmberNodules, ResinRun,
             CharTwigs, CharBalls, AshStones, AshDrift,   // the kiln's (after the fire)
+            PineNeedles,   // the amber nest's (k21)
         }
 
         static bool Own(Kind k) => k >= Kind.GoldBalls;
@@ -339,7 +340,7 @@ namespace AntGarden
                 case Kind.Puddle: return 0.8f + 1.8f * u;
                 case Kind.Wire: return 1.0f + 2.0f * u;
                 case Kind.Sporophyte: return 0.8f + 1.6f * u;
-                case Kind.StarMoss: return 0.5f + 0.9f * u;
+                case Kind.StarMoss: return 0.8f + 1.0f * u;   // (a colony of tufts; at 0.5 to 1.4, a low thicket that read as flat flecks)
                 case Kind.SugarCrystals: return 0.5f + 0.7f * u;
                 case Kind.PollenPellets: return 0.4f + 0.6f * u;
                 case Kind.HoneyDrip: return 1.5f + 1.1f * u;   // (taller than the ant: smaller, in the game's view it read as a little candle)
@@ -352,8 +353,9 @@ namespace AntGarden
                 case Kind.ResinRun: return 0.6f + 0.6f * u;   // (from 0.45: the small ones' resin did not read from the way)
                 case Kind.CharTwigs: return 1.3f + 1.5f * u;   // (the longest twig of the few)
                 case Kind.CharBalls: return 0.8f + 0.8f * u;   // (the cluster's width)
-                case Kind.AshStones: return 0.16f + 0.18f * u;   // (small: a third of the ant at most)
-                case Kind.AshDrift: return 0.8f + 0.9f * u;   // (its width; 0.5-1.1 in k11, hardly seen in the main views)
+                case Kind.AshStones: return 0.22f + 0.22f * u;   // (small, but its slab's straight edges read: 0.16-0.34 to k12)
+                case Kind.AshDrift: return 0.6f + 0.6f * u;   // (its width; 0.8-1.7 in k11b, big pale patches by the ant)
+                case Kind.PineNeedles: return 1.8f + 1.6f * u;   // (the longest needle: two to three ants long)
                 default: return 0.6f + 0.7f * u;   // shell
             }
         }
@@ -395,6 +397,7 @@ namespace AntGarden
                 case Kind.ResinRun: return size * 0.45f;   // (a stub standing, its runs down its side, a pool at its foot)
                 case Kind.CharTwigs: return size * 0.42f;
                 case Kind.CharBalls: return size * 0.5f;
+                case Kind.PineNeedles: return size * 0.3f;   // (long and thin, lying apart: room between them for others)
                 default: return size * 0.52f;
             }
         }
@@ -516,11 +519,13 @@ namespace AntGarden
                 case Kind.LeafBits: NestThingsThemed.LeafBits(pen, p, n, ta, tb, size); break;
                 case Kind.Gleanings: NestThingsThemed.Gleanings(pen, p, n, ta, tb, size); break;
                 case Kind.SoilPatch: NestThingsThemed.SoilPatch(pen, p, n, ta, tb, size); break;
+                case Kind.PineNeedles: NestThingsThemed.PineNeedles(pen, p, n, ta, tb, size); break;
                 default: NestThingsGrowth.SnailShell(pen, p, n, ta, tb, size); break;
             }
             // the kiln's clay buildings light only where they glow (their holes, mouths, cells), not whole; and the amber
-            // nest's stones and bark, which stay still in the wind too
-            if ((theme.buildingsGlowInParts && (k == Kind.ClayChimney || k == Kind.HexCells)) || k == Kind.AmberNodules || k == Kind.ResinRun)
+            // nest's stones, bark and fallen needles, which stay still in the wind too; and the moss forest's star moss,
+            // only its stars' lit tips (its solid tufts lit whole glared beside the ant, k19)
+            if ((theme.buildingsGlowInParts && (k == Kind.ClayChimney || k == Kind.HexCells)) || k == Kind.AmberNodules || k == Kind.ResinRun || k == Kind.PineNeedles || k == Kind.StarMoss)
                 for (int i = from; i < pen.into.Count; i++)
                 {
                     SolidPoint sp = ThingPen.Building(pen.into[i]);
@@ -548,7 +553,7 @@ namespace AntGarden
             // under it (so a big leaf follows the ground's rise and fall instead of floating or sinking)
             if (k == Kind.Leaf || k == Kind.Petal || k == Kind.Fern || k == Kind.Feather || k == Kind.Blossom || k == Kind.Lichen
                 || k == Kind.WaxComb || k == Kind.EmberCracks || k == Kind.PotShards || k == Kind.Puddle || k == Kind.Wire
-                || k == Kind.BittenLeaf || k == Kind.HoneyDrip || k == Kind.LeafBits || k == Kind.Gleanings || k == Kind.SoilPatch)
+                || k == Kind.BittenLeaf || k == Kind.HoneyDrip || k == Kind.LeafBits || k == Kind.Gleanings || k == Kind.SoilPatch || k == Kind.PineNeedles)
                 for (int i = from; i < pen.into.Count; i++)
                 {
                     SolidPoint sp = pen.into[i];
@@ -621,9 +626,9 @@ namespace AntGarden
         {
             // (the leafcutters' bitten leaf as if half its size tall: its close-ups stand back far enough to see it whole on
             // the floor; at 0.25 the ant stood on the leaf's end. Their drifts of bits flat: further back, plants hid them)
-            // (the moss forest's star moss, its shoots now a third to two thirds of the ant tall, as half its patch's width;
-            // an antenna lights it)
-            float height = k == Kind.BittenLeaf ? size * 0.6f : k == Kind.StarMoss ? size * 0.5f
+            // (the moss forest's star moss, its tufts now up to a third of its colony's width tall, as half that width; an
+            // antenna lights it)
+            float height = k == Kind.BittenLeaf || k == Kind.PineNeedles ? size * 0.6f : k == Kind.StarMoss ? size * 0.5f
                 : k == Kind.WaxComb || k == Kind.EmberCracks || k == Kind.PotShards || k == Kind.Puddle || k == Kind.Wire
                 || k == Kind.Gleanings || k == Kind.SoilPatch || k == Kind.LeafBits ? 0.25f : k == Kind.HexCells ? size * 0.4f : k == Kind.HoneyDrip ? size * 0.6f
                 : k == Kind.SugarCrystals || k == Kind.PollenPellets || k == Kind.FungusTuft ? size * 0.5f
@@ -631,7 +636,7 @@ namespace AntGarden
                 : k == Kind.AmberNodules ? size * 0.45f : k == Kind.ResinRun ? size * 0.9f
                 : k == Kind.CharTwigs ? 0.3f : k == Kind.CharBalls ? size * 0.4f : k == Kind.AshStones ? size * 0.3f : k == Kind.AshDrift ? 0.25f : size;
             Owned.Add((k.ToString(), new Vector2(x, z), height));
-            if (world.glow == null || k == Kind.PotShards || k == Kind.PollenPellets || k == Kind.BittenLeaf || k == Kind.LeafBits || k == Kind.Gleanings || k == Kind.SoilPatch || k == Kind.AshStones || k == Kind.AshDrift) return;
+            if (world.glow == null || k == Kind.PotShards || k == Kind.PollenPellets || k == Kind.BittenLeaf || k == Kind.LeafBits || k == Kind.Gleanings || k == Kind.SoilPatch || k == Kind.AshStones || k == Kind.AshDrift || k == Kind.PineNeedles) return;
             float y = look.HeightAt(x, z);
             world.glow.AddTouchable(new Vector3(x, y, z), footprint, height, theme.glow[0]);
             touchables++;
