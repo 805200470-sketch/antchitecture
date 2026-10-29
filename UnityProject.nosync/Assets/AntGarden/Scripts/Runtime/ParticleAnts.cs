@@ -23,6 +23,10 @@ namespace AntGarden
         // 10-27, "蚂蚁亮度太亮了". The grading squeezes its highlights, so halving it moved its flakes' median luma only
         // 0.85 → 0.78 in the honey nest, 0.81 → 0.68 in the leafcut garden)
         public float gain = 0.4f;
+        // and of the stops a nest's night is lifted above v15's, how many its ants do not take (NestTheme.LightComp): at
+        // 0.4 alone they were still white in the nests lifted two stops (brightest tenth 0.70-0.79 against v15's 0.32;
+        // the user, 10-29, "有些蚂蚁都太发光、太白了…有点过曝了")
+        public float exposureComp = 0.8f;
         public float pale = 0.06f;      // how far colours go from the ant's own toward a pale glow
         public float contrast = 1.2f;   // how much the texture's light and dark are exaggerated
         public Color bodyColour = new Color(0.02f, 0.05f, 0.06f);   // the ant's own mesh, dark, under its points
@@ -164,7 +168,7 @@ namespace AntGarden
                 float bindToWorld = ((Vector3)skinData[s.skinBase].GetColumn(0)).magnitude;
                 float r = s.kind.area > 0 ? cover * Mathf.Sqrt(s.kind.area / s.kind.count) * bindToWorld : size;
                 s.block.SetFloat("_Size", r);
-                s.block.SetFloat("_Gain", gain);
+                s.block.SetFloat("_Gain", gain * NestTheme.LightComp(exposureComp));
                 s.block.SetFloat("_Pale", pale);
                 s.block.SetFloat("_Contrast", contrast);
                 Graphics.DrawProcedural(mat, new Bounds(p, Vector3.one * 5f), MeshTopology.Triangles, n * 3, 1, null, s.block, ShadowCastingMode.Off, false, 0);

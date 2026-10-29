@@ -322,7 +322,12 @@ namespace AntGarden
             if (glow.Count == 0) return null;
             var block = new MaterialPropertyBlock();
             // set here, not in the saved material, so a tweak needs no asset rebuild
-            block.SetFloat("_Gain", 1.4f * gain);
+            // (in the nests lifted above v15's exposure it kept less of the lift than the motes and dust round it, so it
+            // stays the brightest light along the floor without burning white: NestTheme.LightComp)
+            block.SetFloat("_Gain", 1.4f * gain * NestTheme.LightComp(0.5f));
+            // its motes floating over the way none of the lift: there they were white balls in the air, not the floor's
+            // light leading on (the user, 10-29: "白光…已经分不清楚引导的光线了")
+            block.SetFloat("_MoteGain", NestTheme.LightComp(0.5f));
             block.SetFloat("_Base", 0.42f);
             block.SetFloat("_Near", 0.28f);
             block.SetFloat("_Ahead", 0.45f);

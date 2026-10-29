@@ -48,11 +48,16 @@ namespace AntGarden
         // their size wants, splatFrac of their height, never smaller than splatMin nor larger than splatMax, as many as
         // cover them, not thinned further off (FarSplats). (They had 8000 each, as large as needed to cover them: up to
         // 0.6 across, twice that from 30 units off, so the far fan trees read as blobby mushrooms; the user, 10-27:
-        // "背景远处大蘑菇素材的粒子太大了，完全没有细节，可以根据物件大小调整粒子大小，但是最好设定一个最大和最小值")
-        public float splatFrac = 0.006f;
+        // "背景远处大蘑菇素材的粒子太大了，完全没有细节，可以根据物件大小调整粒子大小，但是最好设定一个最大和最小值").
+        // At 0.006 and at most 0.2 (10-27) still "这个点有点太大，粒子太大了" (10-29): half that now. As many as would cover
+        // them at that size are four times the splats, so they cover only part of it, over a body of few large dark
+        // splats a little inside it, in its own colour darkened (farBody): fine grain on a solid dark shape, as the walls'
+        public float splatFrac = 0.003f;
         public float splatMin = 0.04f;      // (the nest's own plants have 0.04 along the ways, 0.055 off them, as before)
-        public float splatMax = 0.2f;
-        public int farBudget = 1200000;     // at most this many splats for all of them
+        public float splatMax = 0.1f;
+        public int farBudget = 1200000;     // at most this many splats for all of them (their body besides)
+        public float farBody = 3f;          // the body's splats, this many times the giant's own size (at most 0.3)
+        public float farBodyDark = 0.75f;   // and their colour, the giant's mean darkened by this (at 0.45 the fine ones lay on it as bright flakes on black)
         public float solidFine = 1500f;     // and in the fine one, round the ant (as far from the camera as it thins to)
         public int solidFineCap = 42000;    // at most this many for one plant (the old fine set; see solidNear)
         public float solidNear = 16000f;    // the fine set right in front of the camera: splats per unit² (detail, form)
@@ -923,7 +928,7 @@ namespace AntGarden
         {
             Vector3[] eyes = Eyes();
             var made = new List<SolidPoint>[jobs.Count];
-            int unseen = 0;
+            int unseen = 0, bodyCount = 0;
             var cores = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = Mathf.Max(1, System.Environment.ProcessorCount - 2) };
             System.Threading.Tasks.Parallel.For(0, jobs.Count, cores, j =>
             {
@@ -938,20 +943,23 @@ namespace AntGarden
                     now += vc * vc;
                 }
                 int n = Mathf.Min(slot.pts.Length, Mathf.RoundToInt(n0 * (float)(was / System.Math.Max(1e-6, now))));
+                bool Seen(Vector3 at, Vector3 nn)
+                {
+                    if (eyes.Length == 0) return true;
+                    foreach (Vector3 e in eyes)
+                    {
+                        Vector3 d = e - at;
+                        if (Vector3.Dot(nn, d) > -0.2f * d.magnitude) return true;
+                    }
+                    return false;
+                }
                 var list = new List<SolidPoint>(n);
                 int hid = 0;
                 for (int k = 0; k < n; k++)
                 {
                     SolidPoint sp = SolidSplat(slot, k, -r);
                     float rad = Mathf.Clamp(-sp.radius, splatMin, splatMax);
-                    Vector3 nn = ThingPen.UnpackNormal(sp.nrm);
-                    bool seen = eyes.Length == 0;
-                    foreach (Vector3 e in eyes)
-                    {
-                        Vector3 d = e - sp.pos;
-                        if (Vector3.Dot(nn, d) > -0.2f * d.magnitude) { seen = true; break; }
-                    }
-                    if (!seen)
+                    if (!Seen(sp.pos, ThingPen.UnpackNormal(sp.nrm)))
                     {
                         if (PointHash(k + 7717) >= 0.25f) continue;
                         rad *= 2f;
@@ -960,15 +968,39 @@ namespace AntGarden
                     sp.radius = -rad;
                     list.Add(ThingPen.WithRank(sp, 127));
                 }
+                // its body: few large splats a little inside its surface, all of one colour (its splats' mean, darkened), so
+                // that between the fine ones it reads as a solid dark shape and not as blotches; on its seen sides only (the
+                // others keep their one in four, twice as large)
+                float rb = Mathf.Min(0.3f, farBody * r);
+                int nb = Mathf.Min(slot.pts.Length, Mathf.RoundToInt(n / Mathf.Max(cut, 1e-3f) * (r * r) / (rb * rb)));
+                Color mean = Color.black;
+                int sampled = Mathf.Min(512, list.Count);
+                for (int q = 0; q < sampled; q++)
+                {
+                    uint c = list[q].col;
+                    mean += new Color(Linear[c & 255], Linear[(c >> 8) & 255], Linear[(c >> 16) & 255]);
+                }
+                Color body = sampled > 0 ? mean / sampled * farBodyDark : Color.black;
+                int bodies = 0;
+                for (int q = 0; q < nb; q++)
+                {
+                    SolidPoint sp = SolidSplat(slot, slot.pts.Length - 1 - q, -rb);   // (from the other end of its points: they are in no order)
+                    Vector3 nn = ThingPen.UnpackNormal(sp.nrm);
+                    if (!Seen(sp.pos, nn)) continue;
+                    list.Add(ThingPen.WithRank(ThingPen.Splat(sp.pos - nn * (0.6f * rb), nn, body, -rb, 0f), 127));
+                    bodies++;
+                }
                 made[j] = list;
                 System.Threading.Interlocked.Add(ref unseen, hid);
+                System.Threading.Interlocked.Add(ref bodyCount, bodies);
             });
             int count = 0;
             float rMin = float.MaxValue, rMax = 0f;
             foreach (var (_, _, r) in jobs) { rMin = Mathf.Min(rMin, r); rMax = Mathf.Max(rMax, r); }
             foreach (List<SolidPoint> list in made) { into.AddRange(list); count += list.Count; }
             Debug.Log($"[AntGarden] beyond the walls: {jobs.Count} giants, {count} splats of {rMin:F3}-{rMax:F3} (height × {splatFrac}, within {splatMin}-{splatMax})"
-                + (cut < 1f ? $", each at {cut:P0} of its cover" : "") + $"; {unseen} of them on sides never seen from the nest (one in four, twice as large), {eyes.Length} eyes");
+                + (cut < 1f ? $", each at {cut:P0} of its cover" : "") + $"; {unseen} of them on sides never seen from the nest (one in four, twice as large), {eyes.Length} eyes; "
+                + $"{bodyCount} of them their dark body ({farBody}× as large, at most 0.3)");
         }
 
         /// <summary>Where the camera can be in the nest, for which sides of the giants beyond its walls can ever be seen:
@@ -2251,6 +2283,8 @@ namespace AntGarden
             float area = (world.maxX - world.minX) * (world.maxZ - world.minZ);
             int tries = Mathf.RoundToInt(area * dustHeight * dust);
             Color pale = new Color(0.62f, 0.74f, 0.74f).linear, gold = new Color(0.86f, 0.88f, 0.80f).linear, rose = new Color(0.55f, 0.85f, 0.88f).linear;   // silver mist, bone, cyan breath
+            // as bright on screen as in v15 whatever the nest's exposure (a white glitter in the air of the lifted nests)
+            float dustComp = NestTheme.LightComp(1f);
             for (int i = 0; i < tries; i++)
             {
                 float x = Mathf.Lerp(world.minX, world.maxX, (float)rng.NextDouble());
@@ -2262,9 +2296,9 @@ namespace AntGarden
                 if (y > world.Ceiling(x, z) - 0.2f) continue;
                 double kind = rng.NextDouble();
                 bool golden = kind < 0.14, rosy = !golden && kind < 0.2;
-                Color col = golden ? gold * (0.5f + 0.9f * (float)rng.NextDouble())
+                Color col = (golden ? gold * (0.5f + 0.9f * (float)rng.NextDouble())
                           : rosy ? rose * (0.4f + 0.7f * (float)rng.NextDouble())
-                          : pale * (0.25f + 0.6f * (float)rng.NextDouble());
+                          : pale * (0.25f + 0.6f * (float)rng.NextDouble())) * dustComp;
                 // (a nest's own dust colour, as light: NestTheme.dustTint)
                 Color tint = NestTheme.Current != null ? NestTheme.Current.dustTint : Color.clear;
                 if (tint.a > 0f) col = Color.Lerp(col, tint.linear * (Lum(col) / Mathf.Max(1e-3f, Lum(tint.linear))), tint.a);

@@ -24,6 +24,7 @@ Shader "AntGarden/GuideTrail"
         _Ahead ("Extra glow on the way ahead", Range(0, 2)) = 0.4
         _AheadReach ("How far ahead the way lights up (units)", Float) = 10
         _Gain ("Overall gain (HDR)", Float) = 1.1
+        _MoteGain ("The floating motes' brightness, of the rest's", Float) = 1
         _PlayerD ("The ant's distance to the heart along the track (-1: off it)", Float) = -1
         _Pulse ("Pulses running ahead of the ant (0 = none)", Range(0, 2)) = 0
         _PulseEvery ("Seconds between pulses", Float) = 2.6
@@ -46,7 +47,7 @@ Shader "AntGarden/GuideTrail"
             #include "UnityCG.cginc"
             #include "AGClock.cginc"
 
-            float _Base, _Near, _Ahead, _AheadReach, _Gain, _PlayerD;
+            float _Base, _Near, _Ahead, _AheadReach, _Gain, _MoteGain, _PlayerD;
             float _Pulse, _PulseEvery, _PulseSpeed, _PulseReach;
             float4 _TrailPlayer, _TrailLag;   // global: the player's ant, and a point trailing behind it
 
@@ -126,7 +127,7 @@ Shader "AntGarden/GuideTrail"
                 float near = max(1 - smoothstep(0.4, 2.6, dn), 0.6 * (1 - smoothstep(0.4, 2.0, dl)));
                 // the way on: what lies a little nearer the heart than the ant lights up, the nearest most
                 float ahead = _PlayerD >= 0 && k > 0 && k < _AheadReach ? pow(1 - k / _AheadReach, 1.3) * (1 - smoothstep(_AheadReach * 0.7, _AheadReach * 1.2, dn)) : 0;
-                o.glow = (_Base * breathe + _Near * near + _Ahead * ahead + _Pulse * pulse) * _Gain * fade * lens;
+                o.glow = (_Base * breathe + _Near * near + _Ahead * ahead + _Pulse * pulse) * _Gain * fade * lens * (kind > 0.5 && kind < 1.5 ? _MoteGain : 1);
                 o.color = v.color.rgb;
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;

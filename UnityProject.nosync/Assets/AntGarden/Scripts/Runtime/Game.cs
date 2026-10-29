@@ -498,7 +498,11 @@ namespace AntGarden
                 // its motes in the nest's own colour
                 var sr = spores.GetComponent<ParticleSystemRenderer>();
                 sr.material = new Material(sr.sharedMaterial);
-                sr.material.SetColor("_Color", NestTheme.Current.motes);   // pale, in the nest's own light
+                // pale, in the nest's own light; as bright on screen as v15's whatever the nest's exposure (lifted two stops,
+                // they were a white snow over everything: NestTheme.LightComp)
+                Color motes = NestTheme.Current.motes;
+                float motesComp = NestTheme.LightComp(1f);
+                sr.material.SetColor("_Color", new Color(motes.r * motesComp, motes.g * motesComp, motes.b * motesComp, motes.a));
                 // (a nest made by NestPalette: the spores' own range of colours turned to it too)
                 if (NestTheme.Current.sporeA.a > 0)
                 {
@@ -756,8 +760,14 @@ namespace AntGarden
                 // by layer the floor, the walls, the plateau, a pale edge along the walls' tops. The terrain behind the
                 // points a dark surface in the nest's base colour, not a void (sunk to 1.5 % it read as large black holes
                 // beyond the carpet: "不要出现这样的一大片黑"); a warm world's lighter
-                particleLook.groundDim = 1f - 0.1f * theme.groundGain;
-                particleLook.groundBrightness = 2.6f * theme.groundGain;
+                // the environment lit as a whole, not its far points (the user, 10-29: "远处这些点都太亮了。我要提亮环境，是指
+                // 整个环境提亮，而不是把远处的点提亮"): a nest whose night is lifted above v15's sends a share of its ground
+                // points' light to the surface behind them, so a far wall reads as a lit wall with grain on it rather than a
+                // glitter of points on a dark one (none in v15; about 0.6 in a nest lifted two stops more)
+                // (at least 0.4 in a nest made by NestPalette: the kiln temple, lifted only half a stop, kept its walls' pale glitter)
+                float toSurface = Mathf.Max(1f - NestTheme.LightComp(0.6f), theme.segment >= 0 ? 0.4f : 0f);
+                particleLook.groundDim = 1f - 0.1f * theme.groundGain * (1f + 2f * toSurface);
+                particleLook.groundBrightness = 2.6f * theme.groundGain * (1f - toSurface);
                 Color Opaque(Color c) => new Color(c.r, c.g, c.b, 1f);
                 particleLook.groundColour = Opaque(theme.ground);
                 particleLook.floorColour = Opaque(theme.floor);
@@ -864,7 +874,9 @@ namespace AntGarden
             // (the kiln's morels on the floor, clear of the banks' foot: up the slopes their stems and feet were never seen,
             // k6-k8 plant reviews; 0.5-2.4 from the floor's edge was still slope; at -0.3-0.5 their model's wide ash pile
             // still lay half on the slope and sank them to its lowest ground, their stems under it, k10)
-            new ScatterRule { plant = "fire_morel", dMin = -1.1f, dMax = -0.4f, spacing = 8.5f, height = new Vector2(1.4f, 2.6f), tilt = 0.05f, tintJitter = 0.06f, cluster = new Vector2Int(1, 2), patchiness = 0.3f },
+            // (faced to the way: its model's caps stand side by side from the front; turned any way, from the way the small cap
+            // stood before the big one, k12)
+            new ScatterRule { plant = "fire_morel", dMin = -1.1f, dMax = -0.4f, spacing = 8.5f, height = new Vector2(1.4f, 2.6f), tilt = 0.05f, tintJitter = 0.06f, cluster = new Vector2Int(1, 2), patchiness = 0.3f, faceWay = true },
             // the amber nest's own (Tripo, 02_Concepts/Amber_v1_候选): little frankincense trees along the way, a few ants
             // tall, tears of resin in rows down their peeling bark; gumweed in clumps low beside it, a bead of resin in each bud
             // (a gumweed tall enough that its surface is over ParticleLook.accentArea: smaller, some took a cool accent whole, lilac)

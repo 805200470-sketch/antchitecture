@@ -118,6 +118,12 @@ namespace AntGarden
                     if (occupied.Overlaps(mx, mz, plant.footprintRadius * mh * 0.8f) || world.reserved.Overlaps(mx, mz, plant.footprintRadius * mh)) continue;
                 }
                 if (rule.tuft.y > 1) Tuft(rule, plant, mx, mz, mh, stack);
+                else if (rule.faceWay)
+                {
+                    // (ScatterRule.faceWay: toward the way, down the slope of the distance to it)
+                    float e = 0.3f, gx = world.PathDist(mx + e, mz) - world.PathDist(mx - e, mz), gz = world.PathDist(mx, mz + e) - world.PathDist(mx, mz - e);
+                    Place(plant, mx, mz, mh, stack, rule.tilt, rule.tintJitter, rule.dim, !rule.noShadow, Mathf.Atan2(-gx, -gz) * Mathf.Rad2Deg + Range(-15f, 15f));
+                }
                 else Place(plant, mx, mz, mh, stack, rule.tilt, rule.tintJitter, rule.dim, !rule.noShadow);
             }
         }
@@ -186,9 +192,11 @@ namespace AntGarden
         void Surroundings()
         {
             float baseY = world.Height((region.minX + region.maxX) / 2, region.minZ) - 10f;
-            string[] kinds = string.IsNullOrEmpty(region.biome.surroundings)
+            // (a particle nest's own, where its biome's are shared with the world outside the lab: NestTheme.surroundings)
+            string list = Game.Lab && NestTheme.Current?.surroundings != null ? NestTheme.Current.surroundings : region.biome.surroundings;
+            string[] kinds = string.IsNullOrEmpty(list)
                 ? new[] { "trunk_night", "fan_tree", "trunk_night" }
-                : region.biome.surroundings.Split(',');
+                : list.Split(',');
             var available = new List<PlantRef>();
             foreach (string k in kinds)
             {

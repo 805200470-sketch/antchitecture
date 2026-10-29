@@ -456,6 +456,7 @@ namespace AntGarden
         public string biomes = "";            // comma-separated biome ids this rule grows in; empty = every biome
         public bool noShadow;                 // small ground detail: no shadow casting (cheaper, and it reads as texture)
         public float patchiness = 0.85f;      // 0 = spread evenly; 1 = only in patches (with a few strays between)
+        public bool faceWay;                  // its model's front (+z) turned to the way, a little off (a cluster made side by side from the front)
         // >1: each grows as a tuft of this many from one crown (a fern's fronds), each turned so the way the model
         // itself leans (tuftFace: its azimuth in the model, degrees from +z toward +x) faces out from the middle, and
         // tipped out by up to tuftLean degrees; each member tuftScale of the tuft's height

@@ -252,8 +252,10 @@ namespace AntGarden
                 {
                     // the amber nest's landmarks beside the way (no heart): a fallen pine cone, giant to an ant, beads and
                     // tears of resin on its scales (02_Concepts/Amber_v1_候选/A), near the way in; a smaller one further on
-                    // (planned a third of the way in, at this size there was room for it only up on the rim, out of sight)
-                    ("resin_cone", 5.4f, 0.06f, 1, false, false),   // (at 4.2, in the game's view, only twice the ant: not yet a landmark)
+                    // (planned a third of the way in, at this size there was room for it only up on the rim, out of sight). The
+                    // big one a little way in, where the view from the way in sees it ahead (at 6% it lay beside the ant at the
+                    // start, out of that view, k20)
+                    ("resin_cone", 5.4f, 0.16f, 1, false, false),   // (at 4.2, in the game's view, only twice the ant: not yet a landmark)
                     ("resin_cone", 3.6f, 0.74f, -1, false, false),
                 });
             else if (what == "temple")
@@ -353,6 +355,14 @@ namespace AntGarden
                 world.plantInstances.Add(new PlantInstance { plant = p, t = go.transform, hue = 0, sat = 1, glow = objGlow, scan = new Color(1f, 0.93f, 0.8f), relic = what != "moss" });
                 world.placements.Add(new Placement { plant = o.id, region = region.index, x = c.x, z = c.y, height = scale });
                 world.reserved.Add(new Circle(c.x, c.y, r + 0.4f, 1f));
+                // (the amber nest's cones: nothing grown between one and the way, nor across the way where one stops to look
+                // at it (SceneShots stands 3.5 back), so it is seen whole from the way: in k20 a clump of gumweed hid it)
+                if (o.id == "resin_cone")
+                {
+                    Vector2 across = (c - a).normalized;
+                    for (float f = 0.25f; f < 1f; f += 0.25f) world.reserved.Add(new Circle(Mathf.Lerp(a.x, c.x, f), Mathf.Lerp(a.y, c.y, f), r, 1f));
+                    for (float b = 1.2f; b <= 3.6f; b += 1.2f) world.reserved.Add(new Circle(a.x - across.x * b, a.y - across.y * b, 1.3f, 1f));
+                }
                 // the key, the coins and the button: ants climb onto them; the rest block
                 Bounds bounds = new Bounds(go.transform.position, Vector3.zero);
                 foreach (Renderer mr in go.GetComponentsInChildren<Renderer>()) bounds.Encapsulate(mr.bounds);

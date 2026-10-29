@@ -93,6 +93,7 @@ namespace AntGarden
         public float vineCurl = 1f;             // how often the vines' tips curl into hooks (GuideThreads; of 1)
         public float farDim = 1f;               // the huge trees beyond the walls (Scatter.Surroundings): how bright, muted (1: as the plants)
         public float farFog;                    // and how much of the fog's colour they take instead of their own (0: none)
+        public string surroundings;             // and which kinds they are, where its biome's are shared with the world outside the lab (null: its biome's)
         public float skyGain = 1f;              // its sky this much lighter than the other nests' (NestPalette.Recipe.skyGain)
         public float gateGain = 1f;             // the light gates to the other nests (a saturated light made them glare behind a heart)
         // how much brighter what is right round the ant is, and what it walks past lights up (a vivid palette glared
@@ -153,6 +154,13 @@ namespace AntGarden
         /// <summary>The theme of the particle nest now being played (set by Game before its parts start).</summary>
         public static NestTheme Current;
 
+        /// <summary>How much of its light a self-lit thing (an ant, a mote, a speck of the guiding trail) keeps in this
+        /// nest. Game lifts a particle nest's night by its exposureLift, and that brightens everything on screen; but the
+        /// lights were made for v15's lift (0.3), so in a nest lifted two stops more they burnt white (the user, 10-29:
+        /// "蚂蚁…太发光、太白了…有点过曝了", "白光…太亮了，已经分不清楚引导的光线了"). share 1: as bright on screen as in v15;
+        /// 0: lifted with the rest. Outside the particle nests, 1.</summary>
+        public static float LightComp(float share) => !Game.Lab || Current == null ? 1f : Mathf.Pow(2f, -share * Mathf.Max(0f, Current.exposureLift - 0.3f));
+
         /// <summary>The theme for a region's biome (the blue forest's for any it does not know).</summary>
         public static NestTheme For(string biome)
         {
@@ -173,7 +181,7 @@ namespace AntGarden
                 return amberTrial ??= Amber(AmberRecipe.With(amberTried));
             return biome == "amber" ? (before ? OrangeBefore : Orange) : biome == "kiln" ? (before ? RedBefore : Red)
                 : biome == "honey" ? (before ? YellowBefore : Yellow) : biome == "leafcut" ? (before ? ChartreuseBefore : Chartreuse)
-                : biome == "moss" ? (before ? GreenBefore : Green) : biome == "verdigris" ? SpringGreen : biome == "azure" ? Azure : biome == "cistern" ? Blue : Cyan;
+                : biome == "moss" ? (before ? GreenBefore : Green) : biome == "verdigris" ? SpringGreen : biome == "azure" ? Azure : biome == "cistern" ? Blue : BlueForest;
         }
 
         /// <summary>
@@ -270,6 +278,29 @@ namespace AntGarden
             glassKinds = new[] { "spore_stalk" }, headGlowKinds = new string[0], headGlowFrom = new float[0],
             labPlants = new[] { "curl_a_crozier", "curl_b_double", "curl_c_hook", "curl_d_cluster", "puff_b_lantern", "coral_b_branching", "frond_a_feather", "curl_e_corkscrew", "puff_a_stalked" },
         };
+
+        /// <summary>The blue fungal forest as it is played: v15 with its plants' greens turned toward blue. Cyan itself
+        /// stays v15's, the palette every other nest is turned from (NestPalette).</summary>
+        public static readonly NestTheme BlueForest = Bluer(Cyan);
+
+        static NestTheme Bluer(NestTheme v15)
+        {
+            var t = (NestTheme)v15.MemberwiseClone();
+            // the user, 10-29: "蓝色那版场景中的植物有点太绿了，可以调一下它们的颜色，稍微偏向蓝一点": its sage and yellow-greens
+            // turned 60° toward teal and a little less vivid, its teals 10° toward blue; its straw and bone, and its glows'
+            // coral and violet, as they were
+            t.body = new[]
+            {
+                new Color(0.68f, 0.80f, 0.74f), new Color(0.56f, 0.78f, 0.66f), new Color(0.56f, 0.78f, 0.76f), new Color(0.64f, 0.74f, 0.78f),
+                new Color(0.74f, 0.80f, 0.77f), new Color(0.54f, 0.70f, 0.67f), new Color(0.63f, 0.88f, 0.71f), new Color(0.84f, 0.78f, 0.60f),
+            };
+            t.glow = new[]
+            {
+                new Color(0.55f, 0.88f, 0.98f), new Color(0.70f, 0.96f, 0.94f), new Color(0.76f, 0.95f, 0.89f), new Color(0.88f, 0.72f, 0.74f),
+                new Color(0.78f, 0.74f, 0.90f), new Color(0.88f, 0.84f, 0.68f), new Color(0.85f, 0.91f, 0.92f), new Color(0.88f, 0.76f, 0.74f),
+            };
+            return t;
+        }
 
         // first versions of the scenes that had only their effect images: palettes from those images; the new plants
         // (Tripo v3.1) placed by the hue of their bodies (curl_d 47°, curl_a 51°, puff_a 62°; curl_e 78°, frond 84°;
@@ -669,7 +700,13 @@ namespace AntGarden
         static NestTheme Mossy(NestTheme t)
         {
             Color Dim(Color c, float k) => new Color(c.r * k, c.g * k, c.b * k, c.a);
-            Without(t, "Petal", "Blossom", "Feather");
+            // (no snail shells, seeds, pebbles, crystals or clover either: in its palette's colours they were spotted
+            // brown and pink balls and blue-green leaf clumps nobody could name, review k20; its lichen crusts a pale
+            // grey-green, its fallen leaves a dead leaf's brown, not the palette's lilac, which made both pale purple
+            // wrinkled clumps)
+            Without(t, "Petal", "Blossom", "Feather", "Shell", "Seed", "Pebbles", "Crystals", "Clover");
+            t.thingColours = new System.Collections.Generic.Dictionary<string, Color>
+                { { "Lichen", new Color(0.12f, 0.14f, 0.11f) }, { "Leaf", new Color(0.09f, 0.07f, 0.035f) } };   // (lichen at 0.17, k22: white under the guiding light)
             t.gateGain = 0.28f;
             (t.body[1], t.body[2]) = (t.body[2], t.body[1]);
             t.body[6] = Dim(Color.Lerp(t.body[1], t.body[5], 0.5f), 0.61f);
@@ -687,6 +724,11 @@ namespace AntGarden
             // floor, review k12: no lichen to be seen)
             t.floorVary = 34f;
             t.floorPatchB = new Color(0.78f, 0.82f, 0.72f, 1f);
+            // (checks: -mosstexmix N tries how much of its floor texture's own colour its floor keeps, with -groundtrial
+            // for the lichen painted into it: at the palette's 0.3 the painted lichen, as light as the moss crowns, did
+            // not show, k19)
+            if (Game.Arg("-mosstexmix") is string tm && float.TryParse(tm, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float tmv))
+                t.groundTexMix = tmv;
             t.scatterPlants = System.Array.FindAll(t.scatterPlants, k => k != "sponge_mound" && k != "cup_fungus" && k != "pebble_cluster");
             t.bank = Dim(t.bank, 0.78f);
             t.edge = Dim(t.edge, 0.8f);
@@ -702,8 +744,10 @@ namespace AntGarden
             // the pool of the guiding light on its floor dimmer (halfway, the floor before the ant three times as bright as
             // the rest of the picture, k16)
             t.beacon = Dim(t.beacon, 0.6f);
-            // the vines across its way dark brown-green stems (pale, they read as bright ropes over it, review k14)
+            // the vines across its way dark brown-green stems (pale, they read as bright ropes over it, review k14); its
+            // roots down the walls too (in the vines' muted grey, a pale beaded root stood before the capsule grove, k20)
             t.vineDarken = 0.85f;
+            t.rootColour = new Color(0.06f, 0.07f, 0.035f);
             // its small mushrooms' spots smaller and crisper (soft and large, review k14)
             t.bio = new System.Collections.Generic.Dictionary<string, Vector4> { { "tiny_mushrooms", new Vector4(1, 0.08f, 0.3f, 1.2f) } };
             t.things = System.Array.FindAll(t.things, th => th.kind != "DewDrop");
@@ -869,7 +913,7 @@ namespace AntGarden
         // (fifth review: half way between the kiln and the granary by hue, it looked much nearer the granary, the kiln
         // standing apart by its darkness: 4° back toward red; its base a little less vivid (its rust walls); more of its
         // cool accents; and no further toward gold, the granary's way)
-        public static readonly NestPalette.Recipe AmberRecipe = new NestPalette.Recipe { spread = 0.94f, spreadSide = 1f, exposure = 1.1f, highChroma = 1.6f, hueNudge = 16f, groundLift = 0.07f, groundGain = 0.5f, accentShare = 1.8f, jitter = 2f, baseChroma = 0.3f, accentChroma = 1.2f };   // (accents at 2.5: whole lanterns glowing a cold cyan-white, a glow's accent taking any plant however big; seventh review: its base still vivid, its accents grey; ninth: the granary moved on to 91°, and at +8 the nest read as the kiln's, its floor and walls the same rust clay: back to +12, its base calmer, its family a little wider; its exposure up a fifth of a stop, from 0.078 back clear of 0.076, the leafcut garden's "too dark"; thirteenth, on its own ground: still earthy, an old sepia photo, its highlights near white, its floor on the kiln's hue in the game view: +16, highlights more vivid, its family wider, its base calmer; sixteenth: still flat, its three layers alike in chroma, its floor by the way in still the kiln's: its highlights 1.6 times as vivid, its base calmer and lower so its light reads as light, a tenth of a stop up (a fifth: its floor bright and dyed in 2.3% of it), its family wider again)
+        public static readonly NestPalette.Recipe AmberRecipe = new NestPalette.Recipe { spread = 1.22f, spreadSide = 1f, exposure = 1.3f, midChroma = 1.25f, highChroma = 1.6f, hueNudge = 20f, groundLift = 0.07f, groundGain = 0.38f, accentShare = 2.7f, jitter = 2f, baseChroma = 0.3f, accentChroma = 1.2f, warmth = 2f };   // (accents at 2.5: whole lanterns glowing a cold cyan-white, a glow's accent taking any plant however big; seventh review: its base still vivid, its accents grey; ninth: the granary moved on to 91°, and at +8 the nest read as the kiln's, its floor and walls the same rust clay: back to +12, its base calmer, its family a little wider; its exposure up a fifth of a stop, from 0.078 back clear of 0.076, the leafcut garden's "too dark"; thirteenth, on its own ground: still earthy, an old sepia photo, its highlights near white, its floor on the kiln's hue in the game view: +16, highlights more vivid, its family wider, its base calmer; sixteenth: still flat, its three layers alike in chroma, its floor by the way in still the kiln's: its highlights 1.6 times as vivid, its base calmer and lower so its light reads as light, a tenth of a stop up (a fifth: its floor bright and dyed in 2.3% of it), its family wider again; twentieth: still a brown old photo, its middle layer as dull as its base, a fifth of its plants near grey, no cool note at all, its floor by the way in near the kiln's: its white balance half as warm (the kiln's, its own and the granary's all leaned warm to the cap alike), its middle layer a quarter more vivid, half as many accents again, its family wider, 4° on toward gold; its highlight chroma and ground lift left as they were: at orange the gamut clips a pale colour's chroma, and the lift is times warm, 0.12 here; and a fifth of a stop up: its white balance cooler, its picture fell from 0.100 to 0.080, k21; its ground's points a little less bright: at 0.5 with that stop 2.7% of its floor bright and dyed, k22)
         static NestTheme amberTrial;
         static readonly NestTheme OrangeBefore = OrangeHand();
         public static readonly NestTheme Orange = Amber(AmberRecipe);
@@ -887,10 +931,14 @@ namespace AntGarden
             // amber beside the way (no heart: "不要用心脏的概念了"). (Fifth review: the amber read at once, the resin runs
             // less, as yellow jelly fungus on a branch, so fewer of them; the ball-stalks, few as they were, still read as
             // flowers: left out)
+            // (and the conifers' needles, in pairs, lying by its way: its ground texture's needle ends read as dark smudges
+            // from the game's view, as gold confetti close by, k20; more of its floor's things its own, so its amber and
+            // resin keep their share)
             t.things = new[]
             {
-                new Thing { kind = "AmberNodules", weight = 30 }, new Thing { kind = "ResinRun", weight = 14 },
+                new Thing { kind = "AmberNodules", weight = 30 }, new Thing { kind = "ResinRun", weight = 14 }, new Thing { kind = "PineNeedles", weight = 40 },
             };
+            t.ownShare = 0.6f;
             t.heart = null;
             // amber nodules lining its way too, close enough to touch (seventh review: from the way in and half way there
             // was hardly any amber to see)
@@ -908,20 +956,38 @@ namespace AntGarden
             t.rigidGain = 1.5f;   // (at 1, in the night, its brown read as a dark mound of earth)
             t.junctionTree = "tear_tree";
             t.junctionTreeHeight = new Vector2(4.2f, 5.2f);   // (at the rule's 9-13 its points were coarse, a dark mass: no trunk, no tears; at 5-6.5 the game's view saw only its trunk)
+            // and beyond its walls only the dark trunks of the conifers its resin comes from (its biome's giants, shared with
+            // the world outside the lab, were a third dry mushrooms: grey-blue caps by the way in, one filling the view half
+            // way there, sixteenth and twentieth reviews; the user's word, 10-29)
+            t.surroundings = "trunk_night";
             // its markings in amber, as the granary's are in gold (in the palette's pale glows they read white: the gumweed's
             // buds as white puffs, cotton; and the gumweed keeping more of its own yellow)
             t.markColor = new Color(1.0f, 0.70f, 0.34f, 1f);
-            // (and the green seedling and fallen leaves muted: their own green and white stood out of the amber, sixteenth review)
-            t.kindSat = new System.Collections.Generic.Dictionary<string, float> { { "seed_husk", 0.4f }, { "fallen_leaf", 0.5f } };
-            t.kindGain = new System.Collections.Generic.Dictionary<string, float> { { "fallen_leaf", 0.7f } };
+            // (and the green seedling muted: its own green stood out of the amber, sixteenth review; the fallen leaves, muted
+            // too, still flat pale green cards on the floor in the twentieth: left out, below)
+            t.kindSat = new System.Collections.Generic.Dictionary<string, float> { { "seed_husk", 0.4f } };
             t.plainTips = new[] { "tear_tree", "gumweed" };   // (their tips taking the palette's next colour, the cool accent: lavender gumweed, a violet-grey tree)
             t.labPlants = new[] { "tear_tree", "gumweed" };
             // the amber resin plant left out: under this palette every plant starts from one pale colour, and its lumps
             // read as pale pink blobs, not resin (the resin running from bark and the amber nodules are its resin now)
             // and the sponge fungus garden left out too: it is the leafcutters' (fifth review); and the snail shells, which
             // lying mouth up read as clay pots
-            t.scatterPlants = System.Array.FindAll(t.scatterPlants, k => k != "amber_resin" && k != "fungus_garden" && k != "dry_mushroom");   // (and the dry mushrooms: its little trees in their place)
-            t.noKinds = new[] { "Petal", "Blossom", "Clover", "Shell" };
+            t.scatterPlants = System.Array.FindAll(t.scatterPlants, k => k != "amber_resin" && k != "fungus_garden" && k != "dry_mushroom" && k != "fallen_leaf");   // (and the dry mushrooms: its little trees in their place)
+            // (no moss cushions either: by its way out one lay lemon green, twice as light as the floor, "from another nest",
+            // twentieth review)
+            t.noKinds = new[] { "Petal", "Blossom", "Clover", "Shell", "Moss" };
+            // its fallen twigs, leaves and fern fronds dry browns, its few seedlings a dark olive, its lichen a muted grey-green
+            // (the palette's greens made its seedlings lemon green, twentieth review, and lay lime patches on its banks,
+            // twenty-first and second)
+            t.thingColours = new System.Collections.Generic.Dictionary<string, Color>
+                { { "Twig", new Color(0.15f, 0.08f, 0.03f) }, { "Leaf", new Color(0.13f, 0.07f, 0.026f) }, { "Fern", new Color(0.15f, 0.075f, 0.028f) }, { "Seedling", new Color(0.07f, 0.075f, 0.02f) },
+                  { "Lichen", new Color(0.085f, 0.095f, 0.075f) } };
+            // and no roots at its walls' feet: in the palette's grey-green they lay across its floor jointed and thick, "a
+            // caterpillar" (twentieth review, which took them for twigs); dark brown and thinner, the granary's still read as
+            // a worm
+            t.rootWidth = 0f;
+            // the few glowing grains in its floor fainter (gold flecks all over it, "confetti", twentieth review)
+            t.grainGain = 0.4f;
             // the motes in its air fewer to the eye, smaller, dimmer and in its own gold ("like snow" in the fifth review)
             t.moteSize = 0.6f;
             t.moteGain = 0.6f;
@@ -935,9 +1001,14 @@ namespace AntGarden
             // through their paper, the ribs dark (their pale panels: at a sixth of them they stayed cold grey-white, at a
             // few specks they read as nothing)
             t.bio = new System.Collections.Generic.Dictionary<string, Vector4>
-                { { "dry_mushroom", Vector4.zero }, { "tear_tree", new Vector4(5, 0.025f, 0f, 0.3f) }, { "gumweed", new Vector4(4, 0.08f, 0f, 1f) } };
+                { { "dry_mushroom", Vector4.zero }, { "tear_tree", new Vector4(4, 0.03f, 0f, 1f) }, { "gumweed", new Vector4(4, 0.08f, 0f, 1f) },
+                  { "thorn_succulent", new Vector4(8, 0.06f, 0f, 1f) } };
+            // (its little trees' tears marked in amber in their palest 3%, as the gumweed's beads are: its texture's tears are
+            // cream, as pale as its peeling bark, no orange in them, so no glow part could pick them out, and a glowing part
+            // keeps a finely made plant's own colour, its pale bark lit pinkish white, k22; its leaf tufts' faint tips gone)
             // (the lanterns since left out: its little trees' leaf tufts at their tips, faintly; the gumweed in its palest,
-            // the beads of resin in its buds)
+            // the beads of resin in its buds; the thorny succulents' spine tips, softly, without the specks behind them that
+            // read as a few white dots, twentieth review: its gold flecks, fewer, no longer read at all)
             // its floor not one orange (a family of 10°, "like an old sepia photo"): its patches swinging further in hue,
             // and patches of other materials, dark earth soaked with resin and a cool blue-grey (grey-green lichen leaned
             // to the granary's olive)
@@ -955,9 +1026,10 @@ namespace AntGarden
                 new GlowPart { plant = "dry_mushroom", from = 0.62f, to = 0.84f, lumMin = 1.0f, amount = 0.5f },
                 new GlowPart { plant = "thorn_succulent", from = 0.55f, to = 1.05f, lumMin = 1.5f, amount = 0.25f },   // (at 1.1 and 0.45 gold specks over a sixth of its leaves, sequins)
                 new GlowPart { plant = "dry_grass_tuft", from = 0.65f, to = 1.05f, lumMin = 1.0f, amount = 0.4f },
-                // its own: the tears of resin on the little trees, by how orange they are (the bark grey, the leaves green);
-                // the beads in the gumweed's buds and on the cone's scales, by how much lighter they are than the rest
-                new GlowPart { plant = "tear_tree", from = 0.08f, to = 0.7f, lumMin = 9f, red = 0.25f, amount = 0.8f },   // (over its whole height, its leaf tufts as bright: yellow leaves, gold paint)
+                // its own: the beads in the gumweed's buds, by how much lighter they are than the rest. (The tears of resin on
+                // the little trees are marked instead, bio: by how orange they were, at lumMin 9, over the 3.2 a texel can
+                // reach, they never lit; lit by hot, its brown bark, as red as tears in linear light, glowed pale pink all
+                // over, k21; by its pale warm parts, its bark's pale ridges too, pinkish white, k22)
                 new GlowPart { plant = "gumweed", from = 0.55f, to = 1.05f, lumMin = 1.35f, amount = 0.5f },
             };
             // the ants in amber and honey, as v15's are in its own teal (leaning to the palette's turned colour, the
@@ -986,7 +1058,7 @@ namespace AntGarden
         // k6: its family 12°, still short of 18°: wider, 1.0, toward rust, grey ochre and charcoal; its walls' dark C 0.030,
         // calmer, 0.55. k8: its vines charred near black, its picture a little darker than v15's, 0.030: a tenth of a stop
         // up, 0.7)
-        public static readonly NestPalette.Recipe KilnRecipe = new NestPalette.Recipe { spread = 1f, exposure = 0.8f, hueNudge = 6f, highChroma = 1.3f, baseChroma = 0.55f, accentShare = 1.8f };   // (0.8: its dust halved in k9, 0.031)
+        public static readonly NestPalette.Recipe KilnRecipe = new NestPalette.Recipe { spread = 1f, exposure = 1.0f, hueNudge = 6f, highChroma = 1.3f, baseChroma = 0.55f, accentShare = 1.8f };   // (0.8: its dust halved in k9, 0.031; 1.0: its floor redder and darker in k12, 0.028)
         static NestTheme kilnTrial;
         // (no fresh green on burnt ground, no petals, no snail shells, no pink toadstools, feathers or crystal grit (k2: the
         // floor's small mushrooms took the palette's pale pink), no fallen leaves or seeds (k1 content review: big pink-
@@ -1028,7 +1100,10 @@ namespace AntGarden
             // its ground keeps more of its own textures' colours, the grey of its ash and the black of its charcoal (at
             // v15's 0.3 the palette dyed them one dark red-brown, k1 content review); the motes round its plants and in
             // its air smaller, dimmer, in its light (k1 plant review: white balls near the lens)
-            t.groundTexMix = 0.65f;   // (0.6 in k3: its ash still a little pink, k3 content review; 0.75 in k6: its walls' own rust red back, C 0.030)
+            // (0.6 in k3: its ash still a little pink, k3 content review; 0.75 in k6: its walls' own rust red back, C 0.030;
+            // 0.65 to k11. k12, the user, 10-29: "这个地面包括环境可以稍微再偏红一些些，现在这个地面有点太灰了…有一点分不清楚":
+            // more of its palette's red-brown, its grey ash and what lies on it told apart)
+            t.groundTexMix = 0.3f;   // (k14: 0.45 in k12-k13, its floor still a mauve brown, C 0.03 at 17-21°: more of its now redder palette floor)
             // the roots at its walls' feet charred (in the palette's they read pale pink, k6 content review), as dark as its
             // vines and thinner (k8: lighter than the charred vines, unburnt; a thick one across the foreground, twice)
             t.rootColour = new Color(0.035f, 0.026f, 0.022f);
@@ -1039,8 +1114,8 @@ namespace AntGarden
             // the amber nest's, 34°
             // (vivid as patch colours go: its floor keeps 0.65 of its textures' own, so at C 0.06 and 0.02, k9, they were
             // not seen, its family 10°; mixed in, a wine red and a blue grey)
-            t.floorPatchA = new Color(0.47f, 0.16f, 0.23f, 1f);
-            t.floorPatchB = new Color(0.25f, 0.405f, 0.56f, 1f);
+            t.floorPatchA = new Color(0.43f, 0.2f, 0.19f, 1f);   // (k14: a wine red, about 3° on the wheel; 0.47, 0.16, 0.23 leaned plum, 346°, the nursery's, k10 colour review)
+            t.floorPatchB = new Color(0.25f, 0.405f, 0.56f, 0f);   // (off since k12: its floor to lean red, the user's; its cold ash came out grey anyway, k10)
             t.floorVary = 34f;
             // its dust a little and grey, not gold (golden-orange specks over its walls, k6-k8: the glowing grains were
             // only a tenth of them)
@@ -1078,6 +1153,17 @@ namespace AntGarden
             // and their pale carved wood weathered toward a cool silver grey (in its own tan it read gold, the amber
             // nest's colour, k7-k8 colour reviews)
             t.relicPaleGrey = 0.7f;
+            // the thin light along every form's outline a cool moonlit silver, against its warm embers: its cool notes
+            // spread over everything, small and dark, not one blue thing (the user, 10-29: keep its family at 18°; the
+            // palette's rim, its fog's dark red, gave none; cool things bright enough to count read as snow and moss, k11b)
+            t.rim = new Color(0.035f, 0.055f, 0.088f);   // (k14: between k12's cool 0.03, 0.055, 0.1, the log's bark violet up close, and k13's near neutral)
+            // its floor, and a little its walls, redder (the user, 10-29: "这个地面包括环境可以稍微再偏红一些些，现在这个地面有点太灰了"):
+            // more of its palette in its ground did little, k12, its palette's floor itself a near-grey brown; so its floor's
+            // chroma about doubled, toward rust, its lightness kept; its walls a little, staying darker than its floor
+            Vector3 fl = NestPalette.Oklch(t.floor);
+            t.floor = NestPalette.FromOklch(new Vector3(fl.x, fl.y * 2f + 0.03f, 32f));   // (k14; 1.8, +0.02, 30° in k13)
+            Vector3 bk = NestPalette.Oklch(t.bank);
+            t.bank = NestPalette.FromOklch(new Vector3(bk.x, bk.y * 1.2f + 0.008f, Mathf.LerpAngle(bk.z, 30f, 0.5f)));
             // and its fire morels' tips a warm near white, softly lit, as its cups' rims (in the palette's pale glow their
             // tips and ridges read as frost, grey-pink, k6-k7; in glowDeep, bright, a salmon pink, k7b)
             t.kindMark = new System.Collections.Generic.Dictionary<string, Color> { { "fire_morel", new Color(1f, 0.8f, 0.6f) } };
@@ -1143,7 +1229,8 @@ namespace AntGarden
                 // carved wood, pale and warm, a soft light of its own, lumMin and amount)
                 // (its carved wood's light less, 0.2: at 0.35 its rings out-shone its embers and read gold, k7; none since k11:
                 // weathered silver grey, lit by its own red, its rings read a salmon pink, k10)
-                new GlowPart { plant = "ember_log", from = 0f, to = 1.05f, lumMin = 2.4f, amount = 0f, red = 0.62f, hot = 0.9f },
+                // (its embers back to k8's light, 0.72: since exposure 1.0, k12, its end face's rings and embers one red)
+                new GlowPart { plant = "ember_log", from = 0f, to = 1.05f, lumMin = 2.4f, amount = 0f, red = 0.7f, hot = 0.6f },   // (k14: its end face's rings full of embers, one red target: only its reddest cracks, dimmer)
                 // and its stump temple: the embers in its long cracks, and the pale wood of its split side's galleries warm
                 // from within, as the concept has them (red from 0.42, 0.36: in k3 and k4 its galleries stayed dark)
                 // (its split side's less, 0.25: at 0.45 gold-orange streaks, an even orange-brown, k7; none since k11: its
@@ -1165,10 +1252,12 @@ namespace AntGarden
             // (and small slate stones scattered singly in the ash, its cool accent, k7c: without them its family closed to 8°)
             // (the stones: 14 in k7d, hardly seen in its main views; 25 in k8, a dozen on one slope, blue confetti. k11: and cold
             // ash drifts, its cool notes spread over several small things, the user's choice to keep its family at 18°)
-            things = new[] { new Thing { kind = "CharTwigs", weight = 30 }, new Thing { kind = "AshStones", weight = 18 }, new Thing { kind = "AshDrift", weight = 34 } },   // (22 in k11)
+            // (its cold-ash drifts, AshDrift, k11-k12, left out: blue, then warm grey, they read as snow, then as pale plates,
+            // never as ash, k12 content review)
+            things = new[] { new Thing { kind = "CharTwigs", weight = 30 }, new Thing { kind = "AshStones", weight = 24 } },   // (k14: 18 in k13, its cool faces too few to count)
             // the burnt wood a little darker, so its embers and its carved galleries' warm light show against it (k5: the
             // temple's split side a white speckled column)
-            kindGain = new System.Collections.Generic.Dictionary<string, float> { { "char_stump_temple", 0.7f }, { "ember_log", 0.85f } },
+            kindGain = new System.Collections.Generic.Dictionary<string, float> { { "char_stump_temple", 0.7f }, { "ember_log", 0.65f } },   // (the log 0.85 to k12: its rings as light as its embers)
             // (its temple is the landmark where the way forks: no junction tree there; the biome's, an amber-nest clay
             // spire, stood beside the temple as an orange sponge, k3)
             ownShare = 0.3f, dampScale = 0f, objects = "ember", heart = null, noJunctionTree = true,

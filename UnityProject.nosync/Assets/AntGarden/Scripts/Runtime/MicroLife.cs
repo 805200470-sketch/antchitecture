@@ -20,11 +20,16 @@ namespace AntGarden
 
         struct Creature { public Vector4 a, b; }   // a: home x, height (in the air), home z, kind; b: seed, size, range, colour
 
+        // splats drawn per creature, three vertices each (the shader places them; a creature uses a dozen or fewer, the seed
+        // fluff up to 23, and the shader drops the rest at once): Shaders/MicroLife.shader's 72 and 24 are this
+        const int SplatsPerCreature = 24;
+
         Material mat;
         ComputeBuffer buffer;
         int count;
         World world;
         readonly MaterialPropertyBlock block = new MaterialPropertyBlock();
+        readonly Vector4[] palette = new Vector4[8];   // (kept: a new array every frame is garbage for the collector to hitch on)
         readonly System.Random rng = new System.Random(2718);
 
         float R() => (float)rng.NextDouble();
@@ -89,7 +94,8 @@ namespace AntGarden
         {
             if (buffer == null) return;
             block.SetBuffer("_Creatures", buffer);
-            block.SetFloat("_Gain", gain);
+            // (a nest lifted above v15's exposure burnt the white fluff out: keep it as bright on screen as there, NestTheme.LightComp)
+            block.SetFloat("_Gain", gain * NestTheme.LightComp(0.8f));
             block.SetFloat("_MaxDistance", maxDistance);
             block.SetVector("_MoonDir", new Vector4(0.32f, 0.9f, 0.28f, 0).normalized);
             NestTheme theme = NestTheme.Current ?? NestTheme.Cyan;
@@ -97,12 +103,11 @@ namespace AntGarden
             block.SetVector("_FillColor", theme.fill);
             block.SetVector("_Wind", new Vector4(0.8f, 0.6f, 0, 0));
             // quiet colours from the nest's theme
-            var pal = new Vector4[8];
-            for (int i = 0; i < 8; i++) pal[i] = theme.microLife[i].linear;
-            block.SetVectorArray("_Pal", pal);
+            for (int i = 0; i < 8; i++) palette[i] = theme.microLife[i].linear;
+            block.SetVectorArray("_Pal", palette);
             var bounds = new Bounds(new Vector3((world.minX + world.maxX) / 2, 0, (world.minZ + world.maxZ) / 2),
                 new Vector3(world.maxX - world.minX + 40, 200, world.maxZ - world.minZ + 40));
-            Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, count * 36, 1, null, block, ShadowCastingMode.Off, false, 0);
+            Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, count * SplatsPerCreature * 3, 1, null, block, ShadowCastingMode.Off, false, 0);
         }
 
         void OnDestroy() => buffer?.Release();

@@ -39,7 +39,7 @@ namespace AntGarden
                 foreach (var (centre, radius, height, speed, phase, size, col) in circling)
                     orbits.Add(new Orbit { centre = centre, radius = radius, height = height, speed = speed, phase = phase, size = size, col = col });
             mat = new Material(material) { name = "GlassLamps" };   // its own: the threads set theirs
-            mat.SetFloat("_Gain", gain);
+            mat.SetFloat("_Gain", gain * NestTheme.LightComp(0.8f));   // (as in v15 whatever the nest's exposure)
             mat.SetColor("_Core", (NestTheme.Current ?? NestTheme.Cyan).lampCore.linear);
             mat.SetColor("_Halo", Color.white);
             if (from != null)
