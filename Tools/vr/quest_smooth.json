@@ -1,6 +1,6 @@
 {
   "world": "",
-  "all": 0.45,
+  "all": 0.4,
   "plants": 0.2,
   "far": 0.05,
   "giants": 8,
@@ -16,7 +16,7 @@
   "shellRoom": 1048576,
   "post": "grade",
   "shadows": false,
-  "resolution": 0.85,
+  "resolution": 1.0,
   "fpsLog": 5.0,
   "wave": 1.6,
   "gusts": 1.25,

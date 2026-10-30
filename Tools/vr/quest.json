@@ -16,7 +16,7 @@
   "shellRoom": 1048576,
   "post": "grade",
   "shadows": false,
-  "resolution": 0.9,
+  "resolution": 1.0,
   "fpsLog": 5.0,
   "wave": 1.6,
   "gusts": 1.25,
