@@ -31,6 +31,7 @@
 - 这台电脑装着 Meta Horizon 电脑端：头显插 USB 会弹「Quest Link 可用」，一点就切进 Link，游戏被压到后台。测之前在头显 设置 → 系统 → Quest Link 关掉。
 - Autodesk 的 `AdSSO.exe` 占着 adb 的默认端口 5037：adb 命令前设 `ANDROID_ADB_SERVER_PORT=5038`。
 - Git Bash 会把 adb 命令里的 `/sdcard/...` 改写成 Windows 路径：先 `export MSYS_NO_PATHCONV=1`。
+- 边界对话框（GuardianDialogActivity）会挡住游戏：房间暗了、头显被挪动、或者息屏后再唤醒时都可能弹出。弹出时游戏打不开，或者加载到一半停住。10-31 凌晨单体优先几次没进入游戏，可能就是它（也可能是头显太热）；没有对话框时单体优先 4 次都正常（30.1 fps）。测之前先看 `adb shell dumpsys activity activities | grep GuardianDialogActivity`。
 - 没人戴时让头显保持亮屏：`adb shell am broadcast -a com.oculus.vrpowermanager.prox_close`；恢复：`... automation_disable`。房间要亮，头显要看得到房间。
 - 截图：`adb exec-out screencap -p > shot.png`（左右眼一起，4128×2208）。头显的时钟比电脑慢 8 小时。
 
