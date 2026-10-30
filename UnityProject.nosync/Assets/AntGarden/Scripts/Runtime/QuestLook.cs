@@ -23,7 +23,7 @@ namespace AntGarden
         {
             public string world = "";           // the nest to start in (empty: game_config.json's defaultWorld)
             public float all = 0.6f;            // every share below, times this (the first thing to turn on the headset; 1: 20-28 fps on a Quest 3)
-            public float plants = 0.2f;         // the plants' coarse splats, of the desktop's
+            public float plants = 0.2f;         // the plants' coarse splats, of the desktop's (fewer splats are drawn larger)
             public float far = 0.05f;           // the giants beyond the walls: their fine splats
             public int giants = 8;              // and at most this many of them (cfg.scatter.surroundingsCount; their dark bodies are as many as their size wants)
             public float things = 0.35f;        // the floor's things (splats per unit² of their surface)
@@ -31,14 +31,15 @@ namespace AntGarden
             public float ground = 0.15f;        // the ground's glowing points
             public float dust = 0.3f;           // the motes in the air
             public float carpet = 3f;           // the carpet's spacing, times the desktop's (a third as many each way)
-            public float shell = 0.12f;         // the plants' fine splats round the ant (the budget moved from far to near: no coarse discs up close)
+            public float shell = 0.12f;         // the plants' fine splats round the ant (the budget moved from far to near: no coarse discs up close;
+                                                // quest_quality.json puts far more on every plant: shell 0.3, plants 0.45, things 0.45, 5 ms more)
             public float walls = 0.08f;         // the walls' splats round the ant
             public float groundShell = 0.2f;    // the ground's points round the ant
             public float vines = 0.5f;
             public int shellRoom = 1 << 20;     // room made for the fine shell up front, splats (8 million on a desktop)
             public string post = "grade";       // "none", "grade" (the colour grading alone), "bloom" (and the bloom, fast) or "full" (as on a desktop)
             public bool shadows = false;
-            public float resolution = 1f;       // the eyes' textures, of the size the headset asks for (not applied for now: see TuneView)
+            public float resolution = 1f;       // the eyes' textures, of the size the headset asks for (not applied: see TuneView)
             public float fpsLog = 5f;           // seconds between frame-rate lines in the log (0: none)
             public float wave = 1.6f;           // the plants' sway in the wind, times the desktop's (larger in a headset)
             public float gusts = 1.25f;         // how fast the gusts run, times the desktop's
@@ -159,8 +160,10 @@ namespace AntGarden
                         fx.enabled.Override(false);
                     }
             }
-            // (q.resolution is left alone: changing the eyes' textures as the game runs crashed the render thread on a
-            // Quest 3 the moment the nest was ready, OpenXR 1.10 with Vulkan and multi-pass, 0.9 and 0.85 alike, 2026-10-30)
+            // (q.resolution is not applied: on a Quest 3 with OpenXR 1.10, Vulkan and multi-pass, eyeTextureResolutionScale
+            // changed as the game ran crashed the render thread the moment the nest was ready (2026-10-30), set before XR
+            // started it was undone as XR made the eyes' textures at the headset's size, and renderViewportScale ended the
+            // app three seconds in (2026-10-31). The headset's own size is used.)
             if (q.fpsLog > 0f) cam.gameObject.AddComponent<QuestFps>().every = q.fpsLog;
             var field = cam.gameObject.AddComponent<QuestField>();
             field.wave = q.wave;

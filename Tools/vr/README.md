@@ -13,13 +13,18 @@
 - 做成了能玩的游戏（只改了头显专用的文件）：
   - `VRPlayer.cs`：Y 在蚂蚁的眼睛和它身后（第三人称）之间切换，切换时眨一下眼；X 切换中文 / English；左手柄菜单键看全部操作。
   - `VRTutorial.cs`（新）：眼前的教程卡片，一步一步教：爬行 → 转身 → 换视角 → 触角（B）→ 打招呼（A）→ 跟着光走，每一步做到了才往下走。屏幕提示里的「按 E」在头显里写成「按 A」；目标、提示、对话放大，小地图不显示。
-  - `QuestLook.cs`：植物摇摆 ×1.6、阵风 ×1.25、地面涟漪 ×1.6、声音 ×1.6；预算从远处挪到近处（`shell` 0.12、`fine` 2；`far` 0.05、`giants` 8、`plants` 0.2），空中光尘 `dust` 0.3；`all` 0.6，眼睛贴图 `resolution` 0.9。
+  - `QuestLook.cs`：植物摇摆 ×1.6、阵风 ×1.25、地面涟漪 ×1.6、声音 ×1.6；粒子预算集中到单体上（见下）。
+  - 走动方式（10-31 加）：默认站在原地用左摇杆爬，头只能探出 `leanRadius`（0.3 米）；按下右摇杆切换「真实走动」，迈步时蚂蚁跟着爬（`walk`：`stick` / `real`）。
+- 10-31 凌晨实测（开局画面，头显不动，GPU 占用都在 95% 以上）：
+  - 粒子总量对帧率影响很小：`all` 0.4 / 0.6 / 0.8 是 36 / 33 / 31 fps。粒子少时每颗被放大来盖住表面，GPU 主要花在填像素上。
+  - 所以把预算集中到单体上很划算：近处细节 `shell` 0.3、植物粗点 `plants` 0.45、物件 `things` 0.45，只慢 5–6 帧，植物的颗粒明显变细。
+  - 调色后期占 2.5 ms，关掉颜色变灰，保留。远处巨树和地面亮点只占 1 ms。地毯点变小变密（`carpet` 1.5）反而慢 2 ms。
+  - 降分辨率三条路都走不通：运行中改 `eyeTextureResolutionScale` 会崩；启动前改会被 XR 按头显尺寸重建贴图覆盖掉；`renderViewportScale` 让游戏启动 3 秒就退出。`resolution` 现在不生效。
 - 三个版本并排装在头显里对照，应用库里各是一个：
-  - Ant Garden（均衡，`quest.json`）
-  - Ant Garden 流畅版（`quest_smooth.json`：`all` 0.45，`resolution` 0.85）
-  - Ant Garden 画质版（`quest_quality.json`：`all` 0.8，`resolution` 1.0，植物和光尘多一些）
+  - Ant Garden（主版本，`quest.json`）：单体优先（`shell` 0.3、`plants` 0.45、`things` 0.45，`far` 0.02、`giants` 4、`ground` 0.08）。
+  - Ant Garden 画质版（`quest_quality.json`）：同上，再加密地毯（`carpet` 1.5），细节最多，27.8 fps。
+  - Ant Garden 流畅版（`quest_smooth.json`）：原来的均衡参数，33.4 fps。
   - 打包：`ANTGARDEN_VARIANT=smooth ANTGARDEN_VARIANT_NAME=流畅版`，再跑 BuildQuest。
-- **新功能和三个版本的帧率还没在真机上验证**：10-30 晚上房间太暗，头显定位丢了（日志里是 `Images too dark`），边界对话框挡住了所有应用。
 
 ### 在这台 Windows 上测试时的坑
 
@@ -114,7 +119,7 @@ Mac 上用 `zsh Tools/vr/quest.sh devices|install|start|stop|push|log|shot` 做�
 
 ## 下一步
 
-1. **在亮的房间里测三个版本的帧率。** 用户说 60 帧就够、画面优先：GPU 每帧要在 16.7 ms 以内（72 Hz 下 `missed` 会有一些，转头靠系统补帧）。挑一个定下来，写回 `quest.json` 和 `QuestLook` 的默认值。
+1. **帧率还远低于 60。** 主版本约 30 fps，GPU 每帧约 30 ms（60 帧要 16.7 ms），而且主要花在填像素上，减粒子省不了多少。剩下的办法都要动共用的东西，先问用户：粒子着色器里限制近处颗粒的大小（少填像素），或者换渲染管线 / 单通道实例化。
 2. **戴上头显走一遍教程。** Y 的第三人称（离蚂蚁多远多高、会不会穿进墙里，`behindBack`、`behindUp`、`behindScale`）、X 中英文、菜单键、B 碰亮植物、A 打招呼，中文在头显里显示得对不对。
 3. **按 Meta 键再回来、摘下头显再戴上**：游戏要能接着跑。10-30 被 Link 切走时，日志里有 GPU page fault（`vk_devicememory was already freed`）。
 4. **对照 v15**（`参考_v15/`）：近处颗粒（预算已经往近处挪：`shell` 0.12、`fine` 2，Mac 预览里近处像一片片圆片）、植物微光、光丝和光柱、空中光尘。
