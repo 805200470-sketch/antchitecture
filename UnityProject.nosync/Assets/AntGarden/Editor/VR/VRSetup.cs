@@ -141,7 +141,28 @@ namespace AntGarden.EditorTools
                 EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
             ProjectSetup.Run();
             ConfigureQuest();
-            Build(BuildTarget.Android, "AntGarden_Quest", "AntGarden.apk");
+            // a second copy that installs beside the first, to compare presets in the headset: ANTGARDEN_VARIANT=smooth
+            // makes com.ucldfpi.antgarden.smooth, named "Ant Garden" and ANTGARDEN_VARIANT_NAME (its own files folder, so
+            // its own quest.json); the project's own id and name are put back afterwards
+            string variant = System.Environment.GetEnvironmentVariable("ANTGARDEN_VARIANT");
+            if (string.IsNullOrEmpty(variant))
+            {
+                Build(BuildTarget.Android, "AntGarden_Quest", "AntGarden.apk");
+                return;
+            }
+            string name = PlayerSettings.productName, label = System.Environment.GetEnvironmentVariable("ANTGARDEN_VARIANT_NAME");
+            PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, QuestPackage + "." + variant);
+            PlayerSettings.productName = name + " " + (string.IsNullOrEmpty(label) ? variant : label);
+            try
+            {
+                Build(BuildTarget.Android, "AntGarden_Quest", $"AntGarden_{variant}.apk");
+            }
+            finally
+            {
+                PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, QuestPackage);
+                PlayerSettings.productName = name;
+                AssetDatabase.SaveAssets();
+            }
         }
     }
 }
