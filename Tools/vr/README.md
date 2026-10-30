@@ -110,6 +110,7 @@ Mac 上用 `zsh Tools/vr/quest.sh devices|install|start|stop|push|log|shot` 做�
 | `volume` | 所有声音，电脑版的几倍 |
 | `view` | 开局在哪看：`eye` 蚂蚁的眼睛，`behind` 它身后（游戏里按 Y 切换） |
 | `behindScale` / `behindBack` / `behindUp` | 身后视角：世界的缩放（蚂蚁的眼睛是 0.25）、离蚂蚁多远、多高 |
+| `walk` / `leanRadius` | 怎么移动：`stick` 站在原地用左摇杆爬（默认，安全）；`real` 迈步、蚂蚁跟着爬（游戏里按下右摇杆切换）。头离站立处多远以内（米）画面跟着动，再远就不跟了 |
 
 ## 下一步
 

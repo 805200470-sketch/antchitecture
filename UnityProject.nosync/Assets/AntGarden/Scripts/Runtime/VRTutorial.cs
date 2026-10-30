@@ -21,8 +21,8 @@ namespace AntGarden
         static readonly string[][] Steps =
         {
             new[] { "欢迎来到 Ant Garden", "Welcome to Ant Garden",
-                $"你是一只蚂蚁。推动{K}左摇杆</color>，朝你看的方向爬；按下左摇杆可以快爬。",
-                $"You are an ant. Push the {K}left stick</color> to crawl the way you look; click it in to run." },
+                $"你是一只蚂蚁。站在原地就能玩：推动{K}左摇杆</color>，朝你看的方向爬；按下左摇杆可以快爬。",
+                $"You are an ant. Stand still to play: push the {K}left stick</color> to crawl the way you look; click it in to run." },
             new[] { "转身", "Turning",
                 $"向左或向右拨一下{K}右摇杆</color>，转身 30°。",
                 $"Flick the {K}right stick</color> left or right to turn 30°." },
@@ -151,9 +151,9 @@ namespace AntGarden
             }
             helpText.text = Loc.T(
                 $"<b>手柄操作</b>\n\n{K}左摇杆</color>  爬行（按下：快爬）\n{K}右摇杆</color>  转身\n{K}A</color>  打招呼 / 查看\n{K}B</color>  触角（碰亮发光植物）\n" +
-                $"{K}Y</color>  蚂蚁的眼睛 / 身后\n{K}X</color>  English\n{K}菜单键</color>  关上这张卡片\n\n<color=#9bbcbc>跟着地上的光走，找到蚁穴的心脏。</color>",
+                $"{K}Y</color>  蚂蚁的眼睛 / 身后\n{K}按下右摇杆</color>  真实走动 开 / 关（默认关）\n{K}X</color>  English\n{K}菜单键</color>  关上这张卡片\n\n<color=#9bbcbc>跟着地上的光走，找到蚁穴的心脏。</color>",
                 $"<b>Controls</b>\n\n{K}Left stick</color>  crawl (click in: run)\n{K}Right stick</color>  turn\n{K}A</color>  greet / look closer\n{K}B</color>  antennae (light up plants)\n" +
-                $"{K}Y</color>  the ant's eyes / behind it\n{K}X</color>  中文\n{K}Menu</color>  close this card\n\n<color=#9bbcbc>Follow the light on the ground to the heart of the nest.</color>");
+                $"{K}Y</color>  the ant's eyes / behind it\n{K}Right stick click</color>  walk for real on / off (off at first)\n{K}X</color>  中文\n{K}Menu</color>  close this card\n\n<color=#9bbcbc>Follow the light on the ground to the heart of the nest.</color>");
         }
 
         /// <summary>A label kept this far in from its card's sides (left and right alike) and from its top and bottom.</summary>

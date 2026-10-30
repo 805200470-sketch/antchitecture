@@ -48,6 +48,8 @@ namespace AntGarden
             public float behindScale = 0.5f;    // behind the ant: a real metre is this many units (the ant's eyes: 0.25)
             public float behindBack = 2f;       // the head this far behind the ant (units)
             public float behindUp = 1.1f;       // and this far above its feet
+            public string walk = "stick";       // "stick": stand still and crawl with the left stick (safe); "real": step and the ant follows (the right stick's click switches)
+            public float leanRadius = 0.3f;     // how far the head may lean from where the player stands before the view stops following (real metres)
         }
 
         /// <summary>The game runs in a standalone headset, or a desktop shows how it would there.</summary>
@@ -99,6 +101,8 @@ namespace AntGarden
             vr.behindScale = Mathf.Max(0.05f, q.behindScale);
             vr.behindBack = q.behindBack;
             vr.behindUp = q.behindUp;
+            vr.realWalk = q.walk == "real";
+            vr.leanRadius = Mathf.Max(0.05f, q.leanRadius);
         }
 
         /// <summary>The particle nest, before it is made (and before SolidThings and the vines are: their shares are

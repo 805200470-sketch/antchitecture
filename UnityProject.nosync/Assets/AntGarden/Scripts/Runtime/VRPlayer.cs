@@ -12,8 +12,10 @@ namespace AntGarden
     /// following it) and back in. The headset turns and moves the camera within the origin; the left stick walks the ant
     /// the way the head faces (pressed in: run); the right stick turns in steps (a smooth turn makes many people sick);
     /// A reaches out with the antennae (as E), B touches antennae (as Space); X switches the language (as L); the left
-    /// controller's menu button shows every control (VRTutorial). The screen's text hangs in front of the eyes, always on
-    /// top. Without a headset none of this is made and the game plays on the screen as before.
+    /// controller's menu button shows every control (VRTutorial). The player stands still: a lean moves the view, a step
+    /// further does not (walking about a room in a headset is how people get hurt), unless walking for real is switched
+    /// on (the right stick's click), when the ant crawls after each step. The screen's text hangs in front of the eyes,
+    /// always on top. Without a headset none of this is made and the game plays on the screen as before.
     /// </summary>
     public class VRPlayer : MonoBehaviour
     {
@@ -34,14 +36,17 @@ namespace AntGarden
         public float behindBack = 2f;       // the resting head this far behind the ant (units, the way the player faces)
         public float behindUp = 1.1f;       // and this far above its feet
         public float behindEase = 4f;       // how quickly the view catches up with the ant (it never turns by itself)
+        public float leanRadius = 0.3f;     // the head may lean this far from where the player stands (real metres); further, the view stays put
+        public bool realWalk;               // walking for real: a step past leanRadius sends the ant crawling after it (the right stick's click switches)
 
         Camera cam;
         Transform origin;
         AntController ant;
         float yaw, eyeY;
-        bool centred, turned, aWas, bWas, xWas, yWas, menuWas, placeBehind, blinked;
+        bool centred, turned, aWas, bWas, xWas, yWas, menuWas, clickWas, placeBehind, blinked;
         Vector3 rest;                       // where the head was in the origin when it was centred (the player's own resting pose)
         Vector3 behindAt;                   // the resting head's place behind the ant, eased
+        Vector3 pending, antLast;           // walking for real: how far the ant has still to crawl after the player's steps (world)
 
         /// <summary>The left stick (x right, y forward), whether it is pressed in (run), and A and B pressed this frame.</summary>
         public Vector2 Move { get; private set; }
@@ -82,6 +87,7 @@ namespace AntGarden
                 gameObject.AddComponent<VRTutorial>().Init(this, hud, player);
             }
             eyeY = ant.Position.y + eyeHeight;
+            antLast = ant.Position;
             if (view == View.Behind) SetView(View.Behind);
             Application.onBeforeRender += Pose;
             Debug.Log($"[AntGarden] VR: {XRSettings.loadedDeviceName}, {XRSettings.eyeTextureWidth}x{XRSettings.eyeTextureHeight} per eye, refresh {XRDevice.refreshRate:F0} Hz, world scale 1/{scale:F2}, view {view}");
@@ -102,6 +108,49 @@ namespace AntGarden
             Debug.Log($"[AntGarden] VR view: {v}");
         }
 
+        /// <summary>Walking for real, or standing still and crawling with the stick (the safer way, and the default).</summary>
+        public void SetWalk(bool real)
+        {
+            realWalk = real;
+            pending = Vector3.zero;
+            Game.Instance?.hud?.ShowLine(Loc.T("走动方式", "Moving"), real
+                ? Loc.T("真实走动：开。你迈步，蚂蚁跟着爬。注意周围，别走出边界。", "Walking for real: on. Step, and the ant crawls after you. Mind your surroundings.")
+                : Loc.T("真实走动：关。站在原地，用左摇杆爬。", "Walking for real: off. Stand still and crawl with the left stick."));
+            Debug.Log($"[AntGarden] VR walking: {(real ? "real" : "stick")}");
+        }
+
+        /// <summary>Walking for real: the way to where the player has stepped, as a push of the left stick (covered in
+        /// about a third of a second, at most at a crawl).</summary>
+        Vector2 Walk()
+        {
+            if (!realWalk || pending.sqrMagnitude < 1e-6f) return Vector2.zero;
+            var (fwd, right) = Basis();
+            Vector2 to = new Vector2(pending.x, pending.z) / (Mathf.Max(0.1f, ant.cfg.crawlSpeed) * 0.35f);
+            return new Vector2(Vector2.Dot(to, right), Vector2.Dot(to, fwd));
+        }
+
+        /// <summary>Where the player stands: a lean within leanRadius moves the view, a step beyond it does not (the view
+        /// stays at the edge of the lean), unless walking for real, when the step is passed on to the ant to crawl.</summary>
+        void Stand(Vector3 p, Quaternion r)
+        {
+            Vector3 moved = p - antLast;
+            moved.y = 0f;
+            antLast = p;
+            if (pending.sqrMagnitude > 1e-8f)
+            {
+                Vector3 dir = pending.normalized;
+                pending -= dir * Mathf.Clamp(Vector3.Dot(moved, dir), 0f, pending.magnitude);
+                pending *= Mathf.Exp(-Time.deltaTime / 2f);   // what the ant cannot reach (a wall in the way) fades
+            }
+            if (!centred) return;
+            Vector3 off = cam.transform.localPosition - rest;
+            off.y = 0f;
+            if (off.magnitude <= leanRadius) return;
+            Vector3 step = off - off.normalized * leanRadius;
+            rest += step;
+            if (realWalk) pending = Vector3.ClampMagnitude(pending + r * step * origin.localScale.x, 1.5f);
+        }
+
         /// <summary>The ant's way of walking relative to where the head faces (forward, right; on the floor).</summary>
         public (Vector2 fwd, Vector2 right) Basis()
         {
@@ -116,13 +165,17 @@ namespace AntGarden
             Pose();
             if (blinked) { blinked = false; Game.Instance?.hud?.SetFade(0f); }
             InputDevice left = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand), right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
-            Move = left.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 m) && m.sqrMagnitude > 0.02f ? Vector2.ClampMagnitude(m, 1f) : Vector2.zero;
+            Vector2 stick = left.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 m) && m.sqrMagnitude > 0.02f ? m : Vector2.zero;
+            Move = Vector2.ClampMagnitude(stick + Walk(), 1f);
             Run = left.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool run) && run;
             bool a = right.TryGetFeatureValue(CommonUsages.primaryButton, out bool av) && av;
             bool b = right.TryGetFeatureValue(CommonUsages.secondaryButton, out bool bv) && bv;
             bool x = left.TryGetFeatureValue(CommonUsages.primaryButton, out bool xv) && xv;
             bool y = left.TryGetFeatureValue(CommonUsages.secondaryButton, out bool yv) && yv;
             bool menu = left.TryGetFeatureValue(CommonUsages.menuButton, out bool mv) && mv;
+            bool click = right.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool cv) && cv;
+            if (click && !clickWas) SetWalk(!realWalk);
+            clickWas = click;
             Interact = a && !aWas;
             Talk = b && !bWas;
             Switched = y && !yWas;
@@ -156,6 +209,7 @@ namespace AntGarden
             eyeY = Mathf.Lerp(eyeY, p.y + eyeHeight, 1f - Mathf.Exp(-heightEase * Time.deltaTime));
             Quaternion r = Quaternion.Euler(0f, yaw, 0f);
             origin.rotation = r;
+            Stand(p, r);
             if (view == View.Eye)
             {
                 // the resting head at the ant's eyes; leaning moves it a little (in real metres times scale)

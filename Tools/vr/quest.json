@@ -25,5 +25,7 @@
   "view": "eye",
   "behindScale": 0.5,
   "behindBack": 2.0,
-  "behindUp": 1.1
+  "behindUp": 1.1,
+  "walk": "stick",
+  "leanRadius": 0.3
 }
