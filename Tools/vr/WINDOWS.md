@@ -24,6 +24,7 @@
 - 头显版只在 `experiment/vr` 上改
 - `main`（10-16 演示版）、`experiment/particle-look`（电脑版的粒子蚁穴，Mac 上做）、`recoginize-path`：都不动
 - [Releases](https://github.com/805200470-sketch/antchitecture/releases)：打包好的游戏（现在有 10-16 的电脑版）
+- 蓝色蚁穴 v15（电脑版的定稿模板）的参考图：`Tools/vr/参考_v15/`；它的代码是提交 `3d9c0c0`。只看不改，见第 12 节
 
 ### Windows 本地（建议的位置）
 
@@ -176,6 +177,7 @@ ADB="/c/Program Files/Unity/Hub/Editor/2022.3.62f3c1/Editor/Data/PlaybackEngines
 ## 9. 不能动的
 
 - 只改 `experiment/vr`。不碰 `main`、`experiment/particle-look` 和别的分支，不往它们合并；不用 `--force`，不改已经推上去的历史；不删分支、标签和 Releases。
+- 电脑版（`experiment/particle-look`，包括 v15 的 `3d9c0c0`）只能看：不切换到它，不在上面提交，不推。怎么看见第 12 节。
 - 电脑版共用的默认值和资源不改：`ParticleLook`、`SolidThings`、`GameConfig`、`game_config.json`、着色器、美术资源、场景、蚁穴路径文件。头显版的数值只在 `QuestLook.cs` 和 `quest.json` 里改。真要动共用文件，先问用户，并且像 `Game.cs` 里现有的几处一样用 `QuestLook.On` 包住，改得越少越好。
 - 把电脑版的新进展合进头显版（`git merge origin/experiment/particle-look`），要等用户说；`Game.cs`、`GameConfig.cs`、`SolidThings.cs` 里标了 QuestLook 的几处要保住。
 - 不删文件，不用的移到别处；不用 `git reset --hard`、`git clean`。
@@ -195,4 +197,54 @@ ADB="/c/Program Files/Unity/Hub/Editor/2022.3.62f3c1/Editor/Data/PlaybackEngines
 
 工程已经在 `F:\AntGarden` 以后，新对话可以直接选这个文件夹，开场贴：
 
-> 你接手 Ant Garden 的头显版（分支 experiment/vr，工程在 F:\AntGarden）。全程用中文回答。先读 Tools/vr/WINDOWS.md 和 Tools/vr/README.md，照里面的规矩做：只改 experiment/vr，不动电脑版共用的东西，推送前先问我。然后告诉我现在到哪了、下一步做什么。
+> 你接手 Ant Garden 的头显版（分支 experiment/vr，工程在 F:\AntGarden）。全程用中文回答。先读 Tools/vr/WINDOWS.md 和 Tools/vr/README.md，照里面的规矩做：只改 experiment/vr，不动电脑版共用的东西，推送前先问我。画面对照 Tools/vr/参考_v15/（电脑版蓝色蚁穴 v15，只看不改）。然后告诉我现在到哪了、下一步做什么。
+
+## 12. 蓝色蚁穴 v15：只看、不改的参考
+
+头显版的画面往电脑版的蓝色蚁穴 v15 靠。v15 是用户 10-25 定下的模板。电脑版只能看，不能改；改动只发生在 `experiment/vr` 上。
+
+| 看什么 | 在哪 |
+|---|---|
+| v15 的截图、总览、视频帧、说明 | `Tools/vr/参考_v15/`，在 `experiment/vr` 上，克隆下来就有。网页：<https://github.com/805200470-sketch/antchitecture/tree/experiment/vr/Tools/vr/%E5%8F%82%E8%80%83_v15> |
+| v15 的代码 | 提交 `3d9c0c0`（`experiment/particle-look` 上，10-25 14:42）。它在 `experiment/vr` 的历史里，克隆下来就能看。网页：<https://github.com/805200470-sketch/antchitecture/tree/3d9c0c0> |
+| 现在的电脑版 | 分支 `experiment/particle-look`，Mac 上一直在改。头显版 10-29 合进过它的 `c94577c` |
+
+**只读的看法**（这几条都不会改任何东西）：
+
+```
+git show 3d9c0c0:UnityProject.nosync/Assets/AntGarden/Scripts/Runtime/ParticleLook.cs
+git diff 3d9c0c0 experiment/vr -- UnityProject.nosync/Assets/AntGarden/Scripts/Runtime/ParticleLook.cs
+git fetch origin experiment/particle-look
+git log --oneline origin/experiment/particle-look -20
+```
+
+- 想看现在的电脑版跑起来什么样：在 Unity 编辑器里打开 `F:\AntGarden\UnityProject.nosync`，按 Play。编辑器里用的是电脑版的参数（头显参数只在安卓上、或者加 `-quest` 时才生效），默认就是蓝色蚁穴。
+- 想把 v15 本身跑起来：用 `git worktree add --detach F:/AntGarden_v15 3d9c0c0` 另开一个只读的工作目录，再用 Unity 打开里面的 `UnityProject.nosync`。会再下载一部分文件，第一次导入约一小时。在里面不提交、不推；看完以后留不留，问用户。
+
+**推送保护**（装一次就行，除了 `experiment/vr`，别的推送一律挡下）：
+
+```
+cd F:/AntGarden
+git config remote.origin.push refs/heads/experiment/vr:refs/heads/experiment/vr
+cat > .git/hooks/pre-push <<'EOF'
+#!/bin/sh
+# This computer pushes experiment/vr only: other branches, tags and deletions are refused.
+while read local_ref local_sha remote_ref remote_sha; do
+  case "$local_sha" in
+    *[!0]*) ;;
+    *) echo "pre-push: refused to delete $remote_ref" >&2; exit 1 ;;
+  esac
+  if [ "$remote_ref" != "refs/heads/experiment/vr" ]; then
+    echo "pre-push: this computer only pushes experiment/vr (refused: $remote_ref)" >&2
+    exit 1
+  fi
+done
+exit 0
+EOF
+chmod +x .git/hooks/pre-push
+```
+
+- `git config` 那一行：`git push` 不带参数时，只推 `experiment/vr`。
+- 钩子：推别的分支、推标签、删远程分支，都会被拦下。另开的 worktree 也共用这个钩子。
+- 不要用 `--no-verify` 绕过它。
+- 两台电脑登录的是同一个 GitHub 账号，GitHub 网站上的分支保护分不出是哪台电脑推的，所以保护放在 Windows 这份克隆里。
