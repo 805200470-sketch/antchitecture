@@ -39,7 +39,7 @@ namespace AntGarden
         Transform origin;
         AntController ant;
         float yaw, eyeY;
-        bool centred, turned, aWas, bWas, xWas, yWas, menuWas, placeBehind;
+        bool centred, turned, aWas, bWas, xWas, yWas, menuWas, placeBehind, blinked;
         Vector3 rest;                       // where the head was in the origin when it was centred (the player's own resting pose)
         Vector3 behindAt;                   // the resting head's place behind the ant, eased
 
@@ -96,6 +96,9 @@ namespace AntGarden
             origin.localScale = Vector3.one * (v == View.Eye ? scale : behindScale);
             ant.SetVisible(v == View.Behind);
             placeBehind = true;   // straight there: a glide would pass through the walls
+            // and in a blink: dark at once, clearing over a third of a second (the cut is gentler on the stomach)
+            Game.Instance?.hud?.SetFade(1f, true);
+            blinked = true;
             Debug.Log($"[AntGarden] VR view: {v}");
         }
 
@@ -111,6 +114,7 @@ namespace AntGarden
         void Update()
         {
             Pose();
+            if (blinked) { blinked = false; Game.Instance?.hud?.SetFade(0f); }
             InputDevice left = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand), right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
             Move = left.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 m) && m.sqrMagnitude > 0.02f ? Vector2.ClampMagnitude(m, 1f) : Vector2.zero;
             Run = left.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool run) && run;

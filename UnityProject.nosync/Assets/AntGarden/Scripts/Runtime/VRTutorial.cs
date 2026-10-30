@@ -73,13 +73,14 @@ namespace AntGarden
             if (Find(root, "Objective") is RectTransform goal)
             {
                 goal.anchorMin = goal.anchorMax = goal.pivot = new Vector2(0.5f, 1f);
-                goal.anchoredPosition = new Vector2(0, -60);
+                goal.anchoredPosition = new Vector2(0, -30);
                 goal.localScale = Vector3.one * 1.5f;
                 foreach (Text t in goal.GetComponentsInChildren<Text>(true)) t.alignment = TextAnchor.MiddleCenter;
             }
             foreach (string name in new[] { "Prompt", "Line", "Caption" })
                 if (Find(root, name) is RectTransform rt) rt.localScale = Vector3.one * 1.35f;
             if (Find(root, "Minimap") is RectTransform map) map.gameObject.SetActive(false);
+            if (Find(root, "Fade") is RectTransform veil) veil.localScale = Vector3.one * 6f;   // a fade covers the whole view, not a window in it
             if (Find(root, "Prompt") is RectTransform pr) prompt = pr.GetComponentInChildren<Text>(true);
             Write();
         }
