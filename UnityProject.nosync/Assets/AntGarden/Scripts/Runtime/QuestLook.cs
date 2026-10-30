@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.IO;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.Rendering.PostProcessing;
 using UnityEngine.XR;
@@ -23,16 +25,18 @@ namespace AntGarden
         {
             public string world = "";           // the nest to start in (empty: game_config.json's defaultWorld)
             public float all = 0.6f;            // every share below, times this (the first thing to turn on the headset; 1: 20-28 fps on a Quest 3)
-            public float plants = 0.2f;         // the plants' coarse splats, of the desktop's (fewer splats are drawn larger)
-            public float far = 0.05f;           // the giants beyond the walls: their fine splats
-            public int giants = 8;              // and at most this many of them (cfg.scatter.surroundingsCount; their dark bodies are as many as their size wants)
-            public float things = 0.35f;        // the floor's things (splats per unit² of their surface)
+            public float plants = 0.45f;        // the plants' coarse splats, of the desktop's (fewer splats are drawn larger; 0.2: 3 fps more, each plant blurrier)
+            public float far = 0.02f;           // the giants beyond the walls: their fine splats
+            public int giants = 4;              // and at most this many of them (cfg.scatter.surroundingsCount; their dark bodies are as many as their size wants)
+            public float things = 0.45f;        // the floor's things (splats per unit² of their surface)
             public int fine = 2;                // each thing's splat drawn as this many up close (SolidThings.Fine; 4 on a desktop)
-            public float ground = 0.15f;        // the ground's glowing points
+            public float ground = 0.08f;        // the ground's glowing points
             public float dust = 0.3f;           // the motes in the air
             public float carpet = 3f;           // the carpet's spacing, times the desktop's (a third as many each way)
-            public float shell = 0.12f;         // the plants' fine splats round the ant (the budget moved from far to near: no coarse discs up close;
-                                                // quest_quality.json puts far more on every plant: shell 0.3, plants 0.45, things 0.45, 5 ms more)
+            public float shell = 0.3f;          // the plants' fine splats round the ant (the budget moved from far to near: each plant read
+                                                // up close, as the user asked on 10-30; 0.12: 3 fps more)
+            public float ants = 0.08f;          // the ants' points, of the desktop's 160 000 (fewer are drawn larger: their flakes as large as
+                                                // the plants' round them, the user's 10-31 "蚂蚁的粒子…单个粒子太小，没法和环境匹配")
             public float walls = 0.08f;         // the walls' splats round the ant
             public float groundShell = 0.2f;    // the ground's points round the ant
             public float vines = 0.5f;
@@ -41,9 +45,10 @@ namespace AntGarden
             public bool shadows = false;
             public float resolution = 1f;       // the eyes' textures, of the size the headset asks for (not applied: see TuneView)
             public float fpsLog = 5f;           // seconds between frame-rate lines in the log (0: none)
-            public float wave = 1.6f;           // the plants' sway in the wind, times the desktop's (larger in a headset)
-            public float gusts = 1.25f;         // how fast the gusts run, times the desktop's
-            public float ripples = 1.6f;        // the rings that spread over the floor, times their strength
+            public float wave = 2.6f;           // the plants' sway in the wind, times the desktop's (larger in a headset; 10-31 "潮汐…可以更强")
+            public float gusts = 1.1f;          // how fast the gusts run, times the desktop's
+            public float swell = 1.5f;          // how far apart they run, times the desktop's (longer swells, rolling over the nest like a tide)
+            public float ripples = 2.4f;        // the rings that spread over the floor, times their strength
             public float volume = 1.6f;         // every sound, times the desktop's
             public string view = "eye";         // where the headset starts: "eye" (the ant's own eyes) or "behind" (Y switches)
             public float behindScale = 0.5f;    // behind the ant: a real metre is this many units (the ant's eyes: 0.25)
@@ -51,6 +56,16 @@ namespace AntGarden
             public float behindUp = 1.1f;       // and this far above its feet
             public string walk = "stick";       // "stick": stand still and crawl with the left stick (safe); "real": step and the ant follows (the right stick's click switches)
             public float leanRadius = 0.3f;     // how far the head may lean from where the player stands before the view stops following (real metres)
+            public string turn = "gaze";        // "gaze": the ant turns the way the head looks (10-31); "stick": the right stick turns in steps
+            public float gazeDeadZone = 40f;    // the head may look this far aside (degrees) without turning the ant
+            public float gazeDwell = 0.5f;      // further, for this long (seconds), and the ant turns after it
+            public bool body = true;            // through the ant's eyes its own body is there: its head below the view, legs, antennae ahead
+            public float eyeAbove = 0.15f;      // the eyes this far above the middle of its head (units, for an ant one long)
+            public float eyeAhead = 0.07f;      // and this far ahead of it
+            public bool hands = true;           // the controllers drawn in the player's hands, as the headset's home draws them
+            public bool ghostHands = true;      // and the hands round them (dark, see-through, a pale outline)
+            public float handLight = 1f;        // and how bright
+            public float lookDown = 0f;         // the view tilted down (degrees): for screenshots on a headset nobody wears; 0 to play
         }
 
         /// <summary>The game runs in a standalone headset, or a desktop shows how it would there.</summary>
@@ -94,7 +109,8 @@ namespace AntGarden
             cfg.audio.master *= Mathf.Max(0f, q.volume);
         }
 
-        /// <summary>The headset's view: where it starts (the ant's eyes, or behind it) and how it stands behind the ant.</summary>
+        /// <summary>The headset's view: where it starts (the ant's eyes, or behind it), how it stands behind the ant, how
+        /// the ant turns, its body through its eyes, the controllers.</summary>
         public static void Tune(VRPlayer vr)
         {
             Settings q = Current;
@@ -104,6 +120,36 @@ namespace AntGarden
             vr.behindUp = q.behindUp;
             vr.realWalk = q.walk == "real";
             vr.leanRadius = Mathf.Max(0.05f, q.leanRadius);
+            vr.gazeTurn = q.turn != "stick";
+            vr.gazeDeadZone = Mathf.Clamp(q.gazeDeadZone, 5f, 120f);
+            vr.gazeDwell = Mathf.Max(0f, q.gazeDwell);
+            vr.body = q.body;
+            vr.eyeAbove = q.eyeAbove;
+            vr.eyeAhead = q.eyeAhead;
+            vr.hands = q.hands;
+            vr.ghostHands = q.ghostHands;
+            vr.handLight = Mathf.Max(0f, q.handLight);
+            vr.lookDown = Mathf.Clamp(q.lookDown, -80f, 80f);
+        }
+
+        /// <summary>The ants, once ParticleAnts has loaded their points: a share of each kind's points, so each is drawn
+        /// larger (ParticleAnts sizes an ant's flakes from the count it is given, so fewer still cover it) and the ants'
+        /// flakes are as large as the plants' round them. ParticleAnts is shared with the desktop and has no share of its
+        /// own, so its kinds' counts are cut here, by reflection, and the shared file is left as it is.</summary>
+        public static void Tune(ParticleAnts ants)
+        {
+            float share = Share(Current.ants);
+            if (ants == null || share >= 1f) return;
+            const BindingFlags inside = BindingFlags.NonPublic | BindingFlags.Instance;
+            FieldInfo count = typeof(ParticleAnts).GetNestedType("Kind", BindingFlags.NonPublic)?.GetField("count");
+            if (!(typeof(ParticleAnts).GetField("kinds", inside)?.GetValue(ants) is IDictionary kinds) || count == null)
+            {
+                Debug.LogWarning("[AntGarden] quest: the ants' points left as they are (ParticleAnts has changed)");
+                return;
+            }
+            foreach (object kind in kinds.Values)
+                if (kind != null) count.SetValue(kind, Mathf.Max(64, Mathf.RoundToInt((int)count.GetValue(kind) * share)));
+            Debug.Log($"[AntGarden] quest: the ants drawn with {share:P1} of their points, {kinds.Count} kinds");
         }
 
         /// <summary>The particle nest, before it is made (and before SolidThings and the vines are: their shares are
@@ -168,26 +214,34 @@ namespace AntGarden
             var field = cam.gameObject.AddComponent<QuestField>();
             field.wave = q.wave;
             field.gusts = q.gusts;
+            field.swell = Mathf.Max(0.1f, q.swell);
             field.ripples = q.ripples;
         }
     }
 
     /// <summary>The nest's living field a little stronger in a headset, for a stronger sense of being there: the plants
-    /// sway further in the wind, the gusts run faster, the rings on the floor rise higher. The nest's own values
-    /// (NestField.cginc's _NestWind and _Ripples, as LabNest sets them) are scaled as they come, each once.</summary>
+    /// sway further in the wind, the gusts run in longer swells, like a tide, the rings on the floor rise higher. The
+    /// nest's own values (NestField.cginc's _NestWind and _Ripples, as LabNest sets them) are scaled as they come, each
+    /// once. And once the nest is ready, its ants are drawn with fewer, larger points (QuestLook.Tune(ParticleAnts)).</summary>
     public class QuestField : MonoBehaviour
     {
-        public float wave = 1f, gusts = 1f, ripples = 1f;
+        public float wave = 1f, gusts = 1f, swell = 1f, ripples = 1f;
         Vector4 windSet;
         Vector4[] ringsSet;
+        bool antsDone;
         readonly System.Collections.Generic.List<Vector4> rings = new System.Collections.Generic.List<Vector4>(8);
 
         void LateUpdate()
         {
+            if (!antsDone && Game.Instance != null && Game.Instance.Ready)
+            {
+                antsDone = true;
+                QuestLook.Tune(Game.Instance.GetComponent<ParticleAnts>());
+            }
             Vector4 w = Shader.GetGlobalVector("_NestWind");
             if (w != Vector4.zero && w != windSet)
             {
-                windSet = new Vector4(w.x * wave, w.y * gusts, w.z, w.w);
+                windSet = new Vector4(w.x * wave, w.y * gusts, w.z * swell, w.w);
                 Shader.SetGlobalVector("_NestWind", windSet);
             }
             if (ripples == 1f) return;

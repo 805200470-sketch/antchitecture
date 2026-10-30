@@ -24,8 +24,8 @@ namespace AntGarden
                 $"你是一只蚂蚁。站在原地就能玩：推动{K}左摇杆</color>，朝你看的方向爬；按下左摇杆可以快爬。",
                 $"You are an ant. Stand still to play: push the {K}left stick</color> to crawl the way you look; click it in to run." },
             new[] { "转身", "Turning",
-                $"向左或向右拨一下{K}右摇杆</color>，转身 30°。",
-                $"Flick the {K}right stick</color> left or right to turn 30°." },
+                $"{K}转头</color>看向别处，停一下，蚂蚁就转过去；推左摇杆，它就朝你看的方向爬。低头看看，那是你的脚和触角。",
+                $"{K}Turn your head</color> and hold it there: the ant turns to look with you, and the left stick crawls that way. Look down: your legs, your antennae." },
             new[] { "换个视角", "Another view",
                 $"按 {K}Y</color>：走出蚂蚁的身体，从它身后看；再按一次，回到它的眼睛。",
                 $"Press {K}Y</color> to step out behind the ant; press it again to look through its eyes." },
@@ -38,6 +38,13 @@ namespace AntGarden
             new[] { "出发", "Off you go",
                 "跟着地上的光走，穿过蚁穴，找到它的心脏。",
                 "Follow the light on the ground through the nest to its heart." },
+        };
+
+        // the turning step when the right stick turns instead of the head (QuestLook's turn "stick")
+        static readonly string[] StickTurn =
+        {
+            $"向左或向右拨一下{K}右摇杆</color>，转身 30°。",
+            $"Flick the {K}right stick</color> left or right to turn 30°.",
         };
 
         VRPlayer vr;
@@ -144,15 +151,18 @@ namespace AntGarden
             if (teaching)
             {
                 title.text = $"<b>{Steps[step][l]}</b>";
-                body.text = Steps[step][2 + l];
+                body.text = step == 1 && !vr.gazeTurn ? StickTurn[l] : Steps[step][2 + l];
                 foot.text = Loc.T(
                     $"{K}Y</color> 视角    {K}X</color> English    {K}菜单键</color> 全部操作        {step + 1} / {Steps.Length}",
                     $"{K}Y</color> view    {K}X</color> 中文    {K}Menu</color> all controls        {step + 1} / {Steps.Length}");
             }
+            string turning = vr.gazeTurn
+                ? Loc.T($"{K}转头</color>  蚂蚁跟着你看的方向转身", $"{K}Turn your head</color>  the ant turns the way you look")
+                : Loc.T($"{K}右摇杆</color>  转身", $"{K}Right stick</color>  turn");
             helpText.text = Loc.T(
-                $"<b>手柄操作</b>\n\n{K}左摇杆</color>  爬行（按下：快爬）\n{K}右摇杆</color>  转身\n{K}A</color>  打招呼 / 查看\n{K}B</color>  触角（碰亮发光植物）\n" +
+                $"<b>手柄操作</b>\n\n{K}左摇杆</color>  朝你看的方向爬（按下：快爬）\n{turning}\n{K}A</color>  打招呼 / 查看\n{K}B</color>  触角（碰亮发光植物）\n" +
                 $"{K}Y</color>  蚂蚁的眼睛 / 身后\n{K}按下右摇杆</color>  真实走动 开 / 关（默认关）\n{K}X</color>  English\n{K}菜单键</color>  关上这张卡片\n\n<color=#9bbcbc>跟着地上的光走，找到蚁穴的心脏。</color>",
-                $"<b>Controls</b>\n\n{K}Left stick</color>  crawl (click in: run)\n{K}Right stick</color>  turn\n{K}A</color>  greet / look closer\n{K}B</color>  antennae (light up plants)\n" +
+                $"<b>Controls</b>\n\n{K}Left stick</color>  crawl the way you look (click in: run)\n{turning}\n{K}A</color>  greet / look closer\n{K}B</color>  antennae (light up plants)\n" +
                 $"{K}Y</color>  the ant's eyes / behind it\n{K}Right stick click</color>  walk for real on / off (off at first)\n{K}X</color>  中文\n{K}Menu</color>  close this card\n\n<color=#9bbcbc>Follow the light on the ground to the heart of the nest.</color>");
         }
 
