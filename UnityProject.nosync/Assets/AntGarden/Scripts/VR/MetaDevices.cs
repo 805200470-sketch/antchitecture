@@ -51,6 +51,7 @@ namespace AntGarden
             public Material look;               // its own material, so it fades on its own
             public float shown;                 // how much of it is drawn
             public bool index, middle;          // its pinches, held
+            public bool told;                   // its first sight logged
         }
 
         /// <summary>A button's letter over it.</summary>
@@ -178,8 +179,14 @@ namespace AntGarden
             holder.transform.SetParent(origin, false);
             GameObject hand = Instantiate(prefab, holder.transform, false);
             s.tracked = hand.GetComponent<OVRHand>();
-            bool set = Set(s.tracked, "HandType", s.left ? OVRHand.Hand.HandLeft : OVRHand.Hand.HandRight)
-                & Set(hand.GetComponent<OVRSkeleton>(), "_updateRootPose", true);
+            var skeleton = hand.GetComponent<OVRSkeleton>();
+            bool set = Set(s.tracked, "HandType", s.left ? OVRHand.Hand.HandLeft : OVRHand.Hand.HandRight);
+            // the prefab's skeleton is saved as the older kind (the editor puts that right as the prefab goes into a scene;
+            // made at runtime nothing does), so it found no data and never moved from where it was made: lying across the
+            // middle of the view (the user, 11-01). Its kind and its data now come from the hand itself.
+            if (s.tracked is OVRSkeleton.IOVRSkeletonDataProvider provider)
+                set &= Set(skeleton, "_skeletonType", provider.GetSkeletonType()) & Set(skeleton, "_dataProvider", provider);
+            set &= Set(skeleton, "_updateRootPose", true);
             var meshRenderer = hand.GetComponent<OVRMeshRenderer>();
             set &= Set(meshRenderer, "_confidenceBehavior", OVRMeshRenderer.ConfidenceBehavior.None)
                 & Set(meshRenderer, "_systemGestureBehavior", OVRMeshRenderer.SystemGestureBehavior.None);
@@ -267,6 +274,16 @@ namespace AntGarden
                 if (s.look != null)
                 {
                     bool seen = s.tracked != null && s.tracked.IsTracked && s.tracked.IsDataHighConfidence;
+                    if (seen && !s.told)
+                    {
+                        // where the hand is against its controller, the first time it is seen (both in the origin, metres)
+                        s.told = true;
+                        var skeleton = s.tracked.GetComponent<OVRSkeleton>();
+                        Debug.Log($"[AntGarden] VR: {(s.left ? "left" : "right")} hand seen: skeleton {skeleton?.GetSkeletonType()}, " +
+                            $"moving {skeleton != null && skeleton.IsInitialized && skeleton.IsDataValid}, at {s.tracked.transform.localPosition:F3}; " +
+                            $"its controller at {OVRInput.GetLocalControllerPosition(s.touch):F3} ({(OVRInput.GetControllerPositionTracked(s.touch) ? "tracked" : "not tracked")}), " +
+                            $"poses from the controller {OVRInput.AreHandPosesGeneratedByControllerData(OVRPlugin.Step.Render, s.hand)}");
+                    }
                     s.shown = Mathf.MoveTowards(s.shown, seen ? 1f : 0f, dt / FadeTime);
                     s.look.SetFloat("_Alpha", s.shown);
                     bool draw = s.shown > 0.01f;

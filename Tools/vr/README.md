@@ -23,6 +23,7 @@
   - 删掉的自己写的部分：`VRHands.cs` 的 `Hand()`（照手柄捏的固定假手）和只给它用的 `Capsule()`，`ghostHands` 设置，`VRGhostHand.shader` 里靠顶点颜色淡出的写法。整个项目里从来没有摄像头画面、图像识别或猜手位置的代码。
   - 没用 Meta Interaction SDK：它要 `OVRCameraRig`，而这里的相机是游戏自己的、挂在缩小的 VR Origin 下；只要显示手和手柄、读捏合和置信度，Core SDK 的 `OVRHand` 就够了。
   - 头显实测（没人戴，手柄在桌上）：能启动，日志 `VR input: Meta XR Core SDK (OVRPlugin 1.201.0); hands with controllers supported; drawn: controllers True, hands True, 5 button letters`；帧率和加 SDK 前一样（约 29.5）；颜色和加之前的截图一样。手柄模型、手、捏合要人戴上才能验证。
+  - 用户戴上实测（11-01 夜）：手柄位置对，手横在视野正中、对不上手柄。原因：运行时生成的 `OVRHandPrefab`，骨骼还是预制体里存的旧类型（OVR 手），而这台头显用 OpenXR 手部骨骼；编辑器里把预制体放进场景时会自动改，运行时生成没人改，骨骼找不到数据、一直不动，手的网格停在追踪原点（眼睛那里）的默认姿势。现在生成时按手本身的类型设骨骼类型和数据来源（`MetaDevices.Hand`），第一次看到每只手时日志记下手和手柄的位置（`VR: left hand seen …`），等用户再测。
 - **11-01 演示后的反馈**，都只改头显专用的文件（共用文件只在运行时改、不改文件）。新版先打成「Ant Garden 测试版」（`com.ucldfpi.antgarden.test`，`ANTGARDEN_VARIANT=test ANTGARDEN_VARIANT_NAME=测试版`）单独装，测过再替换主版本；10-31 带手柄的主版本另存为 `AntGarden_v2_1031_hands.apk`。
   0. **手和手柄。** 排查结果：头显和手柄的位置本来就读系统（OpenXR，`InputDevices`），没有任何图像识别；但手是照着手柄捏的固定假手（`VRHands.cs` 的 `Hand()`），手柄外形也是仿的。要换成系统的手部追踪，两条路等用户选：A. Meta XR Core SDK 201.0.0（Unity 2022.3 能用的最后一版，Meta 的包源这台电脑连得上；拿着手柄时也有系统给的手，可开 Multimodal）；B. XR Hands 1.8.1（拿着手柄时没有手；「手柄推出来的手」要 XR Hands 1.9，只支持 Unity 6）。
   1. **文字歧义。** 头显里站着玩，摇杆让蚂蚁「爬」，不再说「走」；「走出蚂蚁的身体」改成「换到蚂蚁身后看（第三人称）」；去掉「心脏」（10-27 起就没有心脏了）。游戏自带的目标「跟着地上的光走」在头显里显示成「用左摇杆，沿着地上的光爬」（`VRTutorial.Crawling`）。
