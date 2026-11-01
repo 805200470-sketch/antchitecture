@@ -59,9 +59,18 @@ namespace AntGarden
             public string turn = "gaze";        // "gaze": the ant turns the way the head looks (10-31); "stick": the right stick turns in steps
             public float gazeDeadZone = 40f;    // the head may look this far aside (degrees) without turning the ant
             public float gazeDwell = 0.5f;      // further, for this long (seconds), and the ant turns after it
-            public bool body = true;            // through the ant's eyes its own body is there: its head below the view, legs, antennae ahead
-            public float eyeAbove = 0.15f;      // the eyes this far above the middle of its head (units, for an ant one long)
-            public float eyeAhead = 0.07f;      // and this far ahead of it
+            public bool body = true;            // through the ant's eyes its own body is there: legs below, antennae ahead
+            public float bodyFade = 0.35f;      // and this much of it (its points; 1 whole): see-through (11-01 "触角会遮挡视线")
+            public float eyeAbove = 0f;         // the view this far above the ant's eyes (units, for an ant one long; 11-01 "摄像头位置可以在蚂蚁眼部")
+            public float eyeAhead = 0.02f;      // and this far ahead of its face
+            public float heightEase = 4f;       // how quickly the view follows the ant up and down (slower: smoother, sickens less)
+            public float comfort = 0.6f;        // how dark the view's edges grow while the ant crawls, against motion sickness (0: never)
+            public float strayWarn = 0.6f;      // standing still: a player this far from where they started (real metres) is asked back (0: never)
+            public string tutorial = "auto";    // "auto": the tutorial the first time on this headset (a trigger skips it); "always"; "never"
+            public float focusDark = 0.65f;     // at the tutorial's last step the nest darkened this much round the way's light (11-01 "压暗环境，突出光路"; 0: not)
+            public float focusTime = 10f;       // for this long (seconds)
+            public int tutorialFrom = 0;        // tests: the tutorial from this step on (5: the way on, its light picked out; with tutorial "always")
+            public float testCrawl = 0f;        // tests on a headset nobody wears: the ant crawls ahead by itself for this long once ready (seconds)
             public bool hands = true;           // the controllers drawn in the player's hands, as the headset's home draws them
             public bool ghostHands = true;      // and the hands round them (dark, see-through, a pale outline)
             public float handLight = 1f;        // and how bright
@@ -110,7 +119,7 @@ namespace AntGarden
         }
 
         /// <summary>The headset's view: where it starts (the ant's eyes, or behind it), how it stands behind the ant, how
-        /// the ant turns, its body through its eyes, the controllers.</summary>
+        /// the ant turns, its body through its eyes, the controllers, the comfort and the tutorial.</summary>
         public static void Tune(VRPlayer vr)
         {
             Settings q = Current;
@@ -124,8 +133,17 @@ namespace AntGarden
             vr.gazeDeadZone = Mathf.Clamp(q.gazeDeadZone, 5f, 120f);
             vr.gazeDwell = Mathf.Max(0f, q.gazeDwell);
             vr.body = q.body;
+            vr.bodyFade = Mathf.Clamp01(q.bodyFade);
             vr.eyeAbove = q.eyeAbove;
             vr.eyeAhead = q.eyeAhead;
+            vr.heightEase = Mathf.Max(0.5f, q.heightEase);
+            vr.comfort = Mathf.Clamp01(q.comfort);
+            vr.strayWarn = Mathf.Max(0f, q.strayWarn);
+            vr.tutorial = q.tutorial;
+            vr.focusDark = Mathf.Clamp01(q.focusDark);
+            vr.focusTime = q.focusTime;
+            vr.tutorialFrom = Mathf.Max(0, q.tutorialFrom);
+            vr.testCrawl = Mathf.Max(0f, q.testCrawl);
             vr.hands = q.hands;
             vr.ghostHands = q.ghostHands;
             vr.handLight = Mathf.Max(0f, q.handLight);
@@ -150,6 +168,40 @@ namespace AntGarden
             foreach (object kind in kinds.Values)
                 if (kind != null) count.SetValue(kind, Mathf.Max(64, Mathf.RoundToInt((int)count.GetValue(kind) * share)));
             Debug.Log($"[AntGarden] quest: the ants drawn with {share:P1} of their points, {kinds.Count} kinds");
+        }
+
+        /// <summary>The nest's gates, once it is ready: in a headset every way leads to a particle nest. The first nest is
+        /// also the list's home, and as home its gates led to the two ruins (Game.BuildWorldGates), the way out where its
+        /// light leads among them: a ruin is plain meshes, the particle look gone (the user, 11-01: "走到终点后再回来。世界
+        /// 变成非粒子了"). Here its way out leads on to the next nest of the list, as every other nest's does, and a gate to
+        /// a world that is not a particle nest leads home. (Game.cs, shared, is left as it is; a gate's name on the screen
+        /// follows its world.)</summary>
+        public static void Tune(Game game)
+        {
+            if (game == null || !Game.Lab || game.LabNest == null || game.cfg == null) return;
+            var nests = new System.Collections.Generic.List<string>();
+            foreach (string w in (game.cfg.defaultWorld + "," + game.cfg.labWorld).Split(','))
+                if (w.Trim().StartsWith("lab:") && !nests.Contains(w.Trim())) nests.Add(w.Trim());
+            int at = nests.IndexOf(Game.Selection);
+            string next = nests.Count > 1 && at >= 0 ? nests[(at + 1) % nests.Count] : null;
+            Gate wayOut = null;
+            float best = float.MaxValue;
+            foreach (Gate g in game.gates)
+            {
+                if (g.world == null) continue;
+                float d = (new Vector2(g.position.x, g.position.z) - game.LabNest.Heart).sqrMagnitude;
+                if (d < best) { best = d; wayOut = g; }
+            }
+            var changed = new System.Collections.Generic.List<string>();
+            foreach (Gate g in game.gates)
+            {
+                if (g.world == null) continue;
+                string was = g.world;
+                if (g == wayOut && next != null) g.world = next;
+                else if (!g.world.StartsWith("lab:")) g.world = game.cfg.defaultWorld;
+                if (g.world != was) changed.Add($"{was} -> {g.world}");
+            }
+            if (changed.Count > 0) Debug.Log($"[AntGarden] quest: world gates {string.Join(", ", changed)} (the way out leads on to {next ?? "nowhere"})");
         }
 
         /// <summary>The particle nest, before it is made (and before SolidThings and the vines are: their shares are
@@ -222,7 +274,8 @@ namespace AntGarden
     /// <summary>The nest's living field a little stronger in a headset, for a stronger sense of being there: the plants
     /// sway further in the wind, the gusts run in longer swells, like a tide, the rings on the floor rise higher. The
     /// nest's own values (NestField.cginc's _NestWind and _Ripples, as LabNest sets them) are scaled as they come, each
-    /// once. And once the nest is ready, its ants are drawn with fewer, larger points (QuestLook.Tune(ParticleAnts)).</summary>
+    /// once. And once the nest is ready, its ants are drawn with fewer, larger points (QuestLook.Tune(ParticleAnts)) and
+    /// its gates lead to particle nests only (QuestLook.Tune(Game)).</summary>
     public class QuestField : MonoBehaviour
     {
         public float wave = 1f, gusts = 1f, swell = 1f, ripples = 1f;
@@ -237,6 +290,7 @@ namespace AntGarden
             {
                 antsDone = true;
                 QuestLook.Tune(Game.Instance.GetComponent<ParticleAnts>());
+                QuestLook.Tune(Game.Instance);
             }
             Vector4 w = Shader.GetGlobalVector("_NestWind");
             if (w != Vector4.zero && w != windSet)
