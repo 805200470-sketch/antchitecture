@@ -19,15 +19,16 @@ namespace AntGarden
     /// about a room in a headset is how people get hurt; a player who wanders off is asked back, strayWarn), unless
     /// walking for real is switched on (the right stick's click), when the ant crawls after each step. While the ant
     /// crawls the edges of the view darken (comfort, VRComfort), against motion sickness. The screen's text hangs in front
-    /// of the eyes, always on top. Without a headset none of this is made and the game plays on the screen as before.
+    /// of the eyes, always on top. Without a headset none of this is made and the game plays on the screen as before
+    /// (unless -vrpreview asks for the headset's view on the screen: VRPreview).
     /// </summary>
     public class VRPlayer : MonoBehaviour
     {
         /// <summary>Where the player looks from: the ant's own eyes, or behind and above it.</summary>
         public enum View { Eye, Behind }
 
-        /// <summary>A headset is on and drawing.</summary>
-        public static bool Active => XRSettings.enabled && XRSettings.isDeviceActive;
+        /// <summary>A headset is on and drawing (or a computer shows what it would: VRPreview).</summary>
+        public static bool Active => (XRSettings.enabled && XRSettings.isDeviceActive) || VRPreview.On;
 
         public float scale = 0.25f;         // the origin's scale: a real metre is this many units (the ant is one unit long)
         public float eyeHeight = 0.34f;     // without the ant's body: the eyes above its feet, over its middle (units)
@@ -48,6 +49,7 @@ namespace AntGarden
         public float gazeDwell = 0.5f;      // further, for this long (seconds), and the ant turns after it
         public bool body = true;            // through the ant's eyes its own body is there: its legs, its antennae ahead
         public float bodyFade = 0.35f;      // and this much of it (its points; 1: whole), see-through so it hides nothing ahead
+        public float selfPoints = 0.5f;     // drawn with this share of all its points, each smaller than the other ants' (QuestLook.OwnPoints)
         public float eyeAbove = 0f;         // the view this far above the ant's eyes (units, for an ant one long)
         public float eyeAhead = 0.02f;      // and this far ahead of its face
         public float comfort = 0.6f;        // how dark the view's edges grow while the ant crawls (0: never; VRComfort)
@@ -55,7 +57,7 @@ namespace AntGarden
         public string tutorial = "auto";    // the tutorial: "auto" (the first time on this headset), "always", "never" (VRTutorial)
         public float focusDark = 0.65f;     // at its last step the nest this dark round the way's light (0: not at all; VRPathFocus)
         public float focusTime = 10f;       // for this long (seconds)
-        public int tutorialFrom;            // tests: the tutorial from this step on (5: the way on, its light picked out)
+        public int tutorialFrom;            // tests: the tutorial from this step on (5: the way on, its light picked out; -1: the instructions instead)
         public float testCrawl;             // tests on a headset nobody wears: the ant crawls the way the headset faces for this long once the nest is ready (seconds)
         public bool hands = true;           // the controllers drawn in the player's hands (VRHands)
         public bool ghostHands = true;      // and the hands round them, as the headset's home draws them
@@ -73,6 +75,8 @@ namespace AntGarden
         Vector3 behindAt;                   // the resting head's place behind the ant, eased
         Vector3 pending, antLast;           // walking for real: how far the ant has still to crawl after the player's steps (world)
         Vector3 eyeAt;                      // the eyes on the ant: up from its feet (y) and ahead of its middle (z), units
+        QuestLook.OwnPoints own;            // the ant's own points, finer through its eyes
+        Renderer ring;                      // the glowing ring round its feet (from behind; through its eyes it is all round the player)
 
         /// <summary>The left stick (x right, y forward), whether it is pressed in (run), and A and B pressed this frame.</summary>
         public Vector2 Move { get; private set; }
@@ -105,6 +109,8 @@ namespace AntGarden
             eyeAt = new Vector3(0f, eyeHeight, 0f);
             if (body) body = FindEyes();
             ant.SetVisible(body);   // the player is the ant: its body in view (or, without its head found, none of it)
+            if (body) own = QuestLook.OwnPoints.Make(GetComponent<ParticleAnts>(), ant);
+            ring = GameObject.Find("PlayerRing")?.GetComponent<Renderer>();
             if (hands) gameObject.AddComponent<VRHands>().Init(origin, handLight, ghostHands);
             if (comfort > 0f) cam.gameObject.AddComponent<VRComfort>().Init(ant, comfort);
             if (hud != null)
@@ -119,7 +125,7 @@ namespace AntGarden
                 rt.localRotation = Quaternion.identity;
                 rt.localScale = Vector3.one * (textWidth / 1920f);
                 Shader.SetGlobalInt("unity_GUIZTestMode", (int)UnityEngine.Rendering.CompareFunction.Always);
-                if (focusDark > 0f) gameObject.AddComponent<VRPathFocus>().Init(hud, focusDark, focusTime);
+                if (focusDark > 0f) gameObject.AddComponent<VRPathFocus>().Init(cam, focusDark, focusTime);
                 gameObject.AddComponent<VRTutorial>().Init(this, hud, player);
             }
             floorY = ant.Position.y;
@@ -128,6 +134,7 @@ namespace AntGarden
             lastHeading = behindYaw = ant.heading;
             if (view == View.Behind) SetView(View.Behind);
             Application.onBeforeRender += Pose;
+            if (VRPreview.On) gameObject.AddComponent<VRPreview>().Init(cam);
             Debug.Log($"[AntGarden] VR: {XRSettings.loadedDeviceName}, {XRSettings.eyeTextureWidth}x{XRSettings.eyeTextureHeight} per eye, refresh {XRDevice.refreshRate:F0} Hz, world scale 1/{scale:F2}, view {view}, turning {(gazeTurn ? "by gaze" : "by stick")}, body {body} ({bodyFade:P0}), hands {hands}, comfort {comfort:F2}");
         }
 
@@ -392,9 +399,9 @@ namespace AntGarden
         void LateUpdate()
         {
             if (ant == null) return;
-            if (!centred && cam.transform.localRotation != Quaternion.identity)
+            if (!centred && (cam.transform.localRotation != Quaternion.identity || VRPreview.On))
             {
-                // the first real pose: the player starts looking the way the ant faces
+                // the first real pose (a preview's head, held still, is one): the player starts looking the way the ant faces
                 rest = cam.transform.localPosition;
                 spot = new Vector3(rest.x, 0f, rest.z);
                 Vector3 af = ant.transform.forward;
@@ -407,6 +414,8 @@ namespace AntGarden
             // through its eyes the ant is see-through, behind it whole (it dissolves point by point, as an ant in a desktop
             // camera's way does)
             if (body) ant.FadePoints(view == View.Eye ? bodyFade : 1f, Time.deltaTime);
+            own?.Show(view == View.Eye, selfPoints);
+            if (ring != null) ring.enabled = view == View.Behind;
             Vector3 p = ant.Position;
             floorY = Mathf.Lerp(floorY, p.y, 1f - Mathf.Exp(-heightEase * Time.deltaTime));
             origin.rotation = Quaternion.Euler(lookDown, yaw, 0f);

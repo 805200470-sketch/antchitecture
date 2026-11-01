@@ -22,29 +22,35 @@ namespace AntGarden
         const float MinShown = 2.5f;        // every step stays this long at least (seconds), to be read
         const float Larger = 1.35f;         // the cards, this much larger than they are made (their words with them)
         const string Seen = "AntGarden.vr.tutorialSeen";   // PlayerPrefs: done or skipped once on this headset
+        // (blended in linear light, 10% of a bright line behind a card still reads a third as bright: the instructions,
+        // over the goal and the region's name, shut out all of it)
+        static readonly Color CardBg = new Color(0.02f, 0.07f, 0.08f, 0.95f);
+        static readonly Color HelpBg = new Color(0.02f, 0.07f, 0.08f, 1f);
 
         // each step: its title and its words, in 中文 and in English (the player stands still: the ant crawls, the player
         // never walks)
+        // (the 中文 broken by hand where a line would otherwise end mid-phrase or begin with a stop)
         static readonly string[][] Steps =
         {
             new[] { "欢迎来到 Ant Garden", "Welcome to Ant Garden",
-                $"你是一只蚂蚁。站在原地玩，不用走动：推{K}左摇杆</color>，蚂蚁朝你看的方向爬；按下左摇杆是快爬。",
+                $"你是一只蚂蚁。站在原地玩，不用走动。\n推{K}左摇杆</color>，蚂蚁朝你看的方向爬；按下左摇杆是快爬。",
                 $"You are an ant. Play standing still, no need to walk: push the {K}left stick</color> and the ant crawls the way you look; click it in to run." },
             new[] { "转身", "Turning",
-                $"{K}转头</color>看向别处，停一下，蚂蚁就跟着转过去。低头看看，那是你的腿；眼前是你的触角。",
-                $"{K}Turn your head</color> and hold it there: the ant turns to look with you. Look down: your legs; ahead, your antennae." },
+                $"{K}转头</color>看向别处，停一下，蚂蚁就跟着转过去。\n低头看看，那是你的腿。",
+                $"{K}Turn your head</color> and hold it there: the ant turns to look with you. Look down: your legs." },
             new[] { "换个视角", "Another view",
-                $"按 {K}Y</color>：换到蚂蚁身后看（第三人称）；再按一次，回到蚂蚁的眼睛（第一人称）。",
+                $"按 {K}Y</color>：换到蚂蚁身后看（第三人称）；\n再按一次，回到蚂蚁的眼睛（第一人称）。",
                 $"Press {K}Y</color> to watch the ant from behind (third person); press it again to look through its eyes (first person)." },
             new[] { "触角", "Antennae",
-                $"松开摇杆停下来，按 {K}B</color> 摆动触角。触角碰到发光的植物，植物会亮起来。",
+                $"松开摇杆停下来，按 {K}B</color> 摆动触角。\n触角碰到发光的植物，植物会亮起来。",
                 $"Let go of the stick to stop, and press {K}B</color> to wave your antennae. Glowing plants light up at their touch." },
             new[] { "打招呼", "Saying hello",
-                $"用左摇杆爬到别的蚂蚁或发光的物件旁边，按 {K}A</color> 打招呼、仔细看看。",
+                $"用左摇杆爬到别的蚂蚁或发光的物件旁边，\n按 {K}A</color> 打招呼、仔细看看。",
                 $"Crawl up to another ant or a glowing relic with the left stick, and press {K}A</color> to greet it or look closer." },
+            // (the light may be beside or behind the ant: the player is sent to look for it)
             new[] { "出发", "Off you go",
-                "看，地上那条光：沿着它爬，它带你穿过蚁穴，通向出口。右上角的小地图上，箭头就是你。",
-                "See the light on the ground: crawl along it, through the nest, to the way out. On the map top right, the arrow is you." },
+                "看看脚下和四周：地上那条亮起来的光，\n沿着它爬，它带你穿过蚁穴，通向出口。\n右上角的小地图上，箭头就是你。",
+                "Look down and around: the light on the ground, brighter now. Crawl along it, through the nest, to the way out. On the map top right, the arrow is you." },
         };
 
         // the turning step when the right stick turns instead of the head (QuestLook's turn "stick")
@@ -67,6 +73,7 @@ namespace AntGarden
         AntController ant;
         RectTransform card, help;
         Text title, body, foot, helpText, prompt, goal;
+        CanvasGroup line;
         int step, turnsAt;
         float shown, walked;
         bool switched, talked, greeted, helpOpen, en;
@@ -81,41 +88,58 @@ namespace AntGarden
             en = Loc.En;
             Transform root = canvas.transform;
 
-            card = UiKit.Rect(root, "VR Tutorial", 0.5f, 0.5f, new Vector2(0, 60), new Vector2(1120, 230));
+            // the cards a little below straight ahead (the canvas's middle is 3° below the eyes, and about 34 of its units
+            // make a degree there), on a darker ground than the screen's (through 0.62 the nest's points read as noise)
+            card = UiKit.Rect(root, "VR Tutorial", 0.5f, 0.5f, new Vector2(0, -100), new Vector2(1150, 300));
             card.localScale = Vector3.one * Larger;
-            UiKit.Panel(card, UiKit.PanelBg);
-            title = Inset(UiKit.Label(card, "Title", "", 40, UiKit.Warm, TextAnchor.UpperLeft), 34, 20);
-            body = Inset(UiKit.Label(card, "Body", "", 32, UiKit.Ink, TextAnchor.UpperLeft), 34, 76);
-            foot = Inset(UiKit.Label(card, "Foot", "", 24, UiKit.Dim, TextAnchor.LowerRight), 34, 16);
+            UiKit.Panel(card, CardBg);
+            title = Inset(UiKit.Label(card, "Title", "", 48, UiKit.Warm, TextAnchor.UpperLeft), 34, 20);
+            body = Inset(UiKit.Label(card, "Body", "", 40, UiKit.Ink, TextAnchor.UpperLeft), 34, 84);
+            body.rectTransform.offsetMin = new Vector2(34, 56);   // (down to just over the foot)
+            foot = Inset(UiKit.Label(card, "Foot", "", 28, UiKit.Dim, TextAnchor.LowerRight), 34, 16);
 
-            help = UiKit.Rect(root, "VR Controls", 0.5f, 0.5f, new Vector2(0, -20), new Vector2(860, 640));
+            help = UiKit.Rect(root, "VR Controls", 0.5f, 0.5f, new Vector2(0, -20), new Vector2(900, 740));
             help.localScale = Vector3.one * Larger;
-            UiKit.Panel(help, UiKit.PanelBg);
-            helpText = Inset(UiKit.Label(help, "Text", "", 32, UiKit.Ink, TextAnchor.UpperLeft), 40, 30);
+            UiKit.Panel(help, HelpBg);
+            helpText = Inset(UiKit.Label(help, "Text", "", 34, UiKit.Ink, TextAnchor.UpperLeft), 40, 30);
             help.gameObject.SetActive(false);
 
-            // the screen's own lines, made for a monitor: the goal to the middle and larger, the prompts and lines larger
-            // (the line raised clear of the prompt below it), the minimap in from the corner
+            // the screen's own lines, made for a monitor: the goal to the top middle and larger; the prompt (bottom) and
+            // a line said (an ant's, a relic's, a hint: where the card is, which steps aside for it) larger and narrower;
+            // the region's name larger; the minimap in from the corner, about 24° right and 6° up, clear of the card, its
+            // arrow (the player) larger; the frame-rate bar gone
             if (Find(root, "Objective") is RectTransform g)
             {
                 g.anchorMin = g.anchorMax = g.pivot = new Vector2(0.5f, 1f);
                 g.anchoredPosition = new Vector2(0, -30);
-                g.localScale = Vector3.one * 1.9f;
+                g.localScale = Vector3.one * 2.3f;
                 foreach (Text t in g.GetComponentsInChildren<Text>(true)) t.alignment = TextAnchor.MiddleCenter;
                 goal = g.GetComponentInChildren<Text>(true);
             }
-            foreach (string name in new[] { "Prompt", "Line" })
-                if (Find(root, name) is RectTransform rt) rt.localScale = Vector3.one * 1.7f;
-            if (Find(root, "Line") is RectTransform said) said.anchoredPosition += new Vector2(0, 50);
+            if (Find(root, "Prompt") is RectTransform pr)
+            {
+                pr.sizeDelta = new Vector2(680, 56);
+                pr.localScale = Vector3.one * 2.2f;
+                if (pr.GetComponent<Image>() is Image bar) bar.color = CardBg;
+                prompt = pr.GetComponentInChildren<Text>(true);
+            }
+            if (Find(root, "Line") is RectTransform said)
+            {
+                said.sizeDelta = new Vector2(820, 140);
+                said.anchoredPosition = new Vector2(0, 307);   // its middle where the card's is
+                said.localScale = Vector3.one * 1.9f;
+                line = said.GetComponent<CanvasGroup>();
+            }
             if (Find(root, "Caption") is RectTransform caption) caption.localScale = Vector3.one * 1.35f;
-            if (Find(root, "Region") is RectTransform region) region.localScale = Vector3.one * 1.2f;
+            if (Find(root, "Region") is RectTransform region) region.localScale = Vector3.one * 1.5f;
             if (Find(root, "Minimap") is RectTransform map)
             {
-                map.anchoredPosition = new Vector2(-60, -60);   // about 20-25° right of straight ahead, a little above
-                map.localScale = Vector3.one * 1.25f;
+                map.anchoredPosition = new Vector2(91, -40);
+                map.localScale = Vector3.one * 1.4f;
+                if (Find(map, "Player") is RectTransform me) me.localScale = Vector3.one * 2f;
             }
+            if (Find(root, "Stats") is RectTransform stats) stats.gameObject.SetActive(false);
             if (Find(root, "Fade") is RectTransform veil) veil.localScale = Vector3.one * 6f;   // a fade covers the whole view, not a window in it
-            if (Find(root, "Prompt") is RectTransform pr) prompt = pr.GetComponentInChildren<Text>(true);
 
             // the tutorial the first time on this headset; after that, where to find it
             if (vr.tutorial == "never" || (vr.tutorial != "always" && PlayerPrefs.GetInt(Seen, 0) == 1))
@@ -123,6 +147,12 @@ namespace AntGarden
                 step = Steps.Length;
                 Game.Instance?.hud?.ShowLine(Loc.T("使用说明", "Instructions"),
                     Loc.T("按菜单键看操作说明；在说明里扣一下扳机，可以重看新手教程。", "Press Menu for the instructions; there, pull a trigger to see the tutorial again."));
+            }
+            else if (vr.tutorialFrom < 0)
+            {
+                // (a test: the instructions open instead)
+                step = Steps.Length;
+                helpOpen = true;
             }
             else if (vr.tutorialFrom > 0)
             {
@@ -149,12 +179,16 @@ namespace AntGarden
             greeted |= vr.Interact;
             if (en != Loc.En) { en = Loc.En; Write(); }
             if (step >= Steps.Length) return;
+            if (line != null && line.alpha >= 0.01f) return;   // (the card has stepped aside for a line: the step waits)
             shown += Time.deltaTime;
             if (shown >= MinShown && Done()) Next();
         }
 
         void LateUpdate()
         {
+            // one thing to read at a time: while a line is said the card steps aside
+            bool cardOn = step < Steps.Length && !helpOpen && (line == null || line.alpha < 0.01f);
+            if (card.gameObject.activeSelf != cardOn) card.gameObject.SetActive(cardOn);
             // the game's prompts name the keyboard's E: in a headset that is A; and its goal crawls rather than walks
             if (prompt != null && prompt.text != promptSeen)
             {
@@ -245,8 +279,7 @@ namespace AntGarden
         {
             int l = Loc.En ? 1 : 0;
             bool teaching = step < Steps.Length;
-            card.gameObject.SetActive(teaching && !helpOpen);
-            help.gameObject.SetActive(helpOpen);
+            help.gameObject.SetActive(helpOpen);   // (the card: LateUpdate)
             if (teaching)
             {
                 title.text = $"<b>{Steps[step][l]}</b>";

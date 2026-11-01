@@ -35,6 +35,7 @@
   "gazeDwell": 0.5,
   "body": true,
   "bodyFade": 0.35,
+  "selfPoints": 0.5,
   "eyeAbove": 0.0,
   "eyeAhead": 0.02,
   "heightEase": 4.0,

@@ -61,6 +61,7 @@ namespace AntGarden
             public float gazeDwell = 0.5f;      // further, for this long (seconds), and the ant turns after it
             public bool body = true;            // through the ant's eyes its own body is there: legs below, antennae ahead
             public float bodyFade = 0.35f;      // and this much of it (its points; 1 whole): see-through (11-01 "触角会遮挡视线")
+            public float selfPoints = 0.5f;     // and drawn with this share of all its points, each smaller than the other ants' (its legs a hand's breadth away: specks, not discs)
             public float eyeAbove = 0f;         // the view this far above the ant's eyes (units, for an ant one long; 11-01 "摄像头位置可以在蚂蚁眼部")
             public float eyeAhead = 0.02f;      // and this far ahead of its face
             public float heightEase = 4f;       // how quickly the view follows the ant up and down (slower: smoother, sickens less)
@@ -69,7 +70,7 @@ namespace AntGarden
             public string tutorial = "auto";    // "auto": the tutorial the first time on this headset (a trigger skips it); "always"; "never"
             public float focusDark = 0.65f;     // at the tutorial's last step the nest darkened this much round the way's light (11-01 "压暗环境，突出光路"; 0: not)
             public float focusTime = 10f;       // for this long (seconds)
-            public int tutorialFrom = 0;        // tests: the tutorial from this step on (5: the way on, its light picked out; with tutorial "always")
+            public int tutorialFrom = 0;        // tests: the tutorial from this step on (5: the way on, its light picked out; -1: the instructions instead; with tutorial "always")
             public float testCrawl = 0f;        // tests on a headset nobody wears: the ant crawls ahead by itself for this long once ready (seconds)
             public bool hands = true;           // the controllers drawn in the player's hands, as the headset's home draws them
             public bool ghostHands = true;      // and the hands round them (dark, see-through, a pale outline)
@@ -134,6 +135,7 @@ namespace AntGarden
             vr.gazeDwell = Mathf.Max(0f, q.gazeDwell);
             vr.body = q.body;
             vr.bodyFade = Mathf.Clamp01(q.bodyFade);
+            vr.selfPoints = Mathf.Clamp01(q.selfPoints);
             vr.eyeAbove = q.eyeAbove;
             vr.eyeAhead = q.eyeAhead;
             vr.heightEase = Mathf.Max(0.5f, q.heightEase);
@@ -142,7 +144,7 @@ namespace AntGarden
             vr.tutorial = q.tutorial;
             vr.focusDark = Mathf.Clamp01(q.focusDark);
             vr.focusTime = q.focusTime;
-            vr.tutorialFrom = Mathf.Max(0, q.tutorialFrom);
+            vr.tutorialFrom = Mathf.Max(-1, q.tutorialFrom);
             vr.testCrawl = Mathf.Max(0f, q.testCrawl);
             vr.hands = q.hands;
             vr.ghostHands = q.ghostHands;
@@ -168,6 +170,65 @@ namespace AntGarden
             foreach (object kind in kinds.Values)
                 if (kind != null) count.SetValue(kind, Mathf.Max(64, Mathf.RoundToInt((int)count.GetValue(kind) * share)));
             Debug.Log($"[AntGarden] quest: the ants drawn with {share:P1} of their points, {kinds.Count} kinds");
+        }
+
+        /// <summary>
+        /// The player's own ant with a share of its points of its own (ParticleAnts draws every ant of a kind with the
+        /// kind's share, Tune above): through its eyes more of them, each smaller, than the ants about it get, so its legs
+        /// and antennae a hand's breadth from the eyes are fine specks, not discs as wide as a leaf (seen in a preview,
+        /// 11-01, VRPreview); behind it, as many as theirs. Its own copy of its kind, made as the ants are (the same points
+        /// buffer, never released twice: ParticleAnts frees its kinds' alone). Null if ParticleAnts has changed.
+        /// </summary>
+        public sealed class OwnPoints
+        {
+            readonly object own, shared;
+            readonly FieldInfo count;
+            readonly int all;
+            int set = -1;
+
+            OwnPoints(object own, object shared, FieldInfo count, int all)
+            {
+                this.own = own;
+                this.shared = shared;
+                this.count = count;
+                this.all = all;
+            }
+
+            /// <summary>Through its eyes (share: of all its points), or as the other ants of its kind.</summary>
+            public void Show(bool eyes, float share)
+            {
+                int n = eyes ? Mathf.Max(64, Mathf.RoundToInt(all * share)) : (int)count.GetValue(shared);
+                if (n == set) return;
+                count.SetValue(own, n);
+                set = n;
+            }
+
+            public static OwnPoints Make(ParticleAnts ants, AntController player)
+            {
+                if (ants == null) return null;   // (a world without particle ants: a ruin)
+                const BindingFlags inside = BindingFlags.NonPublic | BindingFlags.Instance;
+                Type kindType = typeof(ParticleAnts).GetNestedType("Kind", BindingFlags.NonPublic);
+                Type shownType = typeof(ParticleAnts).GetNestedType("Shown", BindingFlags.NonPublic);
+                FieldInfo count = kindType?.GetField("count"), points = kindType?.GetField("points");
+                FieldInfo kindOf = shownType?.GetField("kind"), antOf = shownType?.GetField("ant");
+                MethodInfo copy = typeof(object).GetMethod("MemberwiseClone", inside);
+                if (count == null || points == null || kindOf == null || antOf == null || copy == null
+                    || !(typeof(ParticleAnts).GetField("ants", inside)?.GetValue(ants) is IList shown))
+                {
+                    Debug.LogWarning("[AntGarden] quest: the player's own points left as the other ants' (ParticleAnts has changed)");
+                    return null;
+                }
+                foreach (object s in shown)
+                {
+                    if (!ReferenceEquals(antOf.GetValue(s), player)) continue;
+                    object shared = kindOf.GetValue(s);
+                    if (!(points.GetValue(shared) is ComputeBuffer buffer)) return null;
+                    object own = copy.Invoke(shared, null);
+                    kindOf.SetValue(s, own);
+                    return new OwnPoints(own, shared, count, buffer.count);
+                }
+                return null;
+            }
         }
 
         /// <summary>The nest's gates, once it is ready: in a headset every way leads to a particle nest. The first nest is

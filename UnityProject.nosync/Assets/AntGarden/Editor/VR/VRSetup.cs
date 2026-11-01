@@ -134,6 +134,16 @@ namespace AntGarden.EditorTools
             Build(BuildTarget.StandaloneWindows64, "AntGarden_Windows_VR", "AntGarden.exe");
         }
 
+        /// <summary>Windows, to look at the headset's view with no headset (VRPreview: AntGarden.exe -vrpreview &lt;dir&gt;
+        /// -quest &lt;quest.json&gt;), in a folder of its own (AntGarden_VRPreview). OpenXR starts as the game starts, as in
+        /// any Windows build: run it with XR_RUNTIME_JSON naming no file, so a headset on the cable is left alone.</summary>
+        [MenuItem("AntGarden/Build/Windows, the headset's view previewed (x64)")]
+        public static void BuildVRPreview()
+        {
+            ProjectSetup.Run();
+            Build(BuildTarget.StandaloneWindows64, "AntGarden_VRPreview", "AntGarden.exe");
+        }
+
         [MenuItem("AntGarden/Build/Quest (Android, OpenXR)")]
         public static void BuildQuest()
         {
