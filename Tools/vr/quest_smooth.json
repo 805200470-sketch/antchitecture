@@ -34,8 +34,9 @@
   "gazeDeadZone": 40.0,
   "gazeDwell": 0.5,
   "body": true,
-  "bodyFade": 0.35,
+  "selfAlpha": 0.8,
   "selfPoints": 0.5,
+  "selfSize": 0.5,
   "eyeAbove": 0.0,
   "eyeAhead": 0.02,
   "heightEase": 4.0,
@@ -45,7 +46,7 @@
   "focusDark": 0.65,
   "focusTime": 10.0,
   "hands": true,
-  "ghostHands": true,
+  "ghostHands": false,
   "handLight": 1.0,
   "lookDown": 0.0
 }

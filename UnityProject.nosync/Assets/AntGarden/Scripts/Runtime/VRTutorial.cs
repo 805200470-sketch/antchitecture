@@ -105,9 +105,10 @@ namespace AntGarden
             help.gameObject.SetActive(false);
 
             // the screen's own lines, made for a monitor: the goal to the top middle and larger; the prompt (bottom) and
-            // a line said (an ant's, a relic's, a hint: where the card is, which steps aside for it) larger and narrower;
-            // the region's name larger; the minimap in from the corner, about 24° right and 6° up, clear of the card, its
-            // arrow (the player) larger; the frame-rate bar gone
+            // a line said (an ant's, a relic's, a hint: where the card is, which steps aside for it) larger and narrower,
+            // on the cards' darker ground; the region's name larger; the minimap up and out of the way, about 24° right
+            // and 21° up (at 6° up it sat in the middle of the view: the user, 11-01, "小地图的位置更靠上，不要在视觉中心
+            // 遮挡"), its arrow (the player) larger; the frame-rate bar gone
             if (Find(root, "Objective") is RectTransform g)
             {
                 g.anchorMin = g.anchorMax = g.pivot = new Vector2(0.5f, 1f);
@@ -128,13 +129,14 @@ namespace AntGarden
                 said.sizeDelta = new Vector2(820, 140);
                 said.anchoredPosition = new Vector2(0, 307);   // its middle where the card's is
                 said.localScale = Vector3.one * 1.9f;
+                if (said.GetComponent<Image>() is Image ground) ground.color = CardBg;
                 line = said.GetComponent<CanvasGroup>();
             }
             if (Find(root, "Caption") is RectTransform caption) caption.localScale = Vector3.one * 1.35f;
             if (Find(root, "Region") is RectTransform region) region.localScale = Vector3.one * 1.5f;
             if (Find(root, "Minimap") is RectTransform map)
             {
-                map.anchoredPosition = new Vector2(91, -40);
+                map.anchoredPosition = new Vector2(91, 498);
                 map.localScale = Vector3.one * 1.4f;
                 if (Find(map, "Player") is RectTransform me) me.localScale = Vector3.one * 2f;
             }
