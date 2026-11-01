@@ -46,7 +46,6 @@
   "focusDark": 0.65,
   "focusTime": 10.0,
   "hands": true,
-  "ghostHands": false,
   "handLight": 1.0,
   "lookDown": 0.0
 }

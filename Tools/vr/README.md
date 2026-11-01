@@ -10,11 +10,19 @@
   1. **第一人称里自己的蚂蚁更透明，只看得出轮廓；爬起来还会挡、和镜头不同步。** 原因：蚂蚁起步时低头、转弯时侧倾、随坡度倾斜，镜头不跟着倾斜，高度还比身体慢半拍（`heightEase`），身体就在眼前晃。现在第一人称里自己的身体不再由 `ParticleAnts` 画，改由 `VRSelf.cs` + `Resources/AntGarden/VR/VRGhostAnt.shader` 画：骨骼动作照旧（腿迈步、触角摆），但整体跟着镜头走（水平、同样的缓动高度、去掉起步低头和转弯侧倾）；半透明，越是侧对眼睛的点越实，正对眼睛的几乎透明，离眼睛很近的部分（脸、触角根）不画，眼睛的点不画。`selfAlpha` 0.8（轮廓的不透明度）、`selfSize` 0.5（点的大小，小一点轮廓更细）、`selfPoints` 0.5。头显实测：低头 65° 腿是一串串半透明的亮点勾出的轮廓，里面是空的；平视时看不到身体。第三人称时仍由 `ParticleAnts` 画完整的蚂蚁。
   2. **小地图更靠上，不挡视线中心。** 挪到约右 24°、上 21°（原来上 6°）。对话条（如「使用说明」）底色加深到和卡片一样，压在亮的植物上也看得清。
   3. **第三人称按摇杆时镜头偏移不自然、乱动。** 原因：镜头跟在蚂蚁后面有延迟（爬时落后、停了再追上），蚂蚁转向时镜头还绕着它滑过去，这些都是玩家没操作的运动。现在镜头和蚂蚁一起平移，不延迟、不自己绕；头转开超过 `behindSwing`（60°）约 1 秒，眨一下眼把镜头放到蚂蚁身后（朝头看的方向）。去掉了 `behindEase`、`behindTurn`。实测：自动爬行时三张截图里蚂蚁停在画面同一位置。
-  4. **手柄看不清按键。** 照着手柄捏的假手先关掉了（`ghostHands` 默认 false，不再猜手的位置）。手和手柄换成系统追踪：用户选了 A（Meta XR Core SDK），正在接，见第 0 条和「下一步」。
+  4. **手柄看不清按键。** 手和手柄换成系统追踪（用户选了 A，Meta XR Core SDK，见下一条）：手柄画成 Meta 自己的 Touch Plus 模型，按键上的字（X、Y、≡、A、B）放大浮在按键上，教程等哪个键，哪个键的字就变大、变暖色闪；照着手柄捏的假手删掉了。
   5. **电脑版先不动**（终点的门那个问题，`Game.cs`）。
   - 打包时 Unity 两次因为内存不足崩溃（`d3d11 … 8007000e`，这台电脑开着很多浏览器窗口，提交内存只剩约 12 GB），加 `-nographics` 打包就正常了（约 50 秒），打出来的包在头显上跑得正常。
   - 头显刚唤醒的第一轮测试常被系统的边界对话框挡住、游戏起不来，第二轮起正常：自动测试前先跑一轮热身。
 
+- **手和手柄换成系统追踪（11-01 晚，用户选 A：Meta XR Core SDK 201.0.0）**，只在测试版：
+  - 包：`Packages/manifest.json` 加 Meta 的包源（`https://npm.developer.oculus.com`，不用 Unity 账号）和 `com.meta.xr.sdk.core` 201.0.0（支持 Unity 2022.3 的最后一版，203 起要 Unity 6）；OpenXR 1.10.0 → 1.14.0（Meta 自己的样例用这个组合）。连带进来 `com.unity.xr.hands` 1.7.2。第一次导入约 3 分钟。
+  - 设置（打包时 `VRSetup.ConfigureQuest` 自动设）：OpenXR（Android）开 `Meta XR Feature`，Unity 的 `Meta Quest Support` 保留；`Assets/Oculus/OculusProjectConfig.asset` 手部追踪 `ControllersAndHands`、频率 `LOW`（HIGH/MAX 就是 Fast Motion Mode，不能和「手柄和手同时」一起开；身体、脸、眼追踪都关）。Unity 的 OpenXR 1.14 会无条件往 manifest 里加眼动追踪（Quest 3 没有），`Editor/VR/QuestManifest.cs` 打包时删掉。打出来的 APK 只多了 `HAND_TRACKING` 权限和「手部追踪（非必需）」。
+  - 代码：输入层和游戏逻辑分开。`Scripts/Runtime/VRDevices.cs` 是接口（`IVRDevices`：每帧给出摇杆、按键、扳机、捏合；游戏逻辑在 `VRPlayer` / `VRTutorial` / `Game` 里决定它们做什么）；`Scripts/VR/`（单独的程序集 `AntGarden.VR`，共用的 `AntGarden.Runtime.asmdef` 没动）里 `MetaDevices.cs` 用 Meta 的 SDK 实现它。没有 Meta 运行时（电脑上 Quest Link、电脑预览）时用 `XRDevices`（Unity 的 XR 输入）和原来画的手柄。
+  - `MetaDevices`：运行时建 `OVRManager`（手柄和手同时追踪 Multimodal；拿着手柄的手由手柄的传感器生成、包在手柄上，空着的手由摄像头追踪；追踪原点和相机一样是眼睛高度；不重新居中）。手柄：Meta 的 `OVRControllerPrefab`（Quest 3 是 Touch Plus，按键会跟着按下动），每帧渲染前按 SDK 给的位置摆在 VR Origin 下；材质换成自发光的 `VRModel`（Meta 的光照材质在蚁穴里几乎是黑的）。手：`OVRHandPrefab`（系统的手部网格和骨骼），用 `VRGhostHand` 画成主界面那样的深色半透明加亮边；每帧查追踪状态和置信度，丢了或置信度低就停在最后的姿势、0.25 秒淡出，重新看到再淡入。捏合（只认摄像头看得清的空手，不认包在手柄上的手、不认正在做系统手势的手）有迟滞：强度过 0.8 算按下，低于 0.5 才算松开。右手拇指捏食指 = A、捏中指 = B；左手捏住食指 = 往前爬（朝头看的方向）、捏中指 = Y；左手的系统菜单手势 = 菜单。使用说明里加了这一行。
+  - 删掉的自己写的部分：`VRHands.cs` 的 `Hand()`（照手柄捏的固定假手）和只给它用的 `Capsule()`，`ghostHands` 设置，`VRGhostHand.shader` 里靠顶点颜色淡出的写法。整个项目里从来没有摄像头画面、图像识别或猜手位置的代码。
+  - 没用 Meta Interaction SDK：它要 `OVRCameraRig`，而这里的相机是游戏自己的、挂在缩小的 VR Origin 下；只要显示手和手柄、读捏合和置信度，Core SDK 的 `OVRHand` 就够了。
+  - 头显实测（没人戴，手柄在桌上）：能启动，日志 `VR input: Meta XR Core SDK (OVRPlugin 1.201.0); hands with controllers supported; drawn: controllers True, hands True, 5 button letters`；帧率和加 SDK 前一样（约 29.5）；颜色和加之前的截图一样。手柄模型、手、捏合要人戴上才能验证。
 - **11-01 演示后的反馈**，都只改头显专用的文件（共用文件只在运行时改、不改文件）。新版先打成「Ant Garden 测试版」（`com.ucldfpi.antgarden.test`，`ANTGARDEN_VARIANT=test ANTGARDEN_VARIANT_NAME=测试版`）单独装，测过再替换主版本；10-31 带手柄的主版本另存为 `AntGarden_v2_1031_hands.apk`。
   0. **手和手柄。** 排查结果：头显和手柄的位置本来就读系统（OpenXR，`InputDevices`），没有任何图像识别；但手是照着手柄捏的固定假手（`VRHands.cs` 的 `Hand()`），手柄外形也是仿的。要换成系统的手部追踪，两条路等用户选：A. Meta XR Core SDK 201.0.0（Unity 2022.3 能用的最后一版，Meta 的包源这台电脑连得上；拿着手柄时也有系统给的手，可开 Multimodal）；B. XR Hands 1.8.1（拿着手柄时没有手；「手柄推出来的手」要 XR Hands 1.9，只支持 Unity 6）。
   1. **文字歧义。** 头显里站着玩，摇杆让蚂蚁「爬」，不再说「走」；「走出蚂蚁的身体」改成「换到蚂蚁身后看（第三人称）」；去掉「心脏」（10-27 起就没有心脏了）。游戏自带的目标「跟着地上的光走」在头显里显示成「用左摇杆，沿着地上的光爬」（`VRTutorial.Crawling`）。
@@ -104,6 +112,10 @@
 Unity.exe -batchmode -quit -projectPath UnityProject.nosync -buildTarget Android -executeMethod AntGarden.EditorTools.VRSetup.BuildQuest -logFile quest_build.log
 ```
 
+- 11-01 起工程里有 Meta XR Core SDK：第一次打开要能连上 `https://npm.developer.oculus.com`（Meta 的包源，写在 `Packages/manifest.json`）和 packages.unity.cn。
+- 这台电脑内存紧（开着很多浏览器窗口）时 Unity 打包会崩（`d3d11 … 8007000e`）：命令行加 `-nographics`（`-batchmode -nographics -quit`），打出来的包一样能用。崩了会把 `ProjectSettings.asset` 留在改了一半的状态，先 `git restore` 它再打。
+- 打完 `ProjectSettings.asset` 里的 `preloadedAssets` 会多一项（Meta 的 `OculusRuntimeSettings`，打包时加的），不用提交，`git restore` 即可。
+
 ## 装机和调试（adb：Meta Quest Developer Hub 自带，或 Android SDK platform-tools）
 
 头显要开着开发者模式，并且允许了这台电脑的 USB 调试。Windows 还要装 Oculus ADB 驱动。
@@ -165,7 +177,7 @@ Mac 上用 `zsh Tools/vr/quest.sh devices|install|start|stop|push|log|shot` 做�
 | `strayWarn` | 站着玩时离开起点多少米提醒回去（0 关） |
 | `tutorial` | 新手教程：`auto` 这台头显第一次玩时出现；`always` 每次；`never` 不出现 |
 | `focusDark` / `focusTime` | 教程「出发」那一步压暗蚁穴的程度、持续几秒（0 不压暗） |
-| `hands` / `ghostHands` / `handLight` | 画手柄 / 手柄外面画半透明的手 / 亮度 |
+| `hands` / `handLight` | 画手柄和手（Quest 上是系统追踪的手和 Meta 的手柄模型）/ 亮度 |
 | `lookDown` | 测试用：画面往下低多少度（没人戴时截图看脚），玩的时候是 0 |
 | `tutorialFrom` / `testCrawl` | 测试用：教程从第几步开始（配 `tutorial` `always`；-1 直接打开使用说明）；没人戴时蚂蚁自己往前爬几秒。玩的时候都是 0 |
 | `selfPoints` | 第一人称时，自己的身体用全部点的多少（0.5）；越多点越小。其他蚂蚁用 `ants` 的份额 |
@@ -179,9 +191,9 @@ Mac 上用 `zsh Tools/vr/quest.sh devices|install|start|stop|push|log|shot` 做�
 4. **对照 v15**（`参考_v15/`）：近处颗粒（预算已经往近处挪：`shell` 0.12、`fine` 2，Mac 预览里近处像一片片圆片）、植物微光、光丝和光柱、空中光尘。
 5. **辉光。** `grade` 下没有辉光，发光点会显得硬。试 `bloom` 的开销；太贵的话，以后在粒子着色器里做假辉光。
 6. **烘焙。** 整个蚁穴在加载时生成一次，只有蚂蚁周围两圈细节（`shell`、`groundShell`）边走边在后台线程重做；帧率卡在 GPU 填像素，烘焙帮不上帧率（10-31 已回答用户）。只有想缩短 16 秒的加载时，才值得把生成好的点存成文件。
-7. **手和手柄换成系统的追踪**（11-01）：用户选了 A（Meta XR Core SDK 201.0.0），正在接，见「现在到哪了」第 0 条。看哪转哪的灵敏度调 `gazeDeadZone`、`gazeDwell`；第一人称的视点调 `eyeAbove`、`eyeAhead`，自己身体的透明度调 `selfAlpha`、`selfSize`。
+7. **戴上头显验证系统追踪的手和手柄**（11-01 晚接好 Meta XR Core SDK，没人戴过）：拿着手柄时手柄是 Meta 的 Touch Plus 模型、手包在手柄上；放下手柄时是自己的手（深色半透明、亮边），转到背后或挡住时停住再淡出；按键上的字看不看得清，教程第 3–5 步对应的字会变大闪；放下手柄，右手捏食指 / 中指 = A / B，左手捏住食指往前爬、捏中指 = Y，左手系统菜单手势 = 菜单；手柄和手的位置和真手对不对得上。看哪转哪的灵敏度调 `gazeDeadZone`、`gazeDwell`；第一人称的视点调 `eyeAbove`、`eyeAhead`，自己身体的透明度调 `selfAlpha`、`selfSize`。
 8. **电脑版也有「终点的门通向遗迹」**（`Game.cs` 第 1155 行：起点蚁穴兼作主世界）。头显里已经绕开；电脑版用户说先不动（11-01 晚）。
-9. **眩晕**：帧率是主因。选 A 的话可以顺便试 Meta SDK 的固定注视点渲染（周边少画像素）提帧率；`comfort` 太暗或不够可以在 0.3–0.8 之间调。
+9. **眩晕**：帧率是主因。已经接了 Meta SDK，可以试它的固定注视点渲染（OpenXR 里的 `Meta XR Foveation`，现在关着）（周边少画像素）提帧率；`comfort` 太暗或不够可以在 0.3–0.8 之间调。
 
 ## 规矩
 

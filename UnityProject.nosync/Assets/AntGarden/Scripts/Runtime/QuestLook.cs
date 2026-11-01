@@ -73,8 +73,7 @@ namespace AntGarden
             public float focusTime = 10f;       // for this long (seconds)
             public int tutorialFrom = 0;        // tests: the tutorial from this step on (5: the way on, its light picked out; -1: the instructions instead; with tutorial "always")
             public float testCrawl = 0f;        // tests on a headset nobody wears: the ant crawls ahead by itself for this long once ready (seconds)
-            public bool hands = true;           // the controllers drawn in the player's hands, as the headset's home draws them
-            public bool ghostHands = false;     // and hands round them, made up (not the headset's own: the user, 11-01, "不要自己去猜手的位置")
+            public bool hands = true;           // the controllers and the player's own hands drawn where the headset tracks them (Meta's SDK on a Quest)
             public float handLight = 1f;        // and how bright
             public float lookDown = 0f;         // the view tilted down (degrees): for screenshots on a headset nobody wears; 0 to play
         }
@@ -149,7 +148,6 @@ namespace AntGarden
             vr.tutorialFrom = Mathf.Max(-1, q.tutorialFrom);
             vr.testCrawl = Mathf.Max(0f, q.testCrawl);
             vr.hands = q.hands;
-            vr.ghostHands = q.ghostHands;
             vr.handLight = Mathf.Max(0f, q.handLight);
             vr.lookDown = Mathf.Clamp(q.lookDown, -80f, 80f);
         }

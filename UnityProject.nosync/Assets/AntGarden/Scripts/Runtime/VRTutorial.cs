@@ -98,7 +98,7 @@ namespace AntGarden
             body.rectTransform.offsetMin = new Vector2(34, 56);   // (down to just over the foot)
             foot = Inset(UiKit.Label(card, "Foot", "", 28, UiKit.Dim, TextAnchor.LowerRight), 34, 16);
 
-            help = UiKit.Rect(root, "VR Controls", 0.5f, 0.5f, new Vector2(0, -20), new Vector2(900, 740));
+            help = UiKit.Rect(root, "VR Controls", 0.5f, 0.5f, new Vector2(0, -20), new Vector2(900, 830));
             help.localScale = Vector3.one * Larger;
             UiKit.Panel(help, HelpBg);
             helpText = Inset(UiKit.Label(help, "Text", "", 34, UiKit.Ink, TextAnchor.UpperLeft), 40, 30);
@@ -282,6 +282,8 @@ namespace AntGarden
             int l = Loc.En ? 1 : 0;
             bool teaching = step < Steps.Length;
             help.gameObject.SetActive(helpOpen);   // (the card: LateUpdate)
+            // the button a step waits for, picked out on its controller
+            vr.Devices?.Hint(!teaching || helpOpen ? null : step == 2 ? "Y" : step == 3 ? "B" : step == 4 ? "A" : null);
             if (teaching)
             {
                 title.text = $"<b>{Steps[step][l]}</b>";
@@ -295,10 +297,12 @@ namespace AntGarden
                 : Loc.T($"{K}右摇杆</color>  转身", $"{K}Right stick</color>  turn");
             helpText.text = Loc.T(
                 $"<b>使用说明</b>\n站在原地玩，不用走动。\n\n{K}左摇杆</color>  蚂蚁朝你看的方向爬（按下：快爬）\n{turning}\n{K}A</color>  打招呼 / 查看\n{K}B</color>  摆动触角（碰亮发光植物）\n" +
-                $"{K}Y</color>  第一人称 / 第三人称（蚂蚁身后）\n{K}按下右摇杆</color>  真实走动 开 / 关（默认关）\n{K}X</color>  English\n{K}扳机</color>  重看新手教程\n{K}菜单键</color>  关上说明\n\n" +
+                $"{K}Y</color>  第一人称 / 第三人称（蚂蚁身后）\n{K}按下右摇杆</color>  真实走动 开 / 关（默认关）\n{K}X</color>  English\n{K}扳机</color>  重看新手教程\n{K}菜单键</color>  关上说明\n" +
+                $"放下手柄也能玩：{K}右手</color>拇指捏食指 = A，捏中指 = B；{K}左手</color>捏住食指 = 往前爬，捏中指 = Y\n\n" +
                 "<color=#9bbcbc>沿着地上的光爬，它通向出口。右上角小地图上的箭头就是你。</color>",
                 $"<b>Instructions</b>\nPlay standing still: no need to walk.\n\n{K}Left stick</color>  the ant crawls the way you look (click in: run)\n{turning}\n{K}A</color>  greet / look closer\n{K}B</color>  wave the antennae (light up plants)\n" +
-                $"{K}Y</color>  first person / third person (behind the ant)\n{K}Right stick click</color>  walk for real on / off (off at first)\n{K}X</color>  中文\n{K}Trigger</color>  the tutorial again\n{K}Menu</color>  close\n\n" +
+                $"{K}Y</color>  first person / third person (behind the ant)\n{K}Right stick click</color>  walk for real on / off (off at first)\n{K}X</color>  中文\n{K}Trigger</color>  the tutorial again\n{K}Menu</color>  close\n" +
+                $"Controllers down? {K}Right hand</color>: pinch thumb and index = A, thumb and middle = B; {K}left hand</color>: hold an index pinch to crawl, middle = Y\n\n" +
                 "<color=#9bbcbc>Crawl along the light on the ground: it leads to the way out. On the map top right, the arrow is you.</color>");
         }
 

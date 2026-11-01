@@ -14,8 +14,9 @@ namespace AntGarden
     /// moving with it) and back in. The headset turns and moves the camera within the origin, and the
     /// ant turns the way the head looks (gazeTurn; without it the right stick turns in steps); the left stick walks it
     /// that way (pressed in: run); A reaches out with the antennae (as E), B touches antennae (as Space); X switches the
-    /// language (as L); the left controller's menu button shows every control (VRTutorial). The controllers are drawn in
-    /// the player's hands (VRHands). The player stands still: a lean moves the view, a step further does not (walking
+    /// language (as L); the left controller's menu button shows every control (VRTutorial). The controllers and hands are
+    /// read and drawn by the input layer (IVRDevices: on a Quest Meta's SDK, MetaDevices, the hands' pinches as buttons);
+    /// what they do is decided here. The player stands still: a lean moves the view, a step further does not (walking
     /// about a room in a headset is how people get hurt; a player who wanders off is asked back, strayWarn), unless
     /// walking for real is switched on (the right stick's click), when the ant crawls after each step. While the ant
     /// crawls the edges of the view darken (comfort, VRComfort), against motion sickness. The screen's text hangs in front
@@ -59,8 +60,7 @@ namespace AntGarden
         public float focusTime = 10f;       // for this long (seconds)
         public int tutorialFrom;            // tests: the tutorial from this step on (5: the way on, its light picked out; -1: the instructions instead)
         public float testCrawl;             // tests on a headset nobody wears: the ant crawls the way the headset faces for this long once the nest is ready (seconds)
-        public bool hands = true;           // the controllers drawn in the player's hands (VRHands)
-        public bool ghostHands = true;      // and the hands round them, as the headset's home draws them
+        public bool hands = true;           // the controllers and the player's own hands drawn where the headset tracks them (IVRDevices)
         public float handLight = 1f;        // and how bright
         public float lookDown;              // the view tilted down this far (degrees): screenshots on a headset nobody wears
 
@@ -75,6 +75,10 @@ namespace AntGarden
         Vector3 pending, antLast;           // walking for real: how far the ant has still to crawl after the player's steps (world)
         Vector3 eyeAt;                      // the eyes on the ant: up from its feet (y) and ahead of its middle (z), units
         VRSelf self;                        // the ant's own body through its eyes
+        IVRDevices devices;                 // the input layer: the controllers and hands, read and drawn
+
+        /// <summary>The input layer (the tutorial points out the button it waits for).</summary>
+        public IVRDevices Devices => devices;
         Renderer ring;                      // the glowing ring round its feet (from behind; through its eyes it is all round the player)
 
         /// <summary>The left stick (x right, y forward), whether it is pressed in (run), and A and B pressed this frame.</summary>
@@ -111,7 +115,8 @@ namespace AntGarden
             if (self == null) body = false;   // (a solid body round the eyes would hide the view)
             ant.SetVisible(body);   // the player is the ant: its body in view (or, without its head found, none of it)
             ring = GameObject.Find("PlayerRing")?.GetComponent<Renderer>();
-            if (hands) gameObject.AddComponent<VRHands>().Init(origin, handLight, ghostHands);
+            devices = VRDevices.Make();
+            devices.Init(origin, hands, handLight);
             if (comfort > 0f) cam.gameObject.AddComponent<VRComfort>().Init(ant, comfort);
             if (hud != null)
             {
@@ -366,38 +371,33 @@ namespace AntGarden
         {
             Pose();
             if (blinked) { blinked = false; Game.Instance?.hud?.SetFade(0f); }
-            InputDevice left = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand), right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
-            Vector2 stick = left.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 m) && m.sqrMagnitude > 0.02f ? m : Vector2.zero;
+            // what the player's hands did this frame (the input layer: IVRDevices); what it does in the game, here
+            var pad = new VRPad();
+            devices?.Read(ref pad);
+            Vector2 stick = pad.move;
             if (testCrawl > 0f && Time.time - readyAt < testCrawl) stick = Vector2.up;
             Move = Vector2.ClampMagnitude(stick + Walk(), 1f);
-            Run = left.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool run) && run;
-            bool a = right.TryGetFeatureValue(CommonUsages.primaryButton, out bool av) && av;
-            bool b = right.TryGetFeatureValue(CommonUsages.secondaryButton, out bool bv) && bv;
-            bool x = left.TryGetFeatureValue(CommonUsages.primaryButton, out bool xv) && xv;
-            bool y = left.TryGetFeatureValue(CommonUsages.secondaryButton, out bool yv) && yv;
-            bool menu = left.TryGetFeatureValue(CommonUsages.menuButton, out bool mv) && mv;
-            bool click = right.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool cv) && cv;
-            float pull = Mathf.Max(left.TryGetFeatureValue(CommonUsages.trigger, out float lt) ? lt : 0f, right.TryGetFeatureValue(CommonUsages.trigger, out float rt) ? rt : 0f);
-            bool held = triggerHeld ? pull > 0.3f : pull > 0.7f;
+            Run = pad.run;
+            bool held = triggerHeld ? pad.trigger > 0.3f : pad.trigger > 0.7f;
             Trigger = held && !triggerHeld;
             triggerHeld = held;
-            if (click && !clickWas) SetWalk(!realWalk);
-            clickWas = click;
-            Interact = a && !aWas;
-            Talk = b && !bWas;
-            Switched = y && !yWas;
-            Help = menu && !menuWas;
-            bool language = x && !xWas;
-            aWas = a;
-            bWas = b;
-            xWas = x;
-            yWas = y;
-            menuWas = menu;
+            if (pad.walkToggle && !clickWas) SetWalk(!realWalk);
+            clickWas = pad.walkToggle;
+            Interact = pad.a && !aWas;
+            Talk = pad.b && !bWas;
+            Switched = pad.y && !yWas;
+            Help = pad.menu && !menuWas;
+            bool language = pad.x && !xWas;
+            aWas = pad.a;
+            bWas = pad.b;
+            xWas = pad.x;
+            yWas = pad.y;
+            menuWas = pad.menu;
             if (Switched) SetView(view == View.Eye ? View.Behind : View.Eye);
             if (language && Game.Instance != null) Game.Instance.ToggleLanguage();
             if (gazeTurn) return;
             // the right stick turns in steps: one step per flick, the stick must come back before the next
-            float tx = right.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 t) ? t.x : 0f;
+            float tx = pad.turn.x;
             if (!turned && Mathf.Abs(tx) > 0.7f) { yaw += Mathf.Sign(tx) * turnStep; turned = true; Turns++; }
             else if (turned && Mathf.Abs(tx) < 0.3f) turned = false;
         }

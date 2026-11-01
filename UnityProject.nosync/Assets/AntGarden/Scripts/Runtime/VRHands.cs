@@ -5,21 +5,20 @@ using UnityEngine.XR;
 namespace AntGarden
 {
     /// <summary>
-    /// In a headset: the two controllers in the player's hands, where the headset tracks them, drawn as the headset's own
-    /// home draws them (the system draws them there; in a game the game must; the user, 10-31: "参考本机…虚拟阁内效果"):
-    /// a Quest 3 controller's round, near-black head with its stick, two buttons, a small menu button and three green
-    /// lights, over a grey handle; and round each a ghost of the hand holding it, dark and see-through with a pale line
-    /// along its outline (Resources/AntGarden/VR: VRController.shader, VRGhostHand.shader). Made here of rounded parts,
-    /// at real size in the VR origin, so they stay the size of the player's hands whatever the world's scale; each is
-    /// hidden while the headset cannot see it.
+    /// In a headset without Meta's runtime (a computer through Quest Link; XRDevices): the two controllers where the
+    /// headset tracks them, drawn as the headset's own home draws them (the user, 10-31: "参考本机…虚拟阁内效果"): a Quest 3
+    /// controller's round, near-black head with its stick, two buttons, a small menu button and three green lights, over
+    /// a grey handle (Resources/AntGarden/VR/VRController.shader). Made here of rounded parts, at real size in the VR
+    /// origin, so they stay the size of the player's hands whatever the world's scale; each is hidden while the headset
+    /// cannot see it. No hands: hands made up round the controllers were a guess (the user, 11-01: "不要自己去猜手的位置");
+    /// on a Quest the headset's own hands and controllers are drawn instead (MetaDevices).
     /// </summary>
     public class VRHands : MonoBehaviour
     {
         Transform left, right;
 
-        /// <summary>Makes both controllers in the origin, and the hands round them if asked; light: their brightness (1 as
-        /// made).</summary>
-        public void Init(Transform origin, float light, bool ghostHands)
+        /// <summary>Makes both controllers in the origin; light: their brightness (1 as made).</summary>
+        public void Init(Transform origin, float light)
         {
             var shader = Resources.Load<Shader>("AntGarden/VR/VRController");
             if (shader == null)
@@ -31,14 +30,6 @@ namespace AntGarden
             mat.SetFloat("_Light", light);
             left = Make("VR Controller L", Build(true), mat, origin);
             right = Make("VR Controller R", Build(false), mat, origin);
-            var ghost = ghostHands ? Resources.Load<Shader>("AntGarden/VR/VRGhostHand") : null;
-            if (ghost != null)
-            {
-                var hand = new Material(ghost);
-                hand.SetFloat("_Light", light);
-                Make("VR Hand L", Hand(true), hand, left).gameObject.SetActive(true);
-                Make("VR Hand R", Hand(false), hand, right).gameObject.SetActive(true);
-            }
             Application.onBeforeRender += Pose;
         }
 
@@ -114,35 +105,6 @@ namespace AntGarden
             return m.ToMesh(leftHand ? "VR Controller L" : "VR Controller R", leftHand);
         }
 
-        /// <summary>The hand round one controller, in the same space: the palm on the handle's outer side, the fingers
-        /// wrapped round its front (the index over the trigger), the thumb over the head to the stick, the wrist fading
-        /// toward the arm.</summary>
-        static Mesh Hand(bool leftHand)
-        {
-            var m = new Parts();
-            Color skin = Color.white;   // (the shader's own colours; the alpha fades)
-            Vector3 x = Vector3.right, up = Lean * Vector3.up, front = Lean * Vector3.forward;
-            // a point round the handle: along it, at an angle from its outer side toward its front, this far from its middle
-            Vector3 At(float along, float angle, float r) => up * along + (x * Mathf.Cos(angle * Mathf.Deg2Rad) + front * Mathf.Sin(angle * Mathf.Deg2Rad)) * r;
-            Vector3 outward = At(0f, -15f, 1f);
-            m.Ellipsoid(At(0f, -15f, 0.03f), Quaternion.LookRotation(Vector3.Cross(outward, up), up), new Vector3(0.013f, 0.045f, 0.036f), skin);
-            float[] along = { 0.045f, 0.013f, -0.012f, -0.034f }, thick = { 0.0085f, 0.0088f, 0.0082f, 0.0072f }, reach = { 0.04f, 0.028f, 0.027f, 0.026f };
-            for (int f = 0; f < 4; f++)
-            {
-                Vector3 knuckle = At(along[f], 35f, reach[f]), p1 = At(along[f], 95f, reach[f]), p2 = At(along[f] - 0.004f, 155f, reach[f]);
-                Vector3 end = At(along[f] - 0.008f, 205f, reach[f] * 0.9f);
-                m.Capsule(knuckle, p1, thick[f], skin);
-                m.Capsule(p1, p2, thick[f], skin);
-                m.Capsule(p2, end, thick[f] * 0.92f, skin);
-            }
-            Vector3 t0 = new Vector3(0.023f, 0.038f, 0.004f), t1 = new Vector3(0.006f, 0.061f, 0.012f), t2 = new Vector3(-0.01f, 0.067f, 0.02f);
-            m.Capsule(t0, t1, 0.0098f, skin);
-            m.Capsule(t1, t2, 0.0088f, skin);
-            Vector3 wrist = At(-0.035f, -30f, 0.025f);
-            m.Capsule(wrist, wrist + new Vector3(0.15f, -0.35f, -0.92f).normalized * 0.07f, 0.024f, skin, true);
-            return m.ToMesh(leftHand ? "VR Hand L" : "VR Hand R", leftHand);
-        }
-
         /// <summary>Rounded parts gathered into one mesh, each part its own colour (Unity's winding: clockwise seen
         /// from outside).</summary>
         class Parts
@@ -167,33 +129,6 @@ namespace AntGarden
                     }
                 }
                 Rows(start, rings + 1, segs);
-            }
-
-            /// <summary>A capsule from a to b; fade: its colour's alpha falling from a to nothing at b.</summary>
-            public void Capsule(Vector3 a, Vector3 b, float radius, Color col, bool fade = false, int segs = 12, int cap = 4)
-            {
-                Vector3 axis = b - a;
-                float h = axis.magnitude;
-                Vector3 dir = h > 1e-6f ? axis / h : Vector3.up, mid = (a + b) * 0.5f;
-                Quaternion rot = Quaternion.FromToRotation(Vector3.up, dir);
-                int start = v.Count;
-                for (int i = 0; i <= 2 * cap + 1; i++)
-                {
-                    // the end toward b, then the end toward a; the rows between the two halves make the side
-                    bool toB = i <= cap;
-                    float phi = Mathf.PI * 0.5f * (toB ? i : i - 1) / cap;
-                    float y = Mathf.Cos(phi) * radius + (toB ? 0.5f : -0.5f) * h, ring = Mathf.Sin(phi) * radius;
-                    for (int j = 0; j <= segs; j++)
-                    {
-                        float th = 2f * Mathf.PI * j / segs;
-                        v.Add(mid + rot * new Vector3(ring * Mathf.Cos(th), y, ring * Mathf.Sin(th)));
-                        n.Add(rot * new Vector3(Mathf.Sin(phi) * Mathf.Cos(th), Mathf.Cos(phi), Mathf.Sin(phi) * Mathf.Sin(th)));
-                        Color k = col;
-                        if (fade) k.a *= Mathf.Clamp01(1f - Vector3.Dot(v[v.Count - 1] - a, dir) / Mathf.Max(h, 1e-6f));
-                        c.Add(k);
-                    }
-                }
-                Rows(start, 2 * cap + 2, segs);
             }
 
             /// <summary>A short cylinder along rot's up, centred at at, with flat ends.</summary>

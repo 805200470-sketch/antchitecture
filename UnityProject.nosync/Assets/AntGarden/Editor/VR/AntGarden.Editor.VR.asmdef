@@ -6,7 +6,10 @@
         "Unity.XR.Management",
         "Unity.XR.Management.Editor",
         "Unity.XR.OpenXR",
-        "Unity.XR.OpenXR.Editor"
+        "Unity.XR.OpenXR.Editor",
+        "AntGarden.VR",
+        "Oculus.VR",
+        "Oculus.VR.Editor"
     ],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],

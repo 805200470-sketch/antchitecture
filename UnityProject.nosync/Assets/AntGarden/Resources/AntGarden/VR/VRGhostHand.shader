@@ -1,7 +1,7 @@
-// In a headset: the player's hands round the controllers (VRHands), drawn as the headset's own home draws them: a
-// dark, see-through shape with a pale line along its outline. Its depth first, so only its nearest surface is drawn
-// (no finger seen through the palm); the vertex colour's alpha fades it (the wrist, toward the arm). In a Resources
-// folder so the build keeps it: nothing else refers to it.
+// In a headset: the player's own hands, as the headset tracks them (MetaDevices: the headset's hand mesh on its
+// skeleton), drawn as the headset's own home draws them: a dark, see-through shape with a pale line along its outline.
+// Its depth first, so only its nearest surface is drawn (no finger seen through the palm); _Alpha fades it (as the
+// headset loses sight of the hand). In a Resources folder so the build keeps it: nothing else refers to it.
 Shader "AntGarden/VRGhostHand"
 {
     Properties
@@ -9,6 +9,7 @@ Shader "AntGarden/VRGhostHand"
         _Fill ("Fill (linear; alpha: how solid)", Color) = (0.015, 0.016, 0.02, 0.5)
         _Line ("Outline (linear)", Color) = (0.75, 0.82, 0.86, 1)
         _Light ("Brightness", Float) = 1
+        _Alpha ("How much of it is there", Range(0, 1)) = 1
     }
     SubShader
     {
@@ -17,8 +18,8 @@ Shader "AntGarden/VRGhostHand"
         CGINCLUDE
         #include "UnityCG.cginc"
 
-        struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; fixed4 color : COLOR; UNITY_VERTEX_INPUT_INSTANCE_ID };
-        struct v2f { float4 pos : SV_POSITION; float3 n : TEXCOORD0; float3 v : TEXCOORD1; fixed4 color : COLOR; UNITY_VERTEX_OUTPUT_STEREO };
+        struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; UNITY_VERTEX_INPUT_INSTANCE_ID };
+        struct v2f { float4 pos : SV_POSITION; float3 n : TEXCOORD0; float3 v : TEXCOORD1; UNITY_VERTEX_OUTPUT_STEREO };
 
         v2f vert(appdata i)
         {
@@ -28,7 +29,6 @@ Shader "AntGarden/VRGhostHand"
             o.pos = UnityObjectToClipPos(i.vertex);
             o.n = UnityObjectToWorldNormal(i.normal);
             o.v = WorldSpaceViewDir(i.vertex);
-            o.color = i.color;
             return o;
         }
         ENDCG
@@ -55,14 +55,14 @@ Shader "AntGarden/VRGhostHand"
             #pragma fragment frag
 
             fixed4 _Fill, _Line;
-            float _Light;
+            float _Light, _Alpha;
 
             fixed4 frag(v2f i) : SV_Target
             {
                 float3 n = normalize(i.n), v = normalize(i.v);
                 float edge = smoothstep(0.72, 0.9, 1 - abs(dot(n, v)));   // the outline: where the surface turns away
                 float3 c = lerp(_Fill.rgb, _Line.rgb * _Light, edge);
-                return fixed4(c, lerp(_Fill.a, _Line.a, edge) * i.color.a);
+                return fixed4(c, lerp(_Fill.a, _Line.a, edge) * _Alpha);
             }
             ENDCG
         }

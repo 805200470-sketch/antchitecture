@@ -75,8 +75,10 @@ namespace AntGarden.EditorTools
         [MenuItem("AntGarden/VR/Configure Quest (Android)")]
         public static void ConfigureQuest()
         {
-            var features = new List<string>(Controllers) { "MetaQuestFeature" };
+            // (Meta's XR feature: the Core SDK's hands, controllers and their models; Unity's Meta Quest Support stays on)
+            var features = new List<string>(Controllers) { "MetaQuestFeature", "MetaXRFeature" };
             OpenXRSettings oxr = Configure(BuildTargetGroup.Android, features.ToArray());
+            MetaSetup();
             // the Quest 3 among the devices the app says it was made for: this version of the plug-in lists the Quest,
             // Quest 2 and Quest Pro, and a Quest 3 runs an app made for them as a Quest 2 would (its chip held back).
             // (Added for this session of the editor only, as the plug-in keeps it: so here, just before each build.)
@@ -142,6 +144,34 @@ namespace AntGarden.EditorTools
         {
             ProjectSetup.Run();
             Build(BuildTarget.StandaloneWindows64, "AntGarden_VRPreview", "AntGarden.exe");
+        }
+
+        /// <summary>Meta's XR Core SDK, for the headset's own hands and controllers (the user chose it, 11-01): hands
+        /// tracked with the controllers, at the low rate that hands with controllers needs (the high ones are Fast Motion
+        /// Mode, which cannot run with them; body and face tracking stay off), and the SDK's prefabs named where the game
+        /// can load them (MetaRefs, MetaDevices).</summary>
+        static void MetaSetup()
+        {
+            OVRProjectConfig config = OVRProjectConfig.CachedProjectConfig;
+            if (config.handTrackingSupport != OVRProjectConfig.HandTrackingSupport.ControllersAndHands
+                || config.handTrackingFrequency != OVRProjectConfig.HandTrackingFrequency.LOW)
+            {
+                config.handTrackingSupport = OVRProjectConfig.HandTrackingSupport.ControllersAndHands;
+                config.handTrackingFrequency = OVRProjectConfig.HandTrackingFrequency.LOW;
+                OVRProjectConfig.CommitProjectConfig(config);
+            }
+            const string path = "Assets/AntGarden/Resources/AntGarden/VR/MetaRefs.asset";
+            var refs = AssetDatabase.LoadAssetAtPath<MetaRefs>(path);
+            if (refs == null)
+            {
+                refs = ScriptableObject.CreateInstance<MetaRefs>();
+                AssetDatabase.CreateAsset(refs, path);
+            }
+            refs.controller = AssetDatabase.LoadAssetAtPath<GameObject>("Packages/com.meta.xr.sdk.core/Prefabs/OVRControllerPrefab.prefab");
+            refs.hand = AssetDatabase.LoadAssetAtPath<GameObject>("Packages/com.meta.xr.sdk.core/Prefabs/OVRHandPrefab.prefab");
+            EditorUtility.SetDirty(refs);
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[AntGarden] VR (Android): Meta XR Core SDK: hands {config.handTrackingSupport} at {config.handTrackingFrequency}; prefabs named: controller {refs.controller != null}, hand {refs.hand != null}");
         }
 
         [MenuItem("AntGarden/Build/Quest (Android, OpenXR)")]
