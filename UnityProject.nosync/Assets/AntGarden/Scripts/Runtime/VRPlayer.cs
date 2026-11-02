@@ -13,7 +13,7 @@ namespace AntGarden
     /// view (VRSelf): its legs when the player looks down. Y steps out behind the ant (the origin a little larger and
     /// moving with it) and back in. The headset turns and moves the camera within the origin; through its eyes the
     /// ant turns the way the head looks (gazeTurn; without it the right stick turns in steps), behind it the right stick
-    /// turns the view round it, smoothly (turnSpeed); the left stick walks it
+    /// turns it, smoothly (turnSpeed), the view turning with it, always right behind it; the left stick walks it
     /// that way (pressed in: run); A reaches out with the antennae (as E), B touches antennae (as Space); X switches the
     /// language (as L); the left controller's menu button shows every control (VRTutorial). The controllers and hands are
     /// read and drawn by the input layer (IVRDevices: on a Quest Meta's SDK, MetaDevices, the hands' pinches as buttons);
@@ -42,7 +42,7 @@ namespace AntGarden
         public float behindScale = 0.5f;    // behind the ant: the origin's scale (the player a little larger than the ant)
         public float behindBack = 2f;       // the resting head this far behind the ant (units)
         public float behindUp = 1.1f;       // and this far above its feet
-        public float turnSpeed = 60f;       // behind the ant: the right stick turns the view round it, at most this fast (degrees a second)
+        public float turnSpeed = 60f;       // behind the ant: the right stick turns it (the view with it), at most this fast (degrees a second)
         public float leanRadius = 0.3f;     // the head may lean this far from where the player stands (real metres); further, the view stays put
         public bool realWalk;               // walking for real: a step past leanRadius sends the ant crawling after it (the right stick's click switches)
         public bool gazeTurn = true;        // through its eyes the ant turns the way the head looks (off: the right stick turns in steps)
@@ -246,6 +246,8 @@ namespace AntGarden
             origin.localScale = Vector3.one * (v == View.Eye ? scale : behindScale);
             ant.SetVisible(v == View.Behind || body);
             behindYaw = ant.heading;   // straight behind it
+            // and looking past it the way the head looks now (in the blink, unseen)
+            if (v == View.Behind && centred) yaw = ant.heading * Mathf.Rad2Deg - cam.transform.localEulerAngles.y;
             spin = aside = 0f;
             chasing = false;
             Blink();
@@ -319,9 +321,15 @@ namespace AntGarden
             Debug.Log($"[AntGarden] VR: the player has wandered {off.magnitude:F2} m from where they started");
         }
 
-        /// <summary>The ant's way of walking relative to where the head faces (forward, right; on the floor).</summary>
+        /// <summary>The ant's way of walking relative to where the head faces (forward, right; on the floor); behind it,
+        /// relative to the way it faces (the view turns with it there: after the head, it would crawl round in circles).</summary>
         public (Vector2 fwd, Vector2 right) Basis()
         {
+            if (view == View.Behind)
+            {
+                Vector3 d = Dir(ant.heading);
+                return (new Vector2(d.x, d.z), new Vector2(d.z, -d.x));
+            }
             Vector3 f = cam.transform.forward;
             var fwd = new Vector2(f.x, f.z);
             fwd = fwd.sqrMagnitude > 1e-6f ? fwd.normalized : Vector2.up;
@@ -375,6 +383,15 @@ namespace AntGarden
             devices?.Read(ref pad);
             Vector2 stick = pad.move;
             if (testCrawl > 0f && Time.time - readyAt < testCrawl) stick = Vector2.up;
+            // behind the ant the left stick crawls it straight on, the way it faces (Basis), and turns it as the right
+            // stick does; it does not back it away (a crawl aside or back would turn the ant, the view after it, and the
+            // way to crawl after the view, round and round)
+            float steer = pad.turn.x;
+            if (view == View.Behind)
+            {
+                steer = Mathf.Clamp(steer + stick.x, -1f, 1f);
+                stick = new Vector2(0f, Mathf.Max(0f, stick.y));
+            }
             Move = Vector2.ClampMagnitude(stick + Walk(), 1f);
             Run = pad.run;
             bool held = triggerHeld ? pad.trigger > 0.3f : pad.trigger > 0.7f;
@@ -394,26 +411,35 @@ namespace AntGarden
             menuWas = pad.menu;
             if (Switched) SetView(view == View.Eye ? View.Behind : View.Eye);
             if (language && Game.Instance != null) Game.Instance.ToggleLanguage();
-            float tx = pad.turn.x;
-            if (view == View.Behind) { Spin(tx); return; }
+            if (view == View.Behind) { Spin(steer); return; }
             if (gazeTurn) return;
             // the right stick turns in steps: one step per flick, the stick must come back before the next
+            float tx = pad.turn.x;
             if (!turned && Mathf.Abs(tx) > 0.7f) { yaw += Mathf.Sign(tx) * turnStep; turned = true; Turns++; }
             else if (turned && Mathf.Abs(tx) < 0.3f) turned = false;
         }
 
-        /// <summary>Behind the ant the right stick turns the view round it, without steps or jolts (the user, 11-02:
-        /// "第三视角时可以用右手的旋钮控制方向，但是要丝滑，不要卡顿，是连续的变化"): past a small dead zone the further it
-        /// is pushed the faster, up to turnSpeed, the turn gathering and easing off over a fifth of a second. The view
-        /// circles the ant, still looking past it; the left stick then crawls it the new way.</summary>
+        /// <summary>Behind the ant the right stick turns the ant, without steps or jolts, and the view turns with it,
+        /// right behind it (the user, 11-02: "第三视角时可以用右手的旋钮控制方向，但是要丝滑，不要卡顿，是连续的变化";
+        /// "右边旋钮控制的是蚂蚁的朝向，镜头是和蚂蚁朝向对应的。不是只控制镜头"): past a small dead zone the further it is
+        /// pushed the faster, up to turnSpeed, the turn gathering and easing off over a fifth of a second.</summary>
         void Spin(float x)
         {
             float push = Mathf.Clamp01((Mathf.Abs(x) - 0.12f) / 0.8f);
             float want = Mathf.Sign(x) * push * push * (3f - 2f * push) * turnSpeed;
             spin = Mathf.MoveTowards(spin, want, turnSpeed * 5f * Time.deltaTime);
             float d = spin * Time.deltaTime;
-            yaw += d;
-            behindYaw += d * Mathf.Deg2Rad;
+            if (d == 0f) return;
+            ant.heading += d * Mathf.Deg2Rad;
+            ant.transform.rotation = Quaternion.AngleAxis(d, Vector3.up) * ant.transform.rotation;   // its body now, not at its next step
+        }
+
+        /// <summary>Behind the ant the view turns as it turns, staying right behind it (however it turned: the stick,
+        /// or a jump to a new place).</summary>
+        void Follow()
+        {
+            yaw += Mathf.DeltaAngle(behindYaw * Mathf.Rad2Deg, ant.heading * Mathf.Rad2Deg);
+            behindYaw = ant.heading;
         }
 
         void LateUpdate()
@@ -430,6 +456,7 @@ namespace AntGarden
             }
             if (centred && gazeTurn && view == View.Eye) FollowGaze();
             Turned();
+            if (view == View.Behind) Follow();
             WarnStray();
             // through its eyes the ant is drawn see-through and carried with the view (VRSelf); behind it, as every ant is
             // (ParticleAnts' own dissolves away meanwhile, point by point)
@@ -451,7 +478,7 @@ namespace AntGarden
             // behind the ant the view moves with it, step for step, as through its eyes: the ant's crawl is the player's own
             // push of the stick, and a view that trails it and then catches up, or slides round it as it turns, moves by
             // itself (the user, 11-01, behind the ant with the stick: "镜头偏移不自然，摄像机也有点莫名奇妙的运动"). It turns
-            // round the ant only as the right stick turns it (Spin); the head looks about freely and turns nothing (the
+            // only as the ant turns, with the right stick (Spin, Follow); the head looks about freely and turns nothing (the
             // view cut back behind the ant after a long look aside read as a jolt: 11-02, "不要卡顿").
             origin.position = new Vector3(p.x, floorY + behindUp, p.z) - Dir(behindYaw) * behindBack - origin.rotation * (rest * behindScale);
         }

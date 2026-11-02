@@ -57,7 +57,7 @@ namespace AntGarden
             public string walk = "stick";       // "stick": stand still and crawl with the left stick (safe); "real": step and the ant follows (the right stick's click switches)
             public float leanRadius = 0.3f;     // how far the head may lean from where the player stands before the view stops following (real metres)
             public string turn = "gaze";        // through its eyes, "gaze": the ant turns the way the head looks (10-31); "stick": the right stick turns in steps
-            public float turnSpeed = 60f;       // behind the ant: the right stick turns the view round it, at most this fast (degrees a second; 11-02 "要丝滑，不要卡顿，是连续的变化")
+            public float turnSpeed = 60f;       // behind the ant: the right stick turns it, the view behind it, at most this fast (degrees a second; 11-02 "要丝滑，不要卡顿，是连续的变化", "镜头是和蚂蚁朝向对应的")
             public float gazeDeadZone = 40f;    // the head may look this far aside (degrees) without turning the ant
             public float gazeDwell = 0.5f;      // further, for this long (seconds), and the ant turns after it
             public bool body = true;            // through the ant's eyes its own body is there: legs below, antennae ahead

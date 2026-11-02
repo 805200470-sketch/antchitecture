@@ -20,8 +20,9 @@ namespace AntGarden
     ///   "手柄上不需要再强调按键的yxab等，应该本身就能直接看到的"), lit by themselves (VRModel: the nest has no lights for
     ///   Meta's lit shader). A controller the headset loses stays where it was a moment, then hides.
     /// - The hands: the headset's own hand mesh on its tracked skeleton (OVRHandPrefab), drawn as its home draws them
-    ///   (VRGhostHand). Checked every frame: a hand the headset loses, or sees with low confidence, keeps its last pose
-    ///   and fades out; it fades back as it is seen again.
+    ///   (VRGhostHand), a hand holding its controller round it, a free one where the cameras see it. Checked every
+    ///   frame: a hand the headset loses, or sees with low confidence, keeps its last pose and fades out; it fades back
+    ///   as it is seen again.
     /// - Both posed as late as possible before each frame is drawn, the hands as their controllers are, so a hand round
     ///   its controller does not trail it (the SDK poses a hand in Update, a frame's work earlier).
     /// - Pinches, from a hand the cameras see (not one drawn round its controller, not in the middle of the system's own
@@ -158,6 +159,11 @@ namespace AntGarden
             s.skeleton = hand.GetComponent<OVRSkeleton>();
             s.mesh = hand.GetComponent<OVRMesh>();
             s.binder = hand.GetComponent<OVRMeshRenderer>();
+            // a hand holding its controller as well as a free one: the SDK's hand counts itself valid only while it holds
+            // nothing, and one holding its controller kept still where it was last seen without it while the headset still
+            // called it tracked, the left hand at the origin, before the eyes (the user, 11-02 "还是对不上"; vr_track.txt:
+            // in hand, posed from the controller, bones still). Held, it is now drawn round its controller.
+            if (s.tracked != null) s.tracked.m_showState = OVRInput.InputDeviceShowState.Always;
             bool set = Set(s.tracked, "HandType", s.left ? OVRHand.Hand.HandLeft : OVRHand.Hand.HandRight);
             // the prefab's skeleton is saved as the older kind (the editor puts that right as the prefab goes into a scene;
             // made at runtime nothing does), so it found no data and never moved from where it was made: lying across the
@@ -265,8 +271,9 @@ namespace AntGarden
                 // not there yet then, a hand never drawn)
                 if (s.binder != null && !s.binder.IsInitialized && s.skeleton != null && s.skeleton.IsInitialized && s.mesh != null && s.mesh.IsInitialized)
                     s.binder.ForceRebind();
-                // a hand: its last pose kept while the headset cannot see it well, fading out; back as it is seen
-                bool seen = s.tracked != null && s.tracked.IsTracked && s.tracked.IsDataHighConfidence;
+                // a hand: its last pose kept while the headset cannot see it well, fading out; back as it is seen (and only
+                // with data the SDK counts valid, so a hand whose bones were not posed is never drawn where they stopped)
+                bool seen = s.tracked != null && s.tracked.IsDataValid && s.tracked.IsTracked && s.tracked.IsDataHighConfidence;
                 s.shown = Mathf.MoveTowards(s.shown, seen ? 1f : 0f, dt / FadeTime);
                 s.look.SetFloat("_Alpha", s.shown);
                 bool draw = s.shown > 0.01f;
