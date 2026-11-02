@@ -1,7 +1,9 @@
-using System.Collections.Generic;
+using System;
+using System.IO;
 using System.Reflection;
+using System.Text;
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.XR;
 
 namespace AntGarden
 {
@@ -14,17 +16,21 @@ namespace AntGarden
     ///   the headset's cameras; at the low tracking rate, never Fast Motion Mode, no body tracking: VRSetup), in the same
     ///   eye-level space the camera's pose is read in (VRPlayer), so the camera, the hands and the controllers agree.
     /// - The controllers: Meta's own models of them (OVRControllerPrefab: a Quest 3's Touch Plus, its buttons moving as
-    ///   they are pressed), at the pose the SDK gives just before each frame is drawn, in the VR origin as the camera is;
-    ///   lit by themselves (VRModel: the nest has no lights for Meta's lit shader); each button's letter over it, the one
-    ///   the tutorial waits for picked out (the user, 11-01: "看不清按键"). A controller the headset loses stays where it
-    ///   was a moment, then hides.
+    ///   they are pressed, their letters printed on them as on the real ones, nothing added over them: the user, 11-02,
+    ///   "手柄上不需要再强调按键的yxab等，应该本身就能直接看到的"), lit by themselves (VRModel: the nest has no lights for
+    ///   Meta's lit shader). A controller the headset loses stays where it was a moment, then hides.
     /// - The hands: the headset's own hand mesh on its tracked skeleton (OVRHandPrefab), drawn as its home draws them
     ///   (VRGhostHand). Checked every frame: a hand the headset loses, or sees with low confidence, keeps its last pose
     ///   and fades out; it fades back as it is seen again.
+    /// - Both posed as late as possible before each frame is drawn, the hands as their controllers are, so a hand round
+    ///   its controller does not trail it (the SDK poses a hand in Update, a frame's work earlier).
     /// - Pinches, from a hand the cameras see (not one drawn round its controller, not in the middle of the system's own
     ///   gesture), each with two thresholds (pressed past 0.8, let go below 0.5), so a pinch held near the edge never
     ///   chatters: right thumb to index A, to middle B; left thumb to index crawls (the way the head looks), to middle Y;
     ///   the left hand's menu gesture opens the instructions.
+    /// - What the headset tracked, a line a second, in vr_track.txt beside quest.json, for a headset nobody can watch
+    ///   (the user, 11-02: "手柄和手势对不上"): the head as the camera has it and as the SDK has it, each controller as the
+    ///   SDK and as Unity's XR have it, each hand's root against its controller and its mesh's middle.
     /// Used where Meta's runtime is up (a Quest, its Meta XR feature on: VRSetup.ConfigureQuest); elsewhere XRDevices.
     /// </summary>
     public class MetaDevices : MonoBehaviour, IVRDevices
@@ -32,7 +38,8 @@ namespace AntGarden
         const float PinchOn = 0.8f, PinchOff = 0.5f;
         const float FadeTime = 0.25f;     // a hand the headset loses fades out over this long (seconds), and back
         const float LostHide = 0.3f;      // a controller it loses stays where it was this long, then hides
-        const float LetterSize = 0.012f;  // a button's letter, this tall (real metres)
+        const float TrackEvery = 1f;      // a line of vr_track.txt this often (seconds)
+        const int TrackLines = 3600;      // and at most this many (an hour)
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Register() =>
@@ -43,29 +50,27 @@ namespace AntGarden
         {
             public OVRInput.Controller touch;
             public OVRInput.Hand hand;
+            public XRNode node;                   // its controller in Unity's XR input (the track file sets the two side by side)
             public bool left;
-            public Transform controller;        // the controller's pose in the origin, Meta's model in it
-            public float lost;                  // how long the headset has not seen it
-            public OVRHand tracked;             // the hand
-            public SkinnedMeshRenderer skin;    // its mesh
-            public Material look;               // its own material, so it fades on its own
-            public float shown;                 // how much of it is drawn
-            public bool index, middle;          // its pinches, held
-            public bool told;                   // its first sight logged
+            public Transform controller;          // the controller's pose in the origin, Meta's model in it
+            public float lost;                    // how long the headset has not seen it
+            public OVRHand tracked;               // the hand
+            public OVRSkeleton skeleton;          // its bones
+            public OVRMesh mesh;                  // its mesh
+            public OVRMeshRenderer binder;        // which binds the mesh to the bones
+            public Action<OVRPlugin.Step> read;   // the hand's own reading of the headset (OVRHand.GetHandState)
+            public Action pose;                   // and its bones' own posing from it (OVRSkeleton.UpdateSkeleton)
+            public SkinnedMeshRenderer skin;      // its mesh, drawn
+            public Material look;                 // its own material, so it fades on its own
+            public float shown;                   // how much of it is drawn
+            public bool index, middle;            // its pinches, held
         }
 
-        /// <summary>A button's letter over it.</summary>
-        sealed class Letter
-        {
-            public string button;
-            public Transform at, sign;
-            public Text text;
-        }
-
-        readonly Side l = new Side { touch = OVRInput.Controller.LTouch, hand = OVRInput.Hand.HandLeft, left = true };
-        readonly Side r = new Side { touch = OVRInput.Controller.RTouch, hand = OVRInput.Hand.HandRight };
-        readonly List<Letter> letters = new List<Letter>();
-        string hint;
+        readonly Side l = new Side { touch = OVRInput.Controller.LTouch, hand = OVRInput.Hand.HandLeft, node = XRNode.LeftHand, left = true };
+        readonly Side r = new Side { touch = OVRInput.Controller.RTouch, hand = OVRInput.Hand.HandRight, node = XRNode.RightHand };
+        StreamWriter track;
+        float trackAt;
+        int trackCount;
 
         public void Init(Transform origin, bool draw, float light)
         {
@@ -79,10 +84,23 @@ namespace AntGarden
                 if (refs != null && refs.hand != null) Hand(s, refs.hand, light, origin);
             }
             Application.onBeforeRender += Pose;
-            Debug.Log($"[AntGarden] VR input: Meta XR Core SDK (OVRPlugin {OVRPlugin.version}); hands with controllers {(OVRPlugin.IsMultimodalHandsControllersSupported() ? "supported" : "NOT supported")}; drawn: controllers {l.controller != null}, hands {l.tracked != null}, {letters.Count} button letters");
+            try
+            {
+                track = new StreamWriter(Path.Combine(Application.persistentDataPath, "vr_track.txt"), false) { AutoFlush = true };
+                track.WriteLine($"# Ant Garden VR track {DateTime.Now:yyyy-MM-dd HH:mm:ss}, a line a second. Positions in the origin's space (the headset's eye-level space), real metres. " +
+                    "head: the camera (Unity's XR) / the SDK's. ctrl: OVRInput / xr: Unity's XR. hand: its root (the wrist), lost while the headset cannot see it; " +
+                    "from-ctrl: its pose made from the controller's sensors; apart: root to controller; mesh: the middle of the drawn mesh.");
+            }
+            catch (Exception e) { Debug.LogWarning("[AntGarden] VR: no track file: " + e.Message); }
+            Debug.Log($"[AntGarden] VR input: Meta XR Core SDK (OVRPlugin {OVRPlugin.version}); hands with controllers {(OVRPlugin.IsMultimodalHandsControllersSupported() ? "supported" : "NOT supported")}; drawn: controllers {l.controller != null}, hands {l.tracked != null} (posed before each frame: {l.read != null && l.pose != null}); track file {(track != null ? "on" : "off")}");
         }
 
-        void OnDestroy() => Application.onBeforeRender -= Pose;
+        void OnDestroy()
+        {
+            Application.onBeforeRender -= Pose;
+            track?.Dispose();
+            track = null;
+        }
 
         /// <summary>The SDK's manager, once for the game: set as a scene's would be, before it wakes.</summary>
         static void Manager()
@@ -100,7 +118,7 @@ namespace AntGarden
             go.SetActive(true);
         }
 
-        /// <summary>A controller: Meta's model of it, lit by itself, its buttons lettered.</summary>
+        /// <summary>A controller: Meta's model of it, lit by itself.</summary>
         void Controller(Side s, GameObject prefab, float light, Transform origin)
         {
             s.controller = new GameObject(s.left ? "VR Controller L" : "VR Controller R").transform;
@@ -109,65 +127,23 @@ namespace AntGarden
             var helper = model.GetComponent<OVRControllerHelper>();
             if (helper != null) helper.m_controller = s.touch;   // (read as it starts, next frame)
             var shader = Resources.Load<Shader>("AntGarden/VR/VRModel");
-            if (shader != null)
-                foreach (Renderer rd in model.GetComponentsInChildren<Renderer>(true))
+            if (shader == null) return;
+            foreach (Renderer rd in model.GetComponentsInChildren<Renderer>(true))
+            {
+                Material[] mats = rd.sharedMaterials;
+                for (int i = 0; i < mats.Length; i++)
                 {
-                    Material[] mats = rd.sharedMaterials;
-                    for (int i = 0; i < mats.Length; i++)
-                    {
-                        if (mats[i] == null) continue;
-                        Texture tex = mats[i].HasProperty("_BaseMap") ? mats[i].GetTexture("_BaseMap") : mats[i].mainTexture;
-                        var m = new Material(shader) { name = "VRModel " + mats[i].name };
-                        if (tex != null) m.SetTexture("_BaseMap", tex);
-                        m.SetFloat("_Light", light);
-                        mats[i] = m;
-                    }
-                    rd.sharedMaterials = mats;
-                    rd.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                    rd.receiveShadows = false;
+                    if (mats[i] == null) continue;
+                    Texture tex = mats[i].HasProperty("_BaseMap") ? mats[i].GetTexture("_BaseMap") : mats[i].mainTexture;
+                    var m = new Material(shader) { name = "VRModel " + mats[i].name };
+                    if (tex != null) m.SetTexture("_BaseMap", tex);
+                    m.SetFloat("_Light", light);
+                    mats[i] = m;
                 }
-            GameObject plus = helper == null ? null : s.left ? helper.m_modelMetaTouchPlusLeftController : helper.m_modelMetaTouchPlusRightController;
-            if (plus == null) return;
-            if (s.left)
-            {
-                Letters(s, plus.transform, "button_x", "X");
-                Letters(s, plus.transform, "button_y", "Y");
-                Letters(s, plus.transform, "button_oculus", "≡", "Menu");
+                rd.sharedMaterials = mats;
+                rd.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                rd.receiveShadows = false;
             }
-            else
-            {
-                Letters(s, plus.transform, "button_a", "A");
-                Letters(s, plus.transform, "button_b", "B");
-            }
-        }
-
-        /// <summary>A letter over the button whose node's name ends so (on the Touch Plus model).</summary>
-        void Letters(Side s, Transform model, string node, string text, string button = null)
-        {
-            Transform at = FindEnd(model, node);
-            if (at == null) return;
-            var canvas = new GameObject("VR Letter " + text, typeof(RectTransform)).AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.WorldSpace;
-            var rt = (RectTransform)canvas.transform;
-            rt.SetParent(s.controller, false);
-            rt.sizeDelta = new Vector2(64, 64);
-            rt.localScale = Vector3.one * (LetterSize / 40f);   // (a 40-unit letter)
-            Text t = UiKit.Label(rt, "Letter", text, 40, UiKit.Ink, TextAnchor.MiddleCenter);
-            var edge = t.gameObject.AddComponent<Outline>();
-            edge.effectColor = new Color(0f, 0f, 0f, 0.9f);
-            edge.effectDistance = new Vector2(2.5f, -2.5f);
-            letters.Add(new Letter { button = button ?? text, at = at, sign = rt, text = t });
-        }
-
-        static Transform FindEnd(Transform t, string end)
-        {
-            if (t.name.ToLowerInvariant().EndsWith(end)) return t;
-            foreach (Transform c in t)
-            {
-                Transform f = FindEnd(c, end);
-                if (f != null) return f;
-            }
-            return null;
         }
 
         /// <summary>A hand: the headset's own mesh on its tracked skeleton, posed by the skeleton itself in the origin
@@ -179,18 +155,23 @@ namespace AntGarden
             holder.transform.SetParent(origin, false);
             GameObject hand = Instantiate(prefab, holder.transform, false);
             s.tracked = hand.GetComponent<OVRHand>();
-            var skeleton = hand.GetComponent<OVRSkeleton>();
+            s.skeleton = hand.GetComponent<OVRSkeleton>();
+            s.mesh = hand.GetComponent<OVRMesh>();
+            s.binder = hand.GetComponent<OVRMeshRenderer>();
             bool set = Set(s.tracked, "HandType", s.left ? OVRHand.Hand.HandLeft : OVRHand.Hand.HandRight);
             // the prefab's skeleton is saved as the older kind (the editor puts that right as the prefab goes into a scene;
             // made at runtime nothing does), so it found no data and never moved from where it was made: lying across the
             // middle of the view (the user, 11-01). Its kind and its data now come from the hand itself.
             if (s.tracked is OVRSkeleton.IOVRSkeletonDataProvider provider)
-                set &= Set(skeleton, "_skeletonType", provider.GetSkeletonType()) & Set(skeleton, "_dataProvider", provider);
-            set &= Set(skeleton, "_updateRootPose", true);
-            var meshRenderer = hand.GetComponent<OVRMeshRenderer>();
-            set &= Set(meshRenderer, "_confidenceBehavior", OVRMeshRenderer.ConfidenceBehavior.None)
-                & Set(meshRenderer, "_systemGestureBehavior", OVRMeshRenderer.SystemGestureBehavior.None);
-            if (!set) Debug.LogWarning("[AntGarden] VR: the hand prefab has changed; the hands may be drawn wrong");
+                set &= Set(s.skeleton, "_skeletonType", provider.GetSkeletonType()) & Set(s.skeleton, "_dataProvider", provider);
+            set &= Set(s.skeleton, "_updateRootPose", true);
+            set &= Set(s.binder, "_confidenceBehavior", OVRMeshRenderer.ConfidenceBehavior.None)
+                & Set(s.binder, "_systemGestureBehavior", OVRMeshRenderer.SystemGestureBehavior.None);
+            // read and posed again just before each frame is drawn, as its controller is: the hand's and its bones' own
+            // methods, called later than the SDK calls them
+            s.read = Method<Action<OVRPlugin.Step>>(s.tracked, "GetHandState");
+            s.pose = Method<Action>(s.skeleton, "UpdateSkeleton");
+            if (!set || s.read == null || s.pose == null) Debug.LogWarning("[AntGarden] VR: the hand prefab has changed; the hands may be drawn wrong");
             s.skin = hand.GetComponent<SkinnedMeshRenderer>();
             var shader = Resources.Load<Shader>("AntGarden/VR/VRGhostHand");
             if (s.skin != null && shader != null)
@@ -213,16 +194,27 @@ namespace AntGarden
             return true;
         }
 
-        /// <summary>Each controller where the SDK has it, as late as possible before a frame is drawn.</summary>
+        static T Method<T>(Component c, string name) where T : Delegate
+        {
+            MethodInfo m = c == null ? null : c.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            return m == null ? null : Delegate.CreateDelegate(typeof(T), c, m, false) as T;
+        }
+
+        /// <summary>Each controller where the SDK has it, and each hand read again and posed, as late as possible before
+        /// a frame is drawn.</summary>
         void Pose()
         {
             foreach (Side s in new[] { l, r })
             {
-                if (s.controller == null) continue;
-                if (OVRInput.GetControllerPositionTracked(s.touch) || OVRInput.GetControllerOrientationTracked(s.touch))
+                if (s.controller != null && (OVRInput.GetControllerPositionTracked(s.touch) || OVRInput.GetControllerOrientationTracked(s.touch)))
                 {
                     s.controller.localPosition = OVRInput.GetLocalControllerPosition(s.touch);
                     s.controller.localRotation = OVRInput.GetLocalControllerRotation(s.touch);
+                }
+                if (s.read != null && s.pose != null && s.tracked.isActiveAndEnabled)
+                {
+                    s.read(OVRPlugin.Step.Render);
+                    s.pose();
                 }
             }
         }
@@ -256,8 +248,6 @@ namespace AntGarden
 
         static bool Held(bool was, float strength) => was ? strength > PinchOff : strength > PinchOn;
 
-        public void Hint(string button) => hint = button;
-
         void LateUpdate()
         {
             float dt = Time.deltaTime;
@@ -270,43 +260,57 @@ namespace AntGarden
                     bool on = s.lost < LostHide;
                     if (s.controller.gameObject.activeSelf != on) s.controller.gameObject.SetActive(on);
                 }
+                if (s.look == null) continue;
+                // the mesh bound to the bones once both are there (on a headset the SDK binds it only as it starts: bones
+                // not there yet then, a hand never drawn)
+                if (s.binder != null && !s.binder.IsInitialized && s.skeleton != null && s.skeleton.IsInitialized && s.mesh != null && s.mesh.IsInitialized)
+                    s.binder.ForceRebind();
                 // a hand: its last pose kept while the headset cannot see it well, fading out; back as it is seen
-                if (s.look != null)
-                {
-                    bool seen = s.tracked != null && s.tracked.IsTracked && s.tracked.IsDataHighConfidence;
-                    if (seen && !s.told)
-                    {
-                        // where the hand is against its controller, the first time it is seen (both in the origin, metres)
-                        s.told = true;
-                        var skeleton = s.tracked.GetComponent<OVRSkeleton>();
-                        Debug.Log($"[AntGarden] VR: {(s.left ? "left" : "right")} hand seen: skeleton {skeleton?.GetSkeletonType()}, " +
-                            $"moving {skeleton != null && skeleton.IsInitialized && skeleton.IsDataValid}, at {s.tracked.transform.localPosition:F3}; " +
-                            $"its controller at {OVRInput.GetLocalControllerPosition(s.touch):F3} ({(OVRInput.GetControllerPositionTracked(s.touch) ? "tracked" : "not tracked")}), " +
-                            $"poses from the controller {OVRInput.AreHandPosesGeneratedByControllerData(OVRPlugin.Step.Render, s.hand)}");
-                    }
-                    s.shown = Mathf.MoveTowards(s.shown, seen ? 1f : 0f, dt / FadeTime);
-                    s.look.SetFloat("_Alpha", s.shown);
-                    bool draw = s.shown > 0.01f;
-                    if (s.skin.enabled != draw) s.skin.enabled = draw;
-                }
+                bool seen = s.tracked != null && s.tracked.IsTracked && s.tracked.IsDataHighConfidence;
+                s.shown = Mathf.MoveTowards(s.shown, seen ? 1f : 0f, dt / FadeTime);
+                s.look.SetFloat("_Alpha", s.shown);
+                bool draw = s.shown > 0.01f;
+                if (s.skin.enabled != draw) s.skin.enabled = draw;
             }
-            // the letters over their buttons, a little toward the eyes, facing them; the one waited for larger and warm
-            Camera cam = Camera.main;
-            if (cam == null) return;
-            float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 6f);
-            foreach (Letter t in letters)
-            {
-                bool on = t.at != null && t.at.gameObject.activeInHierarchy;
-                if (t.sign.gameObject.activeSelf != on) t.sign.gameObject.SetActive(on);
-                if (!on) continue;
-                Vector3 toEye = cam.transform.position - t.at.position;
-                float scale = t.sign.parent.lossyScale.x;   // (the origin's: real metres to the world's)
-                t.sign.position = t.at.position + toEye.normalized * 0.006f * scale;
-                t.sign.rotation = Quaternion.LookRotation(-toEye, cam.transform.up);
-                bool wanted = t.button == hint;
-                t.sign.localScale = Vector3.one * (LetterSize / 40f) * (wanted ? 1.5f + 0.25f * pulse : 1f);
-                t.text.color = wanted ? Color.Lerp(UiKit.Warm, Color.white, pulse * 0.5f) : UiKit.Ink;
-            }
+            if (track != null && Time.unscaledTime >= trackAt) Track();
         }
+
+        /// <summary>A line of vr_track.txt: the head, each controller and each hand, in the origin (real metres).</summary>
+        void Track()
+        {
+            trackAt = Time.unscaledTime + TrackEvery;
+            Transform origin = transform.parent;
+            var line = new StringBuilder(480);
+            line.Append(Time.unscaledTime.ToString("F1"));
+            Camera cam = Camera.main;
+            line.Append(" | head ").Append(cam != null ? V(cam.transform.localPosition) : "-")
+                .Append(" sdk ").Append(V(OVRPlugin.GetNodePose(OVRPlugin.Node.EyeCenter, OVRPlugin.Step.Render).ToOVRPose().position));
+            foreach (Side s in new[] { l, r })
+            {
+                line.Append(s.left ? " | L" : " | R");
+                bool held = OVRInput.GetControllerPositionTracked(s.touch);
+                Vector3 c = OVRInput.GetLocalControllerPosition(s.touch);
+                line.Append(" ctrl ").Append(held ? V(c) : "lost");
+                if (InputDevices.GetDeviceAtXRNode(s.node).TryGetFeatureValue(CommonUsages.devicePosition, out Vector3 u)) line.Append(" xr ").Append(V(u));
+                OVRHand h = s.tracked;
+                if (h == null) continue;
+                Vector3 root = h.transform.localPosition;
+                line.Append(" hand ").Append(h.IsTracked ? V(root) : "lost")
+                    .Append(" conf ").Append(h.HandConfidence)
+                    .Append(" from-ctrl ").Append(OVRInput.AreHandPosesGeneratedByControllerData(OVRPlugin.Step.Render, s.hand) ? 1 : 0)
+                    .Append(" in-hand ").Append(OVRInput.GetControllerIsInHandState(s.hand))
+                    .Append(" bones ").Append(s.skeleton == null || !s.skeleton.IsInitialized ? "none" : s.skeleton.IsDataValid ? "moving" : "still")
+                    .Append(" mesh ").Append(s.binder != null && s.binder.IsInitialized ? "bound" : "unbound")
+                    .Append(" shown ").Append(s.shown.ToString("F2"));
+                if (h.IsTracked && held) line.Append(" apart ").Append((root - c).magnitude.ToString("F3"));
+                if (s.skin != null && s.skin.enabled && origin != null) line.Append(" mesh at ").Append(V(origin.InverseTransformPoint(s.skin.bounds.center)));
+            }
+            try { track.WriteLine(line.ToString()); }
+            catch (Exception) { track = null; return; }
+            if (trackCount++ % 5 == 0) Debug.Log("[AntGarden] VR track: " + line);
+            if (trackCount >= TrackLines) { track.Dispose(); track = null; }
+        }
+
+        static string V(Vector3 v) => $"({v.x:F3},{v.y:F3},{v.z:F3})";
     }
 }

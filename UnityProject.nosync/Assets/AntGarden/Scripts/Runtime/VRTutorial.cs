@@ -39,8 +39,8 @@ namespace AntGarden
                 $"{K}转头</color>看向别处，停一下，蚂蚁就跟着转过去。\n低头看看，那是你的腿。",
                 $"{K}Turn your head</color> and hold it there: the ant turns to look with you. Look down: your legs." },
             new[] { "换个视角", "Another view",
-                $"按 {K}Y</color>：换到蚂蚁身后看（第三人称）；\n再按一次，回到蚂蚁的眼睛（第一人称）。",
-                $"Press {K}Y</color> to watch the ant from behind (third person); press it again to look through its eyes (first person)." },
+                $"按 {K}Y</color>：换到蚂蚁身后看（第三人称），\n推{K}右摇杆</color>绕着蚂蚁转视角；\n再按一次 {K}Y</color>，回到蚂蚁的眼睛（第一人称）。",
+                $"Press {K}Y</color> to watch the ant from behind (third person), where the {K}right stick</color> turns the view round it; press it again to look through its eyes (first person)." },
             new[] { "触角", "Antennae",
                 $"松开摇杆停下来，按 {K}B</color> 摆动触角。\n触角碰到发光的植物，植物会亮起来。",
                 $"Let go of the stick to stop, and press {K}B</color> to wave your antennae. Glowing plants light up at their touch." },
@@ -98,10 +98,12 @@ namespace AntGarden
             body.rectTransform.offsetMin = new Vector2(34, 56);   // (down to just over the foot)
             foot = Inset(UiKit.Label(card, "Foot", "", 28, UiKit.Dim, TextAnchor.LowerRight), 34, 16);
 
-            help = UiKit.Rect(root, "VR Controls", 0.5f, 0.5f, new Vector2(0, -20), new Vector2(900, 830));
+            help = UiKit.Rect(root, "VR Controls", 0.5f, 0.5f, new Vector2(0, -20), new Vector2(900, 900));
             help.localScale = Vector3.one * Larger;
             UiKit.Panel(help, HelpBg);
             helpText = Inset(UiKit.Label(help, "Text", "", 34, UiKit.Ink, TextAnchor.UpperLeft), 40, 30);
+            Fit(body, 30);
+            Fit(helpText, 22);
             help.gameObject.SetActive(false);
 
             // the screen's own lines, made for a monitor: the goal to the top middle and larger; the prompt (bottom) and
@@ -282,8 +284,6 @@ namespace AntGarden
             int l = Loc.En ? 1 : 0;
             bool teaching = step < Steps.Length;
             help.gameObject.SetActive(helpOpen);   // (the card: LateUpdate)
-            // the button a step waits for, picked out on its controller
-            vr.Devices?.Hint(!teaching || helpOpen ? null : step == 2 ? "Y" : step == 3 ? "B" : step == 4 ? "A" : null);
             if (teaching)
             {
                 title.text = $"<b>{Steps[step][l]}</b>";
@@ -292,9 +292,13 @@ namespace AntGarden
                     $"{K}扳机</color> 跳过教程    {K}菜单键</color> 使用说明    {K}Y</color> 视角    {K}X</color> English        {step + 1} / {Steps.Length}",
                     $"{K}Trigger</color> skip    {K}Menu</color> instructions    {K}Y</color> view    {K}X</color> 中文        {step + 1} / {Steps.Length}");
             }
+            // turning: through its eyes after the head (or the right stick, in steps); behind it the right stick turns the
+            // view round it
             string turning = vr.gazeTurn
-                ? Loc.T($"{K}转头</color>  蚂蚁跟着你看的方向转身", $"{K}Turn your head</color>  the ant turns the way you look")
-                : Loc.T($"{K}右摇杆</color>  转身", $"{K}Right stick</color>  turn");
+                ? Loc.T($"{K}转头</color>  蚂蚁跟着你看的方向转身（第一人称）\n{K}右摇杆</color>  绕着蚂蚁转视角（第三人称）",
+                    $"{K}Turn your head</color>  the ant turns the way you look (first person)\n{K}Right stick</color>  turn the view round the ant (third person)")
+                : Loc.T($"{K}右摇杆</color>  转身 30°（第一人称）/ 绕着蚂蚁转视角（第三人称）",
+                    $"{K}Right stick</color>  turn 30° (first person) / turn the view round the ant (third person)");
             helpText.text = Loc.T(
                 $"<b>使用说明</b>\n站在原地玩，不用走动。\n\n{K}左摇杆</color>  蚂蚁朝你看的方向爬（按下：快爬）\n{turning}\n{K}A</color>  打招呼 / 查看\n{K}B</color>  摆动触角（碰亮发光植物）\n" +
                 $"{K}Y</color>  第一人称 / 第三人称（蚂蚁身后）\n{K}按下右摇杆</color>  真实走动 开 / 关（默认关）\n{K}X</color>  English\n{K}扳机</color>  重看新手教程\n{K}菜单键</color>  关上说明\n" +
@@ -304,6 +308,17 @@ namespace AntGarden
                 $"{K}Y</color>  first person / third person (behind the ant)\n{K}Right stick click</color>  walk for real on / off (off at first)\n{K}X</color>  中文\n{K}Trigger</color>  the tutorial again\n{K}Menu</color>  close\n" +
                 $"Controllers down? {K}Right hand</color>: pinch thumb and index = A, thumb and middle = B; {K}left hand</color>: hold an index pinch to crawl, middle = Y\n\n" +
                 "<color=#9bbcbc>Crawl along the light on the ground: it leads to the way out. On the map top right, the arrow is you.</color>");
+        }
+
+        /// <summary>A card's words kept inside it whatever font the headset has (its lines may stand taller than a
+        /// computer's, and English runs longer than 中文): as large as they were made while they fit, a little smaller
+        /// (down to least) where they would not, never spilling out below the card.</summary>
+        static void Fit(Text t, int least)
+        {
+            t.resizeTextForBestFit = true;
+            t.resizeTextMinSize = least;
+            t.resizeTextMaxSize = t.fontSize;
+            t.verticalOverflow = VerticalWrapMode.Truncate;
         }
 
         /// <summary>A label kept this far in from its card's sides (left and right alike) and from its top and bottom.</summary>

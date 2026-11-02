@@ -18,8 +18,6 @@ namespace AntGarden
         void Init(Transform origin, bool draw, float light);
         /// <summary>This frame's sticks, buttons, triggers and pinches.</summary>
         void Read(ref VRPad pad);
-        /// <summary>The button the tutorial waits for ("A", "B", "X", "Y", "Menu"), picked out on its controller; null: none.</summary>
-        void Hint(string button);
     }
 
     /// <summary>What the player is doing with their hands this frame, as held states (VRPlayer finds the presses).</summary>
@@ -67,7 +65,5 @@ namespace AntGarden
             pad.walkToggle = right.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool click) && click;
             pad.trigger = Mathf.Max(left.TryGetFeatureValue(CommonUsages.trigger, out float lt) ? lt : 0f, right.TryGetFeatureValue(CommonUsages.trigger, out float rt) ? rt : 0f);
         }
-
-        public void Hint(string button) { }
     }
 }

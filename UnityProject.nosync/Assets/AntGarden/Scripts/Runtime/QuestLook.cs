@@ -56,14 +56,15 @@ namespace AntGarden
             public float behindUp = 1.1f;       // and this far above its feet
             public string walk = "stick";       // "stick": stand still and crawl with the left stick (safe); "real": step and the ant follows (the right stick's click switches)
             public float leanRadius = 0.3f;     // how far the head may lean from where the player stands before the view stops following (real metres)
-            public string turn = "gaze";        // "gaze": the ant turns the way the head looks (10-31); "stick": the right stick turns in steps
+            public string turn = "gaze";        // through its eyes, "gaze": the ant turns the way the head looks (10-31); "stick": the right stick turns in steps
+            public float turnSpeed = 60f;       // behind the ant: the right stick turns the view round it, at most this fast (degrees a second; 11-02 "要丝滑，不要卡顿，是连续的变化")
             public float gazeDeadZone = 40f;    // the head may look this far aside (degrees) without turning the ant
             public float gazeDwell = 0.5f;      // further, for this long (seconds), and the ant turns after it
             public bool body = true;            // through the ant's eyes its own body is there: legs below, antennae ahead
             public float selfAlpha = 0.8f;      // see-through: its outline this opaque, the rest fainter, nothing of it close to the eyes (11-01 "能看出来蚂蚁造型的边界即可")
             public float selfPoints = 0.5f;     // and drawn with this share of all its points, each smaller than the other ants' (its legs a hand's breadth away: specks, not discs)
             public float selfSize = 0.5f;       // each point this much of the size that would just cover the body (smaller: a finer line along its outline)
-            public float eyeAbove = 0f;         // the view this far above the ant's eyes (units, for an ant one long; 11-01 "摄像头位置可以在蚂蚁眼部")
+            public float eyeAbove = 0.06f;      // the view this far above the ant's eyes (units, for an ant one long; 11-01 "摄像头位置可以在蚂蚁眼部", 11-02 "有点太低了，可以稍微高一些": the eyes 0.27 up, the view 0.33)
             public float eyeAhead = 0.02f;      // and this far ahead of its face
             public float heightEase = 4f;       // how quickly the view follows the ant up and down (slower: smoother, sickens less)
             public float comfort = 0.6f;        // how dark the view's edges grow while the ant crawls, against motion sickness (0: never)
@@ -131,6 +132,7 @@ namespace AntGarden
             vr.realWalk = q.walk == "real";
             vr.leanRadius = Mathf.Max(0.05f, q.leanRadius);
             vr.gazeTurn = q.turn != "stick";
+            vr.turnSpeed = Mathf.Clamp(q.turnSpeed, 10f, 240f);
             vr.gazeDeadZone = Mathf.Clamp(q.gazeDeadZone, 5f, 120f);
             vr.gazeDwell = Mathf.Max(0f, q.gazeDwell);
             vr.body = q.body;
