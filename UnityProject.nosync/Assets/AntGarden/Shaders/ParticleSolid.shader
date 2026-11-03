@@ -53,6 +53,8 @@ Shader "AntGarden/ParticleSolid"
             float _WalkLit, _WalkRadius;                // how much what it walked past lights up, and how near it must be
             float _NearLift;                            // how much brighter things are right round the ant (SolidThings; 0.9)
             float _ScatterRadius;                       // what the ant walks through scatters this far round it (0: no)
+            float _ExhibitCount, _ExhibitPeriod;        // a visitor's things (Uploads): how many, and one tide (seconds);
+            float4 _Exhibits[8], _ExhibitTide[8];       // where each is (xyz, w: how far round), its tide (x its foot's height, y how tall, z phase, w light)
 
             struct v2f
             {
@@ -130,6 +132,22 @@ Shader "AntGarden/ParticleSolid"
                 // (a building, and a crystal, stand still: ThingPen.Building)
                 bool building = (p.nrm >> 31) != 0;
                 float3 pos = p.pos + (building ? float3(0, 0, 0) : NestSway(p.pos, above, h) + NestPart(p.pos, above, _TrailPlayer.xz));
+                // a visitor's thing (Uploads: a building's splats inside one of _Exhibits, not the ground's): on the ground as
+                // all else, a soft line of light rising up its lower part and sinking back slowly, like a tide, what lies
+                // under it faintly lit (not the whole of it: "不是整体发光…像潮汐这样律动的发光", 11-03)
+                float tideLight = 0;
+                if (building && ((p.col >> 24) & 255u) != 2u)
+                    for (int ex = 0; ex < 8; ex++)
+                    {
+                        if (ex >= (int)_ExhibitCount) break;
+                        if (distance(p.pos, _Exhibits[ex].xyz) > _Exhibits[ex].w) continue;
+                        float4 tide = _ExhibitTide[ex];
+                        float swell = 0.5 + 0.5 * sin(AG_TIME * 6.2832 / max(_ExhibitPeriod, 0.5) + tide.z);
+                        float tideLevel = tide.x + tide.y * (0.08 + 0.37 * swell);
+                        float tideD = (p.pos.y - tideLevel) / max(0.07 * tide.y, 0.05);
+                        tideLight = tide.w * (exp(-tideD * tideD) + 0.22 * (1 - smoothstep(-0.5, 0.5, tideD)));
+                        break;
+                    }
                 float low = 1 - smoothstep(0.15, 0.6, above);
                 float rip = NestRipple(pos.xz) * low;
                 pos.y += 0.03 * rip;
@@ -228,6 +246,7 @@ Shader "AntGarden/ParticleSolid"
                     float b = NestBreath(p.pos);
                     lit += albedo * glow * _GlowGain * (0.4 + 0.6 * b * b);
                 }
+                lit += albedo * tideLight * _GlowGain;   // (a visitor's thing's own light, with its tide)
                 // a plant an antenna has lit: much brighter, and warmer, while its flare lasts
                 float flare = 0, part = building ? lerp(0.12, 1, saturate(glow * 3)) : 1;
                 for (int f = 0; f < 16; f++)

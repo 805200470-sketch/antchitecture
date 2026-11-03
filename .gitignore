@@ -5,6 +5,12 @@
 *api_key*
 # git 自己的数据放在本机、不进 iCloud 的文件夹里
 .git.nosync/
+# 访客上传的真实内容（照片、文字，以及用它们做的模型）：仓库是公开的
+08_Uploads.nosync/
+UnityProject.nosync/Assets/StreamingAssets/Uploads/
+UnityProject.nosync/Assets/StreamingAssets/Uploads.meta
+UnityProject.nosync/Assets/AntGarden/Art/Uploads/
+UnityProject.nosync/Assets/AntGarden/Art/Uploads.meta
 
 # ─── 太大，或者可以重新生成：只留说明文件 ─────────────────────
 # 打包好的游戏（约 2 GB，用 Unity 重新打包即可）

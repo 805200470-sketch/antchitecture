@@ -78,7 +78,7 @@ namespace AntGarden
 
         public bool LoadPoints()
         {
-            if (pointsTried) return points != null && points.Length > 0;
+            if (pointsTried || points != null) return points != null && points.Length > 0;   // (or made at run time: Uploads)
             pointsTried = true;
             var asset = Resources.Load<TextAsset>("AntGarden/Points/" + name);
             if (asset == null) return false;

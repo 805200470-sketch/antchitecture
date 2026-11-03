@@ -1,0 +1,27 @@
+{
+ "nests": [
+  {
+   "nest": "blue",
+   "items": [
+    {
+     "item": 1,
+     "make": "sleeve",
+     "size": 2.8,
+     "at": 0.2,
+     "side": 1,
+     "lean": 12
+    },
+    {
+     "item": 2,
+     "make": "stones",
+     "stand": true,
+     "size": 2.6,
+     "at": 0.55,
+     "side": -1,
+     "thick": 0.45,
+     "lean": 50
+    }
+   ]
+  }
+ ]
+}

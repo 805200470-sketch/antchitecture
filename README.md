@@ -103,7 +103,7 @@ UCL DFPI 毕业设计。把真实蚂蚁巢穴的路径图变成一座座峡谷�
   - [ ] 存在哪里：本机文件夹还是云端；断网时怎么办
   - [ ] 照片怎么变成物件：做成卡片？用 Tripo 生成 3D 再粒子化？
   - [ ] 审核和隐私：匿名、不收集个人信息、能删除
-- **建议的接口（还没实现，可以改）**：每条上传一个文件夹，放在 `UnityProject.nosync/Assets/StreamingAssets/Uploads/<日期_编号>/`，里面是 `story.json`（文字、语言、时间、哪个蚁穴）和 `photo.jpg`；游戏启动时读这个文件夹。
+- **现在的做法（2026-11-02 起，先做了蓝色世界）**：访客的导出整个文件夹（`manifest.json`、`photos/`、`cutouts/`、`masks/`）原样放进本机的 `08_Uploads.nosync/`（不进仓库，也不同步 iCloud），旁边写一个 `placement.json`：哪件放进哪个蚁穴、怎么做（Tripo 模型 / 唱片套那样的薄板 / 按抠图轮廓鼓起的石头）、多大、放在路的哪一段（字段见 `Scripts/Runtime/Uploads.cs` 的 `Entry`）。游戏加 `-uploads <文件夹>` 启动时读取，或者把导出放进打包后游戏的 `StreamingAssets/Uploads/`；物件立在路边的地上，脚下一圈粒子光环，物件下部有一道像潮汐一样慢慢涨落的光；用触角碰或按 `E` 弹出名字、照片和那段话。Tripo 模型先用 `Tools/uploads/glb_to_mesh.py` 转换；检查用 `Tools/dev/uploads_run.sh`（截图）和 `Tools/dev/uploads_film.sh`（短片）。带访客内容的游戏包不要传到 Releases。
 - ⚠️ 仓库是公开的，**真实访客上传的内容不要提交到仓库**。
 
 ---

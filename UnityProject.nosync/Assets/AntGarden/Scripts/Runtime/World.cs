@@ -126,6 +126,7 @@ namespace AntGarden
         public Color scan;         // the pale colour its points take in the particle look (the region's own)
         public bool far;           // one of the huge trunks beyond the frame (the particle look gives it few points)
         public bool relic;         // a thing, not a plant: the particle look keeps its own colours (no tint by kind)
+        public bool exhibit;       // a visitor's thing (Uploads): a relic drawn as clearly as it can be (ParticleLook)
     }
 
     /// <summary>Where one plant was placed (bottom of a stack), for debug views and later lookups.</summary>

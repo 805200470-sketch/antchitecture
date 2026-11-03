@@ -23,6 +23,8 @@ namespace AntGarden
         public static bool Lab => Selection != null && Selection.StartsWith("lab:");
         LabNest lab;
         public LabNest LabNest => lab;
+        Uploads uploads;        // what visitors left beside a particle nest's way (-uploads)
+        int nearUpload = -1;
         Transform worldRoot;
         public static string QualityName;
         /// <summary>The ruin scenes, each a single nest closed over into a tunnel (see RuinScene).</summary>
@@ -364,6 +366,7 @@ namespace AntGarden
                 ruins.Add(ruin);
             }
             lab = null;
+            uploads = null;
             NestTheme.Current = null;
             if (Lab)
             {
@@ -377,6 +380,7 @@ namespace AntGarden
                 var sp = world.SpawnPoint(0);
                 lab.Plan(new Vector2(sp.x, sp.z));
                 lab.PlaceObjects(root);
+                uploads = Uploads.Place(world, world.regions[0], lab, refs, root);   // (and what visitors left there: Uploads)
             }
             // the particle nest grows five more kinds of plant (from the amber nest), so its forest is more varied
             if (Lab)
@@ -1248,7 +1252,7 @@ namespace AntGarden
                 if (!mapOpen && (Input.GetKeyDown(KeyCode.Space) || (Pad.Back && !back)) && player.speed < 0.1f)
                 {
                     // reaching out with the antennae is also how you talk: to the ant or relic in front of you
-                    if ((nearRuin != null || focusNpc) && nearPortal == null && nearWorldGate == null) Interact();
+                    if ((nearRuin != null || nearUpload >= 0 || focusNpc) && nearPortal == null && nearWorldGate == null) Interact();
                     else player.PlayTalk();
                 }
                 if (!mapOpen && (Input.GetKeyDown(KeyCode.E) || Pad.Interact)) Interact();
@@ -1286,6 +1290,7 @@ namespace AntGarden
             world.trails?.Evaporate(dt);
             if (ruins.Count > 0 || lab != null) GuideTrail.Follow(player.Position, dt);   // the glowing specks brighten round the ant
             lab?.Tick(dt, player.Position, hud);
+            uploads?.Tick(dt, player, hud);
             foreach (RuinScene ruin in ruins) ruin.Tick(dt, player, hud);
             // ants in far nests wait unseen; the nest the player is in and its close neighbours live
             UpdateActiveRegions();
@@ -1408,6 +1413,7 @@ namespace AntGarden
                 int i = ruin.Near(player.Position);
                 if (i >= 0) { nearRuin = ruin; nearRelic = i; break; }
             }
+            nearUpload = uploads != null ? uploads.Near(player.Position) : -1;
             nearSlot = null;
             float best = cfg.slotRadius;
             foreach (var s in world.slots)
@@ -1433,6 +1439,7 @@ namespace AntGarden
             string text = nearPortal != null ? Loc.T($"光门 · 按 E 前往「{nearPortal.TargetLabel}」", $"Light gate · press E to travel to {nearPortal.TargetLabel}")
                 : nearWorldGate != null ? Loc.T($"光门 · 按 E 前往「{nearWorldGate.TargetLabel}」", $"Light gate · press E to travel to {nearWorldGate.TargetLabel}")
                 : nearRuin != null ? Loc.T($"{nearRuin.NameOf(nearRelic)} · 按 E 或用触角碰碰它", $"{nearRuin.NameOf(nearRelic)} · press E or touch it with your antennae")
+                : nearUpload >= 0 ? Loc.T($"{uploads.NameOf(nearUpload)} · 按 E 或用触角碰碰它", $"{uploads.NameOf(nearUpload)} · press E or touch it with your antennae")
                 : focusNpc ? Loc.T("按 E 和它碰碰触角", "Press E to touch antennae")
                 : focusSlot ? Loc.T("按 E 查看这个故事物件位", "Press E to look at this story slot")
                 : nearExit != null ? Loc.T("出口 · 按 E 前往下一个模块", "Exit · press E for the next nest")
@@ -1471,6 +1478,12 @@ namespace AntGarden
             {
                 player.PlayTalk();
                 nearRuin.Speak(nearRelic, hud);
+                Pad.Rumble(0.15f, 0.25f, 0.15f);
+            }
+            else if (nearUpload >= 0 && uploads != null)
+            {
+                player.PlayTalk();
+                uploads.Read(nearUpload, hud);
                 Pad.Rumble(0.15f, 0.25f, 0.15f);
             }
             else if (focusNpc && nearNpc != null)

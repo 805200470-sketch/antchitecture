@@ -65,6 +65,9 @@ namespace AntGarden
         public int solidNearCap = 200000;   // at most this many for one plant (all of a plant's stored points)
         public int splitMax = 4;            // a big plant's stored points too few for solidNear: each near the camera drawn as up to this many
         public float solidAlbedo = 0.5f;    // how bright a plant's splats are lit (its dots' colours were for glowing)
+        // a visitor's thing's splats as large for their spacing as this (a plant's 0.62 leaves gaps between them: as loose
+        // points the things ran into the nest, "实体感可以更强一些", 11-03)
+        const float ExhibitCover = 0.9f;
         // plants whose glowing part is glass (a mesh can only make it an opaque lump): there a thin, broken shell of
         // splats round a light of its own inside, as a capture of something translucent looks
         public string[] glassKinds = { "spore_stalk" };
@@ -363,6 +366,7 @@ namespace AntGarden
             public Vector2 bendDir;
             public float bend, twist, sy, sxz;
             public bool rigid;              // a thing (relic): neither bent nor recoloured
+            public bool exhibit;            // a visitor's thing (PlantInstance.exhibit)
             public bool glass;              // its glowing part is glass (glassKinds)
             public bool crystal;            // a crystal (crystalKinds): CrystalSplat where it is crystal, still in the wind
             public byte[] ridge;            // and how much each point lies on a ridge (PlantRef.pointRidge)
@@ -839,7 +843,7 @@ namespace AntGarden
                     farWanted += nf;
                     continue;
                 }
-                float density = solidCoarse * (pi.relic ? 2f : Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z)));
+                float density = solidCoarse * (pi.exhibit ? 6f : pi.relic ? 2f : Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z)));
                 int n = Mathf.Clamp(Mathf.RoundToInt(area * density), 120, pi.plant.points.Length);
                 picks.Add((pi, area, n));
                 wanted += n;
@@ -853,7 +857,7 @@ namespace AntGarden
                 SolidSlot slot = Slot(pi, area, ord++);
                 if (pi.far) { farJobs.Add((slot, Mathf.Max(100, Mathf.RoundToInt(n0 * farCut)), FarRadius(pi.t.lossyScale.y))); continue; }
                 int n = Mathf.Max(100, Mathf.RoundToInt(n0 * share));
-                float radius = Mathf.Min(0.055f, 0.62f * Mathf.Sqrt(area / n));
+                float radius = Mathf.Min(0.055f, (pi.exhibit ? ExhibitCover : 0.62f) * Mathf.Sqrt(area / n));
                 for (int k = 0; k < n && k < slot.pts.Length; k++)
                     into.Add(SolidSplat(slot, slot.order != null ? slot.order[k] : k, -radius));   // negative: coarse (left out round the ant)
                 if (slot.core != null)
@@ -1082,7 +1086,10 @@ namespace AntGarden
                 glowGain = 0.75f + 0.5f * R(),
                 faint = pi.relic ? 0f : 0.1f + 0.14f * R(),
                 bendDir = new Vector2(Mathf.Cos(R() * 6.283f), 0), bend = 0, twist = 0, sy = 1, sxz = 1,
+                exhibit = pi.exhibit,
             };
+            // (a visitor's thing: its photographed face clear, no mottling or bands over it; the user, 11-02: "识别不出来，不够清晰")
+            if (pi.exhibit) { slot.mottle = 0f; slot.band = 0f; }
             if (!pi.relic && !pi.far)
             {
                 float a = R() * 6.283f;
@@ -1329,7 +1336,7 @@ namespace AntGarden
         int ShellFull(SolidSlot s, out float radius)
         {
             int full = Mathf.Max(1, Mathf.Min(Mathf.Min(solidNearCap, s.pts.Length), Mathf.RoundToInt(s.area * solidNear * (s.crystal ? crystalDensity : 1f))));
-            radius = Mathf.Max(0.0018f, 0.62f * Mathf.Sqrt(s.area / full));
+            radius = Mathf.Max(0.0018f, (s.exhibit ? ExhibitCover : 0.62f) * Mathf.Sqrt(s.area / full));
             return full;
         }
 
@@ -1655,7 +1662,9 @@ namespace AntGarden
             float dens = s.density != null ? s.density[k] : 1f;
             float vary = (0.72f + 0.56f * PointHash(k)) / Mathf.Sqrt(Mathf.Clamp(dens, 0.25f, 9f));
             SolidPoint sp = ThingPen.Splat(s.m.MultiplyPoint3x4(p), s.m.MultiplyVector(n), albedo, radius * vary, glow);
-            return s.building ? ThingPen.Building(sp) : sp;
+            // (a visitor's thing as a building: still, few glints, a touch lights it softly, not to white; its own light and its
+            // tide are the solid shader's, _Exhibits)
+            return s.building || s.exhibit ? ThingPen.Building(sp) : sp;
         }
 
         /// <summary>Splat j of the light inside a glass plant: fine, in its glow colour, paler and brightest in the

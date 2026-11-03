@@ -1,0 +1,32 @@
+{
+ "project": "Ant Garden",
+ "kind": "collection",
+ "exported": "2026-11-03T00:00:00.000Z",
+ "count": 2,
+ "items": [
+  {
+   "id": "sample1",
+   "index": 1,
+   "name": "Test card",
+   "text": "A test object the project made, not a visitor's: it checks a sleeve's picture, its ring of light, its tide and this card.",
+   "original": {
+    "name": "测试卡片",
+    "text": "项目自己做的测试物件，不是访客的：用来检查薄板上的图、脚下的光圈、潮汐的光和这张卡片。",
+    "language": "zh"
+   },
+   "cutout": "cutouts/test_card.png"
+  },
+  {
+   "id": "sample2",
+   "index": 2,
+   "name": "Test pebbles",
+   "text": "Three pebbles drawn for testing: they check how stones are raised from a picture and stood beside the way.",
+   "original": {
+    "name": "测试卵石",
+    "text": "画出来测试用的三块卵石：检查石头怎样从图片鼓成实体、立在路边。",
+    "language": "zh"
+   },
+   "cutout": "cutouts/test_pebbles.png"
+  }
+ ]
+}
