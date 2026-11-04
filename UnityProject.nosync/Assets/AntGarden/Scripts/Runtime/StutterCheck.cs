@@ -15,6 +15,14 @@ namespace AntGarden
     /// </summary>
     public static class StutterCheck
     {
+        static IEnumerator Grab(string dir, string name, int quality = 88)
+        {
+            yield return new WaitForEndOfFrame();
+            Texture2D tex = ScreenCapture.CaptureScreenshotAsTexture();
+            File.WriteAllBytes(Path.Combine(dir, name + ".jpg"), tex.EncodeToJPG(quality));
+            Object.Destroy(tex);
+        }
+
         public static IEnumerator Run(Game game, string dir)
         {
             Directory.CreateDirectory(dir);
@@ -37,11 +45,48 @@ namespace AntGarden
             for (int i = 0; i < 30; i++) yield return null;   // the camera settles behind the ant
 
             var frames = new List<(float dt, bool gc, int made, int shown, float x, float z)>();
+            var shell = new List<(float upload, bool busy, float edge)>();   // (11-03) the fine shell's upload, its worker, its far edge
             int gc0 = System.GC.CollectionCount(0), made0 = SolidThings.ShellsMade, shown0 = SolidThings.ShellsShown;
             int next = 1;
-            float time = 0;
+            float time = 0, worstEdge = 99f;
+            bool sprint = Game.Arg("-stuttersprint") != null, stills = Game.Arg("-stutterstill") != null;
+            game.demoFast = sprint;   // (-stuttersprint: run, to see whether the fine splats' far edge keeps up)
+            // (-handover, 11-04: at three places along the way the same view four ways, for the coarse / fine handover: as it
+            // is, the plants coarse everywhere, the ground and walls drawn everywhere as they are far off, nothing brightened
+            // round the ant; -stutterclip N: every sixth frame of the first N seconds, as the ant walks)
+            bool handover = Game.Arg("-handover") != null;
+            float clipFor = float.TryParse(Game.Arg("-stutterclip"), out float cf) ? cf : 0f;
+            int stop = 0, clipFrame = 0;
+            float[] stops = { 7f, 15f, 23f };
             while (time < seconds)
             {
+                if (handover && stop < stops.Length && time >= stops[stop])
+                {
+                    stop++;
+                    game.demoMove = Vector2.zero;
+                    for (float w = 0; w < 1.2f || (SolidThings.Instance != null && !SolidThings.Instance.ShellReady() && w < 4f); w += Time.unscaledDeltaTime) yield return null;
+                    for (int f = 0; f < 8; f++) yield return null;
+                    yield return Grab(dir, $"h{stop}_a_as_is");
+                    ParticleLook.DebugShellNoPlants = true; SolidThings.DebugPlantsCoarse = true;
+                    SolidThings.Instance?.DebugRebuild();
+                    for (int f = 0; f < 4; f++) yield return null;
+                    yield return Grab(dir, $"h{stop}_b_plants_coarse");
+                    ParticleLook.DebugShellNoPlants = false; SolidThings.DebugPlantsCoarse = false;
+                    ParticleLook.DebugGroundFar = true; ParticleLook.DebugShellNoWalls = true;
+                    SolidThings.Instance?.DebugRebuild();
+                    for (int f = 0; f < 4; f++) yield return null;
+                    yield return Grab(dir, $"h{stop}_c_ground_far");
+                    ParticleLook.DebugGroundFar = false; ParticleLook.DebugShellNoWalls = false;
+                    SolidThings.Instance?.DebugRebuild();
+                    SolidThings.DebugNoLift = true;
+                    if (WalkLight.Instance != null) WalkLight.Instance.enabled = false;
+                    Shader.SetGlobalFloat("_WalkLit", 0f);
+                    for (int f = 0; f < 4; f++) yield return null;
+                    yield return Grab(dir, $"h{stop}_d_no_lift");
+                    SolidThings.DebugNoLift = false;
+                    if (WalkLight.Instance != null) WalkLight.Instance.enabled = true;
+                    for (int f = 0; f < 4; f++) yield return null;
+                }
                 // crawl toward a point a little way ahead on the way (at its end, stop)
                 Vector2 pos = DemoMode.Pos(game);
                 while (next < t.Count - 1 && (t[next] - pos).sqrMagnitude < 2.5f * 2.5f) next++;
@@ -52,6 +97,19 @@ namespace AntGarden
                 time += dt;
                 int gc = System.GC.CollectionCount(0);
                 frames.Add((dt, gc != gc0, SolidThings.ShellsMade - made0, SolidThings.ShellsShown - shown0, pos.x, pos.y));
+                shell.Add((SolidThings.ShellUploadMs, SolidThings.ShellBusy, SolidThings.ShellEdge));
+                if (clipFor > 0 && time <= clipFor && frames.Count % 6 == 0) yield return Grab(dir, $"clip_{clipFrame++:000}", 60);
+                // (-stutterstill: a still looking ahead whenever the far edge is the shortest yet, and one at 20 s; the
+                // frames they cost are not counted, so use it apart from the frame-time runs)
+                if (stills && time > 3f && (SolidThings.ShellEdge < worstEdge - 0.05f || (time >= 20f && time - dt < 20f)))
+                {
+                    bool worst = SolidThings.ShellEdge < worstEdge - 0.05f;
+                    if (worst) worstEdge = SolidThings.ShellEdge;
+                    yield return new WaitForEndOfFrame();
+                    Texture2D tex = ScreenCapture.CaptureScreenshotAsTexture();
+                    File.WriteAllBytes(Path.Combine(dir, worst ? "edge_worst.jpg" : "ahead_20s.jpg"), tex.EncodeToJPG(88));
+                    Object.Destroy(tex);
+                }
                 gc0 = gc;
                 made0 = SolidThings.ShellsMade;
                 shown0 = SolidThings.ShellsShown;
@@ -87,6 +145,29 @@ namespace AntGarden
             int gcs = 0, made = 0, shown = 0;
             foreach (var f in frames) { if (f.gc) gcs++; made += f.made; shown += f.shown; }
             report.AppendLine($"garbage collections {gcs}, shells made {made}, swapped in {shown}");
+            // (11-03) the long frames by what ran in them: the shell's upload, its worker, neither; how even the rest are;
+            // and the fine splats' far edge (how far past the ant's it still reached; below 0 the plants there thinned)
+            int longUp = 0, longBusy = 0, longNone = 0, upFrames = 0, busyFrames = 0, behind = 0;
+            float upMax = 0, upSum = 0, edgeMin = 99f;
+            double mean = sum / Mathf.Max(1, ms.Count), var = 0;
+            for (int i = 0; i < ms.Count; i++)
+            {
+                var sh = shell[i];
+                var += (ms[i] - mean) * (ms[i] - mean);
+                if (sh.upload > 0) { upFrames++; upSum += sh.upload; upMax = Mathf.Max(upMax, sh.upload); }
+                if (sh.busy) busyFrames++;
+                if (i > 30) { edgeMin = Mathf.Min(edgeMin, sh.edge); if (sh.edge < 0) behind++; }
+                if (ms[i] <= 25f) continue;
+                if (sh.upload > 0 || (i > 0 && shell[i - 1].upload > 0)) longUp++;
+                else if (sh.busy) longBusy++;
+                else longNone++;
+            }
+            int near = 0;
+            foreach (float m in ms) if (Mathf.Abs(m - 1000f / 60f) < 1f) near++;
+            report.AppendLine($"frame ms spread: sd {System.Math.Sqrt(var / Mathf.Max(1, ms.Count)):F2}, p5 {P(0.05f):F1}, p95 {P(0.95f):F1}; within 1 ms of 16.7: {100f * near / Mathf.Max(1, ms.Count):F0}%");
+            report.AppendLine($"long frames with the shell's upload (or right after it) {longUp}, with its worker {longBusy}, with neither {longNone}");
+            report.AppendLine($"shell upload: {upFrames} frames, {upSum / Mathf.Max(1, upFrames):F2} ms a frame on average, most {upMax:F2} ms; worker busy {busyFrames} frames");
+            report.AppendLine($"fine splats' far edge past the ant's: at least {edgeMin:F2} units; behind it (below 0) in {behind} frames{(sprint ? " (running)" : "")}");
             report.AppendLine("long frames (over 25 ms), with what came with them:");
             float at = 0;
             for (int i = 0; i < frames.Count; i++)
@@ -97,9 +178,9 @@ namespace AntGarden
                 report.AppendLine($"  {at:F2}s frame {i}: {f.dt * 1000f:F1} ms{(f.gc ? ", gc" : "")}{(f.made > 0 ? ", shell made" : "")}{(f.shown > 0 ? ", shell swapped" : "")} at ({f.x:F1}, {f.z:F1})");
             }
             File.WriteAllText(Path.Combine(dir, "stutter_report.txt"), report.ToString());
-            var csv = new StringBuilder("frame,ms,gc,shell_made,shell_shown,x,z\n");
+            var csv = new StringBuilder("frame,ms,gc,shell_made,shell_shown,x,z,upload_ms,worker,edge\n");
             for (int i = 0; i < frames.Count; i++)
-                csv.AppendLine($"{i},{frames[i].dt * 1000f:F2},{(frames[i].gc ? 1 : 0)},{frames[i].made},{frames[i].shown},{frames[i].x:F2},{frames[i].z:F2}");
+                csv.AppendLine($"{i},{frames[i].dt * 1000f:F2},{(frames[i].gc ? 1 : 0)},{frames[i].made},{frames[i].shown},{frames[i].x:F2},{frames[i].z:F2},{shell[i].upload:F2},{(shell[i].busy ? 1 : 0)},{shell[i].edge:F2}");
             File.WriteAllText(Path.Combine(dir, "frames.csv"), csv.ToString());
             Debug.Log("[AntGarden] stuttercheck\n" + report);
             Application.Quit();

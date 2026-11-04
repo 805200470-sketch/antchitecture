@@ -122,7 +122,7 @@ namespace AntGarden
                 {
                     // (ScatterRule.faceWay: toward the way, down the slope of the distance to it)
                     float e = 0.3f, gx = world.PathDist(mx + e, mz) - world.PathDist(mx - e, mz), gz = world.PathDist(mx, mz + e) - world.PathDist(mx, mz - e);
-                    Place(plant, mx, mz, mh, stack, rule.tilt, rule.tintJitter, rule.dim, !rule.noShadow, Mathf.Atan2(-gx, -gz) * Mathf.Rad2Deg + Range(-15f, 15f));
+                    Place(plant, mx, mz, mh, stack, rule.tilt, rule.tintJitter, rule.dim, !rule.noShadow, Mathf.Atan2(-gx, -gz) * Mathf.Rad2Deg + rule.faceTurn + Range(-15f, 15f));
                 }
                 else Place(plant, mx, mz, mh, stack, rule.tilt, rule.tintJitter, rule.dim, !rule.noShadow);
             }
@@ -221,7 +221,11 @@ namespace AntGarden
                 float hd = world.HexDist(x, z);
                 if (hd < 10 || hd > cfg.surroundingsReach) continue;
                 PlantRef plant = available[placed % available.Count];
-                float h = Range(26f, 48f);
+                float h = Range(26f, 48f) * (Game.Lab && NestTheme.Current != null ? NestTheme.Current.surroundingsTall : 1f);   // (a particle nest's own: NestTheme.surroundingsTall)
+                // (a nest that keeps its gates' view clear leaves out a giant standing where the way's end looks out: its
+                // draws are still made and it still counts, so every other giant stays where it was; 11-04, the kiln's way
+                // out was filled by one; NestTheme.clearExitView)
+                if (Game.Lab && NestTheme.Current != null && NestTheme.Current.clearExitView && InExitView(x, z)) { Range(0, 360); placed++; continue; }
                 GameObject go = UnityEngine.Object.Instantiate(plant.prefab, new Vector3(x, baseY, z), Quaternion.Euler(0, Range(0, 360), 0), parent);
                 go.transform.localScale = Vector3.one * h;
                 SetLook(go, plant.name, new Color(0.35f, 0.42f, 0.48f), true);
@@ -230,6 +234,22 @@ namespace AntGarden
                     glow = region.biome.plantGlow, scan = Color.Lerp(region.biome.rimColor, Color.white, 0.55f) * 0.6f, far = true });
                 placed++;
             }
+        }
+
+        /// <summary>Whether (x, z) is in what the way's end sees out through one of this region's gates: within 30° of the
+        /// exit's outward direction, seen from 8 units inside it.</summary>
+        bool InExitView(float x, float z)
+        {
+            foreach (WExit ex in world.exits)
+            {
+                if (ex.region != region.index) continue;
+                float dl = Mathf.Sqrt(ex.dirX * ex.dirX + ex.dirZ * ex.dirZ);
+                if (dl < 1e-4f) continue;
+                float ux = ex.dirX / dl, uz = ex.dirZ / dl, vx = ex.x - ux * 8, vz = ex.z - uz * 8;
+                float dx = x - vx, dz = z - vz, d = Mathf.Sqrt(dx * dx + dz * dz);
+                if (d > 0 && (dx * ux + dz * uz) / d > 0.866f) return true;   // cos 30°
+            }
+            return false;
         }
 
         /// <summary>Plants live on two layers the camera stops drawing at different distances (see Game.CullFar).</summary>

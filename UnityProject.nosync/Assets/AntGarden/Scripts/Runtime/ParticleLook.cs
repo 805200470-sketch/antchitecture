@@ -38,6 +38,11 @@ namespace AntGarden
         public float scanMix = 0.65f;       // how far a point's colour goes from its texture toward the pale scan colour
         public Color scanOverride = Color.clear;   // replace: one pale colour for every plant (alpha 0: each region's own)
         public float grain = 0f;            // replace: how much a texture's light and dark thin and dim its points (0..1)
+        public float pointShade = 0f;       // replace: how far the ground's points on the sides turned from the moon dim as the
+                                            // surface there does (0: all as bright; NestTheme.pointShade)
+        Vector3 moonTo = Vector3.up;        // (toward the scene's moon, taken on the main thread: the shell is made on a worker)
+        public float groundNearKeep = 1f;   // replace: round the ant, where the walls are opaque splats, the terrain behind them
+                                            // sunk to this of itself (1: as everywhere; NestTheme.groundNearKeep)
 
         // replace: plants as solid lit splats (drawn by SolidThings with the floor's things) instead of glowing dots: a
         // coarse set for every plant, and a fine one for the plants round the ant (the solid shell)
@@ -68,6 +73,9 @@ namespace AntGarden
         // a visitor's thing's splats as large for their spacing as this (a plant's 0.62 leaves gaps between them: as loose
         // points the things ran into the nest, "实体感可以更强一些", 11-03)
         const float ExhibitCover = 0.9f;
+        // and this share of the splats their surface wants, coarse and fine, each larger for it (1; the headset's
+        // QuestLook lowers it: 28 fps beside a visitor's model with its card open, 11-03)
+        public float exhibitShare = 1f;
         // plants whose glowing part is glass (a mesh can only make it an opaque lump): there a thin, broken shell of
         // splats round a light of its own inside, as a capture of something translucent looks
         public string[] glassKinds = { "spore_stalk" };
@@ -367,6 +375,7 @@ namespace AntGarden
             public float bend, twist, sy, sxz;
             public bool rigid;              // a thing (relic): neither bent nor recoloured
             public bool exhibit;            // a visitor's thing (PlantInstance.exhibit)
+            public int coarseN;             // how many of its points its coarse set has (the first in its order; SolidShell, 11-04)
             public bool glass;              // its glowing part is glass (glassKinds)
             public bool crystal;            // a crystal (crystalKinds): CrystalSplat where it is crystal, still in the wind
             public byte[] ridge;            // and how much each point lies on a ridge (PlantRef.pointRidge)
@@ -378,12 +387,13 @@ namespace AntGarden
             public float sunk;              // lowered this far (of its height) so the lump of soil it stands on is under the floor (NestTheme.sunkKinds)
             public float foot;              // how dark its foot is, if its nest wants it darker than fineFoot (NestTheme.kindFoot; 0: fineFoot)
             public float gain = 1f;         // how light it is, if its nest wants a kind darker (NestTheme.kindGain)
+            public float rigidTint = -1f;   // a relic's own pull toward its nest's palette (NestTheme.kindRigidTint; under 0: the nest's rigidTint)
             public Color glowDeep;         // its glow colour, deeper (the palette's glow colours are pale: as light they read white)
             public float ownHue, ownSat = 1;   // its region's turn of the texture's own colour (a blue plant in the amber nest)
             public bool building;              // a prop that lights only in its glowing parts (NestTheme.buildingsGlowInParts)
             public bool far;                   // one of the huge trees beyond the walls (Scatter.Surroundings)
             public string name;                // its plant's (checks)
-            public float partFrom, partTo, partRel, partAmount, partRed, partHot;   // a part that glows a little in this nest only (NestTheme.glowParts)
+            public float partFrom, partTo, partRel, partAmount, partRed, partHot, partGrey, partBurnt;   // a part that glows a little in this nest only (NestTheme.glowParts)
             public Vector4[] core;          // and the light inside it: where (xyz), how far out (w, 0 middle .. 1 edge)
         }
         readonly List<SolidSlot> solidSlots = new List<SolidSlot>();
@@ -552,6 +562,43 @@ namespace AntGarden
         static readonly float[] Linear = MakeLinear();
 
         public bool On => on;
+        /// <summary>Checks only (StutterCheck -handover, 11-04): the shell without the plants' fine splats or without the walls
+        /// round the ant, and the ground and walls drawn everywhere as they are far off (no carpet, no near shells).</summary>
+        public static bool DebugShellNoPlants, DebugShellNoWalls, DebugGroundFar;
+        static bool sharesLogged;
+
+        /// <summary>
+        /// (11-04) How much of their saturation and light the ground's and walls' points keep in a nest, so they are never more
+        /// vivid than the carpet and wall splats that take over round the ant: the user, in the moss forest, "走过去之后，很高饱和度
+        /// 的点变成低饱和度的点了，这个逻辑反而是反的". Measured with StutterCheck -handover (the floor drawn both ways at three places
+        /// along the way): the moss forest's points ran about a seventh more saturated and a fifth lighter than its carpet, the
+        /// honey granary's a little over; the blue forest's were calmer already. Further off they keep FarSat, FarGain of that
+        /// (from 10 to 38 units from the camera). Where a nest's own far off is calmer (NestTheme.farDark, farSat: the moss
+        /// forest's, the granary's, the leafcut garden's), that alone: the shader takes the stronger of the two, never both
+        /// (both, the far moss would turn a dead grey). The blue forest, v15, the others' reference, as it is (its far off calmer
+        /// than its carpet already). x, y: near the ant; z, w: far off. -calmold: as before, for checks.
+        /// </summary>
+        static Vector4 Calm(string id) => id == "cyan" ? Vector4.one : id == "green" ? new Vector4(0.82f, 0.8f, 0.82f * FarSat, 0.8f * FarGain)
+            : id == "yellow" ? new Vector4(0.92f, 0.95f, 0.92f * FarSat, 0.95f * FarGain) : new Vector4(1f, 1f, FarSat, FarGain);
+        const float FarSat = 0.8f, FarGain = 0.85f;
+        /// <summary>(11-04) Toward its edge the carpet takes the look of the floor it gives way to (its texture's own colour at
+        /// the carpet's light, its patches evened out, not darkening as it dissolves): from x units from the ant to each splat's
+        /// reach, z of the way (w 1: on; ParticleCarpet.shader). In the honey granary and the moss forest, whose carpets (the
+        /// palette's floor colour, swinging in hue and in light and dark by patches) stood as a blotch round the ant against
+        /// their terrain's own colours (the user: "走过去的场景，不要让这个像一块斑一样的，一点一点出来"); the other nests as they
+        /// are until checked. -calmold: off.</summary>
+        static Vector4 CarpetEdge(string id) => calmOld || (id != "yellow" && id != "green") ? Vector4.zero : new Vector4(2f, 0f, 0.9f, 1f);
+        static readonly bool calmOld = Game.Arg("-calmold") != null;
+
+        /// <summary>A fine splat carrying its plant's coarse share (1..127 of 128) in the low seven bits of its radius (a change
+        /// of less than a 60000th): the shader thins the fine splats to the coarse set toward the handover (11-04).</summary>
+        static SolidPoint ToCoarse(SolidPoint sp, int rc)
+        {
+            sp.radius = System.BitConverter.Int32BitsToSingle((System.BitConverter.SingleToInt32Bits(sp.radius) & ~127) | rc);
+            return sp;
+        }
+        Vector4 keptCarpetFade, keptWallFade;
+        bool groundFarSet;
         public int Count => count;
         /// <summary>Replace: the carpet's maps are baked (HeightAt and LayerAt can be read).</summary>
         public bool HasMaps => heightArr != null;
@@ -578,6 +625,9 @@ namespace AntGarden
                 mat.SetVector("_CarpetFade", mode == Mode.Replace && carpet != null ? new Vector4(carpetFade.x, carpetFade.y, 0, 0) : Vector4.zero);
                 Vector2 wf = wallDensity > 0 && solidPlants ? wallFade : carpetFade;
                 mat.SetVector("_WallFade", mode == Mode.Replace && carpet != null ? new Vector4(wf.x, wf.y, 0, 0) : Vector4.zero);
+                // (11-04) the ground's and walls' points held to their nest's calm, and calmer further off (Calm)
+                mat.SetVector("_GroundCalm", Calm(NestTheme.Current != null ? NestTheme.Current.id : ""));
+                mat.SetVector("_CalmRange", mode == Mode.Replace && !calmOld ? new Vector4(10f, 38f, 0f, 1f) : Vector4.zero);
                 mat.SetFloat("_CoverGain", coverBrightness);
                 bool pal = mode == Mode.Replace && bodyPalette != null && glowPalette != null && bodyPalette.Length >= 8 && glowPalette.Length >= 8;
                 mat.SetFloat("_UsePalette", pal ? 1f : 0f);
@@ -592,6 +642,8 @@ namespace AntGarden
             }
             Shader.SetGlobalFloat("_PlantDim", on && mode == Mode.Overlay ? plantDim : 0f);
             Shader.SetGlobalFloat("_GroundDim", on ? groundDim : 0f);
+            // (x, y: from full to none, units from the ant; z: how much is kept; w 1: on)
+            Shader.SetGlobalVector("_GroundNear", on && groundNearKeep < 1f && wallDensity > 0f ? new Vector4(wallFade.y, wallReach, groundNearKeep, 1f) : Vector4.zero);
             // replace: the meshes go; only their points are seen
             foreach (Renderer r in hidden) if (r != null) r.enabled = true;
             hidden.Clear();
@@ -606,6 +658,13 @@ namespace AntGarden
         void Update()
         {
             if (!on || world == null || follow == null) return;
+            if (DebugGroundFar != groundFarSet && mat != null)   // (checks: the ground's far look everywhere, and back)
+            {
+                if (DebugGroundFar) { keptCarpetFade = mat.GetVector("_CarpetFade"); keptWallFade = mat.GetVector("_WallFade"); }
+                mat.SetVector("_CarpetFade", DebugGroundFar ? Vector4.zero : keptCarpetFade);
+                mat.SetVector("_WallFade", DebugGroundFar ? Vector4.zero : keptWallFade);
+                groundFarSet = DebugGroundFar;
+            }
             if (mode == Mode.Overlay && (follow.position - gatheredAt).sqrMagnitude > regatherAfter * regatherAfter) Gather();
             if (mode == Mode.Replace)
             {
@@ -621,12 +680,13 @@ namespace AntGarden
             mainBlock.SetBuffer("_Points", buffer);
             mainBlock.SetFloat("_Shell", 0f);
             Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, count * 3, 1, null, mainBlock, ShadowCastingMode.Off, false, 0);
-            if (carpetN > 0)
+            if (carpetN > 0 && !DebugGroundFar)
             {
                 Vector3 a = follow.position;
                 Graphics.DrawProcedural(carpet, new Bounds(a, new Vector3(carpetFade.y * 2 + 4, 60, carpetFade.y * 2 + 4)), MeshTopology.Triangles,
                     carpetN * carpetN * 3, 1, null, carpetBlock, ShadowCastingMode.Off, false, 0);
             }
+            if (DebugGroundFar) return;   // (checks: no near ground shell either)
             if (shellPrev >= 0)
             {
                 // a newly made shell fades in over the old one, so nothing pops
@@ -843,7 +903,7 @@ namespace AntGarden
                     farWanted += nf;
                     continue;
                 }
-                float density = solidCoarse * (pi.exhibit ? 6f : pi.relic ? 2f : Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z)));
+                float density = solidCoarse * (pi.exhibit ? 6f * exhibitShare : pi.relic ? 2f : Mathf.Lerp(farShare, 1f, Focus(p0.x, p0.z)));
                 int n = Mathf.Clamp(Mathf.RoundToInt(area * density), 120, pi.plant.points.Length);
                 picks.Add((pi, area, n));
                 wanted += n;
@@ -857,6 +917,7 @@ namespace AntGarden
                 SolidSlot slot = Slot(pi, area, ord++);
                 if (pi.far) { farJobs.Add((slot, Mathf.Max(100, Mathf.RoundToInt(n0 * farCut)), FarRadius(pi.t.lossyScale.y))); continue; }
                 int n = Mathf.Max(100, Mathf.RoundToInt(n0 * share));
+                slot.coarseN = Mathf.Min(n, slot.pts.Length);
                 float radius = Mathf.Min(0.055f, (pi.exhibit ? ExhibitCover : 0.62f) * Mathf.Sqrt(area / n));
                 for (int k = 0; k < n && k < slot.pts.Length; k++)
                     into.Add(SolidSplat(slot, slot.order != null ? slot.order[k] : k, -radius));   // negative: coarse (left out round the ant)
@@ -1090,6 +1151,12 @@ namespace AntGarden
             };
             // (a visitor's thing: its photographed face clear, no mottling or bands over it; the user, 11-02: "识别不出来，不够清晰")
             if (pi.exhibit) { slot.mottle = 0f; slot.band = 0f; }
+            // (a nest's plants' tints kept within a hue band too, as their own colours are: NestTheme.tintBand)
+            if (!pi.relic && NestTheme.Current != null && NestTheme.Current.tintBand.y > 0)
+            {
+                slot.baseTint = FoldHue(slot.baseTint, NestTheme.Current.tintBand.x, NestTheme.Current.tintBand.y);
+                slot.tipTint = FoldHue(slot.tipTint, NestTheme.Current.tintBand.x, NestTheme.Current.tintBand.y);
+            }
             if (!pi.relic && !pi.far)
             {
                 float a = R() * 6.283f;
@@ -1115,7 +1182,7 @@ namespace AntGarden
             }
             if ((!pi.relic || slot.building) && NestTheme.Current != null)
                 foreach (NestTheme.GlowPart part in NestTheme.Current.glowParts)
-                    if (part.plant == plant.name) { slot.partFrom = part.from; slot.partTo = part.to; slot.partRel = part.lumMin; slot.partAmount = part.amount; slot.partRed = part.red; slot.partHot = part.hot; }
+                    if (part.plant == plant.name) { slot.partFrom = part.from; slot.partTo = part.to; slot.partRel = part.lumMin; slot.partAmount = part.amount; slot.partRed = part.red; slot.partHot = part.hot; slot.partGrey = part.grey; slot.partBurnt = part.burnt; }
             // (a relic glowing where it is red, the kiln's: its thin cracks' points first as it thins, EmberOrder)
             if (slot.building && slot.partRed > 0f) slot.order = EmberOrder(plant, slot.partRed);
             // a plant of its region's own kinds keeps its colours (the backdrop's are turned whatever they are)
@@ -1123,14 +1190,17 @@ namespace AntGarden
             slot.ownHue = native ? 0 : pi.hue;
             slot.ownSat = native ? 1 : pi.sat;
             // (a kind whose own colour a nest mutes: NestTheme.kindSat)
-            if (NestTheme.Current?.kindSat != null && NestTheme.Current.kindSat.TryGetValue(plant.name, out float kindSat)) slot.ownSat *= kindSat;
-            if (NestTheme.Current?.kindGain != null && NestTheme.Current.kindGain.TryGetValue(plant.name, out float kindGain)) slot.gain = kindGain;   // (and darkens: NestTheme.kindGain)
+            bool kinds = !(pi.far && NestTheme.Current != null && NestTheme.Current.kindsSpareFar);   // (a nest's far giants left as they are: NestTheme.kindsSpareFar)
+            if (kinds && NestTheme.Current?.kindSat != null && NestTheme.Current.kindSat.TryGetValue(plant.name, out float kindSat)) slot.ownSat *= kindSat;
+            if (kinds && NestTheme.Current?.kindGain != null && NestTheme.Current.kindGain.TryGetValue(plant.name, out float kindGain)) slot.gain = kindGain;   // (and darkens: NestTheme.kindGain)
+            if (kinds && NestTheme.Current?.kindRigidTint != null && NestTheme.Current.kindRigidTint.TryGetValue(plant.name, out float kindRigid)) slot.rigidTint = kindRigid;   // (a relic kind toward the palette: NestTheme.kindRigidTint)
             // as light, the palette's pale glow colours read white: deeper, and toward the nest's teal
             slot.glowDeep = Color.Lerp(HueShift(slot.glow, 0f, 1.9f), (NestTheme.Current ?? NestTheme.Cyan).glowDeep, slot.glowFrom > 0 ? 0.55f : 0.3f);
             if (pi.relic && NestTheme.Current != null && NestTheme.Current.relicGlow.a > 0f) slot.glow = slot.glowDeep = NestTheme.Current.relicGlow;   // (a nest's own: NestTheme.relicGlow)
             // its markings: its kind's, a little stronger or weaker on this plant (now and then hardly lit), in its light's
-            // colour a little deepened, as light as bioAlbedo
-            if (!pi.relic && !pi.far)
+            // colour a little deepened, as light as bioAlbedo (a relic none, unless its nest gives its kind its own: the
+            // amber nest's cone, its resin beads, rigid and in its own colours otherwise)
+            if ((!pi.relic || (NestTheme.Current?.bio != null && NestTheme.Current.bio.ContainsKey(plant.name))) && !pi.far)
             {
                 Vector4 b = NestTheme.Current?.bio != null && NestTheme.Current.bio.TryGetValue(plant.name, out Vector4 own) ? own : Bio(plant.name);   // (its nest's own: NestTheme.bio)
                 uint kh = KindHash(plant.name);
@@ -1173,7 +1243,7 @@ namespace AntGarden
                 slot.sy = slot.sxz = 1f;
                 slot.ridge = plant.pointRidge;
                 slot.order = CrystalOrder(plant);
-                slot.crystalTint = Color.Lerp(slot.tipTint, Color.white, 0.5f);
+                slot.crystalTint = Color.Lerp(slot.tipTint, Color.white, NestTheme.Current?.crystalPale ?? 0.5f);   // (NestTheme.crystalPale)
                 slot.crystalEdge = Color.Lerp(Color.white, slot.glow, 0.3f) * 0.95f;
                 slot.crystalLight = Color.Lerp(slot.glow, slot.glowDeep, 0.3f);
                 Vector3 st2 = CrystalStats(plant);
@@ -1325,7 +1395,7 @@ namespace AntGarden
             float want = Mathf.Clamp(nearDist * nearDist / (dist * dist), Mathf.Clamp01(solidFine / solidNear), 1f);
             if (best.building && NestTheme.Current != null) want = Mathf.Max(want, NestTheme.Current.relicKeep);   // (NestTheme.relicKeep)
             float px = 2f * dist * Mathf.Tan(fovDeg * 0.5f * Mathf.Deg2Rad) / screenH;
-            int split = want > 0.2f && dist < nearDist * 1.6f ? Mathf.Clamp(Mathf.CeilToInt(best.area * solidNear / full - 0.25f), 1, splitMax) : 1;
+            int split = want > 0.2f && dist < nearDist * 1.6f ? Mathf.Clamp(Mathf.CeilToInt(best.area * NearDensity(best) / full - 0.25f), 1, splitMax) : 1;
             if (split > 1) r *= 1.15f / Mathf.Sqrt(split);
             return $"{best.name}: height {height:F2}, surface {best.area:F1} u², {best.pts.Length} points, {full} splats at full" + (split > 1 ? $" (each split in {split} up close)" : "")
                 + $", {want:P0} kept at {dist:F1} from the camera, dab {2 * r / Mathf.Sqrt(want) / px:F1} px across" + (best.fine ? ", fine" : "");
@@ -1335,10 +1405,13 @@ namespace AntGarden
         /// rank), and how big each is: as many as its surface wants, at most all its stored points.</summary>
         int ShellFull(SolidSlot s, out float radius)
         {
-            int full = Mathf.Max(1, Mathf.Min(Mathf.Min(solidNearCap, s.pts.Length), Mathf.RoundToInt(s.area * solidNear * (s.crystal ? crystalDensity : 1f))));
+            int full = Mathf.Max(1, Mathf.Min(Mathf.Min(solidNearCap, s.pts.Length), Mathf.RoundToInt(s.area * NearDensity(s) * (s.crystal ? crystalDensity : 1f))));
             radius = Mathf.Max(0.0018f, (s.exhibit ? ExhibitCover : 0.62f) * Mathf.Sqrt(s.area / full));
             return full;
         }
+
+        /// <summary>The fine splats per unit² a plant wants right in front of the camera (a visitor's thing: its share).</summary>
+        float NearDensity(SolidSlot s) => s.exhibit ? solidNear * exhibitShare : solidNear;
 
         /// <summary>The fine splats of the plants round at (into, grown as needed; returns how many), made plant by plant
         /// on all the cores.</summary>
@@ -1365,13 +1438,14 @@ namespace AntGarden
                 int n = Mathf.Min(full, Mathf.CeilToInt(full * want));
                 // a big plant whose stored points are too few for that (a giant mushroom, a boulder): near the camera
                 // each of them is drawn as several smaller ones, so its grain is as fine as what stands beside it
-                int split = want > 0.2f ? Mathf.Clamp(Mathf.CeilToInt(slot.area * solidNear / full - 0.25f), 1, splitMax) : 1;
+                int split = want > 0.2f ? Mathf.Clamp(Mathf.CeilToInt(slot.area * NearDensity(slot) / full - 0.25f), 1, splitMax) : 1;
                 // the light inside a glass plant: ranked as its shell is
                 int coreFull = slot.core != null ? Mathf.Min(slot.core.Length, Mathf.Max(1, full / 3)) : 0;
                 int m = slot.core != null ? Mathf.Min(coreFull, Mathf.CeilToInt(coreFull * want)) : 0;
                 jobs.Add((slot, full, n, radius, coreFull, m, total, split));
                 total += n * split + m;   // (the most it may make: only those near the camera are split)
             }
+            if (DebugShellNoPlants) jobs.Clear();   // (checks)
             if (into == null || into.Length < total) into = new SolidPoint[Mathf.NextPowerOfTwo(Mathf.Max(1024, total))];
             SolidPoint[] arr = into;
             var made = new int[jobs.Count];
@@ -1381,13 +1455,17 @@ namespace AntGarden
             System.Threading.Tasks.Parallel.For(0, jobs.Count, cores, j =>
             {
                 var (slot, full, n, radius, coreFull, m, o, split) = jobs[j];
+                // (11-04) the plant's coarse set as a share of its fine one, carried in each fine splat (ToCoarse): toward the
+                // handover the shader thins the fine splats to exactly those points, as large as their coarse splats
+                int rc = Mathf.Clamp(Mathf.RoundToInt(slot.coarseN * 128f / full), 1, 127);
+                int rcCore = coreFull > 0 ? Mathf.Clamp(Mathf.RoundToInt(Mathf.Min(slot.coarseN / 6, slot.core.Length) * 128f / coreFull), 1, 127) : 1;
                 int w = o;
                 float near2 = split > 1 ? splitReach * splitReach : -1f, shrink = 1.15f / Mathf.Sqrt(split);
                 for (int k = 0; k < n; k++)
                 {
                     int rank = k * 128 / full;
                     SolidPoint sp = SolidSplat(slot, slot.order != null ? slot.order[k] : k, radius);
-                    if ((sp.pos - cam).sqrMagnitude >= near2) { arr[w++] = ThingPen.WithRank(sp, rank); continue; }
+                    if ((sp.pos - cam).sqrMagnitude >= near2) { arr[w++] = ToCoarse(ThingPen.WithRank(sp, rank), rc); continue; }
                     Vector3 nn = ThingPen.UnpackNormal(sp.nrm);
                     NestThingsGrowth.Perp(nn, out Vector3 u, out Vector3 v);
                     uint flag = sp.nrm & (1u << 31);
@@ -1399,10 +1477,10 @@ namespace AntGarden
                         q.pos = sp.pos + (u * Mathf.Cos(a) + v * Mathf.Sin(a)) * d;
                         q.nrm = ThingPen.PackNormal(nn + (u * (h3 * 2f - 1f) + v * (h1 * 2f - 1f)) * 0.12f) | flag;
                         q.radius = sp.radius * shrink * (0.85f + 0.3f * h3);
-                        arr[w++] = ThingPen.WithRank(q, rank);
+                        arr[w++] = ToCoarse(ThingPen.WithRank(q, rank), rc);
                     }
                 }
-                for (int c = 0; c < m; c++) arr[w++] = ThingPen.WithRank(CoreSplat(slot, c, radius), c * 128 / coreFull);
+                for (int c = 0; c < m; c++) arr[w++] = ToCoarse(ThingPen.WithRank(CoreSplat(slot, c, radius), c * 128 / coreFull), rcCore);
                 made[j] = w - o;
             });
             // close up the room left for splits that were not needed
@@ -1412,7 +1490,18 @@ namespace AntGarden
                 if (jobs[j].at != end) System.Array.Copy(arr, jobs[j].at, arr, end, made[j]);
                 end += made[j];
             }
-            if (wallDensity > 0 && tris != null) end = WallShell(at, cam, slack, ref into, end);
+            if (wallDensity > 0 && tris != null && !DebugShellNoWalls) end = WallShell(at, cam, slack, ref into, end);
+            if (!sharesLogged)   // (once: how finely the plants' coarse shares can be met; 1 of 128 is the rank's step)
+            {
+                sharesLogged = true;
+                int[] bins = new int[4];
+                foreach (var jb in jobs)
+                {
+                    float share = Mathf.Min(jb.slot.coarseN, jb.slot.pts.Length) * 128f / jb.full;
+                    bins[share < 1.5f ? 0 : share < 3.5f ? 1 : share < 8f ? 2 : 3]++;
+                }
+                Debug.Log($"[AntGarden] handover: plants by coarse share (of 128): ~1 {bins[0]}, 2-3 {bins[1]}, 4-7 {bins[2]}, 8+ {bins[3]}");
+            }
             return end;
         }
 
@@ -1512,6 +1601,7 @@ namespace AntGarden
                     col = Color.Lerp(FloorPatches(LayerTint(lw), p, lw.r) * lum, albedo * (lum / Mathf.Max(1e-4f, al)), groundTexMix);
                 }
                 else col = LayerTint(lw) * (lum * (0.6f + 0.8f * jitter));
+                col = Wash(col, p, lw);
                 float rad = radius * Mathf.Exp(gN * 0.42f);
                 into.Add(ThingPen.WithRank(ThingPen.Terrain(ThingPen.Splat(p + nn * 0.012f, nn, col * wallGain, rad, 0f)), (int)(k * 128 / Mathf.Max(1f, full))));
             }
@@ -1575,16 +1665,23 @@ namespace AntGarden
             Color own = lin * (1f / lum);                                   // the texture's own hue, at unit brightness
             if (s.ownHue != 0 || s.ownSat != 1) own = HueShift(own, s.ownHue, s.ownSat);   // turned as its region turns its plants
             NestTheme th = NestTheme.Current;
-            if (th != null && th.ownBand.y > 0) own = Fold(own, th.ownBand.x, th.ownBand.y);
+            if (th != null && th.ownBand.y > 0) own = th.ownBandKeepsSat ? FoldHue(own, th.ownBand.x, th.ownBand.y) : Fold(own, th.ownBand.x, th.ownBand.y);
             Color tint = Color.Lerp(s.baseTint, s.tipTint, Smooth(0.05f, 1f, g01));
-            Color col = s.rigid ? (th == null ? lin * 1.6f : Color.Lerp(lin, th.body[0].linear * (lum / Mathf.Max(1e-3f, Lum(th.body[0].linear))), th.rigidTint) * (1.6f * th.rigidGain))
+            Color col = s.rigid ? (th == null ? lin * 1.6f : Color.Lerp(lin, th.body[0].linear * (lum / Mathf.Max(1e-3f, Lum(th.body[0].linear))), s.rigidTint >= 0f ? s.rigidTint : th.rigidTint) * (1.6f * th.rigidGain))
                 : Color.Lerp(tint, own * 0.75f, s.keepOwn) * (s.meanLum * rel * 2.2f);
             // (a relic's pale carved wood weathered toward a cool silver grey, as far as its nest has it: the kiln's,
-            // NestTheme.relicPaleGrey; in its own tan it read gold, the amber nest's colour, k7-k8)
-            if (paleWood > 0f && th != null && th.relicPaleGrey > 0f)
+            // NestTheme.GlowPart.grey; in its own tan it read gold, the amber nest's colour, k7-k8)
+            if (paleWood > 0f && s.partGrey > 0f)   // (its own glow part's: the kiln's temple, not its log, whose silver rings under its red read pink, k10-k15)
             {
                 float lg = Lum(col);
-                col = Color.Lerp(col, new Color(lg * 0.9f, lg * 0.98f, lg * 1.14f), paleWood * th.relicPaleGrey);   // (a little bluer since k11: one of its cool notes)
+                col = Color.Lerp(col, new Color(lg * 0.9f, lg * 0.98f, lg * 1.14f), paleWood * s.partGrey);   // (a little bluer since k11: one of its cool notes)
+            }
+            // (and its pale cut wood charred, a dark warm grey-brown, as far as its nest has it: the kiln's log, its end face,
+            // NestTheme.GlowPart.burnt; in its own tan, folded to the world's red, a glowing copper spiral, k16)
+            if (paleWood > 0f && s.partBurnt > 0f)
+            {
+                float lg = Lum(col) * 0.45f;
+                col = Color.Lerp(col, new Color(lg * 1.12f, lg * 0.97f, lg * 0.88f), paleWood * s.partBurnt);
             }
             if (!s.rigid)
             {
@@ -1639,7 +1736,14 @@ namespace AntGarden
                 if (glow > 0) albedo = Color.Lerp(albedo, s.glowDeep * 0.55f, 0.6f * Mathf.Min(1f, glow));
                 // (the kiln's embers in their cracks: bright, in their own red, however deep in the crack; leaned as above
                 // they stayed a dark rust, k7)
-                if (ember > 0f) albedo = Color.Lerp(albedo, s.glowDeep * 0.9f, ember);   // (at 1.4 they bloomed salmon pink, k7b)
+                if (ember > 0f)   // (at 1.4 they bloomed salmon pink, k7b)
+                {
+                    Color hot = s.glowDeep * 0.9f;
+                    // (and in their lightest middles, where a nest has it, a hotter, lighter orange: NestTheme.relicCore, the
+                    // kiln's; its temple's wide cracks one flat coral otherwise, k15-k17)
+                    if (th != null && th.relicCore.a > 0f) hot = Color.Lerp(hot, th.relicCore * 0.9f, th.relicCore.a * Smooth(1.3f, 2.2f, rel));
+                    albedo = Color.Lerp(albedo, hot, ember);
+                }
             }
             if (s.far && th != null && (th.farDim < 1f || th.farFog > 0f))
             {
@@ -1735,7 +1839,7 @@ namespace AntGarden
             float cloud = Smooth(0.4f, 0.85f, Noise(s.pts[k].x * 3.2f + s.mottleSeed, s.pts[k].y * 2.4f + s.pts[k].z * 3.2f));
             float glow = (crystalGlow + crystalInner * patch) * (0.2f + 0.8f * up * up) * (1f - 0.8f * line) + crystalLine * line + crystalLit * inside
                 + (crystalCloud * cloud * Mathf.Lerp(0.3f, 1.2f, core) + crystalCore * core) * up * (1f - line);
-            albedo = Color.Lerp(rock, albedo, crystal);
+            albedo = Color.Lerp(rock, albedo, crystal) * s.gain;   // (a nest's kind darker: NestTheme.kindGain; its glow as it was)
             glow = Mathf.Lerp(rockGlow, glow, crystal);
             float dens = s.density != null ? s.density[k] : 1f;
             // its faces' splats larger and alike (smaller and varied, the dark behind showed through: frost, sugar), its
@@ -1942,6 +2046,9 @@ namespace AntGarden
             carpetBlock.SetTexture("_LayerMap", layerMap);
             carpetBlock.SetVector("_HeightRect", heightRect);
             carpetBlock.SetVector("_Fade", carpetFade);
+            carpetBlock.SetVector("_CarpetEdge", CarpetEdge(NestTheme.Current != null ? NestTheme.Current.id : ""));
+            // (and the terrain's saturation where it gives way to it: NestTheme.groundSatByDistance, as Game gives the terrain)
+            carpetBlock.SetVector("_CarpetSat", NestTheme.Current != null && NestTheme.Current.groundSatByDistance.y > 0f ? NestTheme.Current.groundSatByDistance : Vector4.zero);
             carpetBlock.SetFloat("_Step", carpetStep);
             carpetBlock.SetFloat("_N", carpetN);
             carpetBlock.SetFloat("_Size", carpetSize);
@@ -1952,6 +2059,7 @@ namespace AntGarden
             carpetBlock.SetFloat("_Vary", NestTheme.Current != null ? NestTheme.Current.floorVary : 22f);
             carpetBlock.SetVector("_PatchA", NestTheme.Current != null ? (Vector4)NestTheme.Current.floorPatchA.linear : Vector4.zero);
             carpetBlock.SetVector("_PatchB", NestTheme.Current != null ? (Vector4)NestTheme.Current.floorPatchB.linear : Vector4.zero);
+            carpetBlock.SetVector("_Wash", NestTheme.Current != null ? (Vector4)NestTheme.Current.floorWash : Vector4.zero);
             carpetBlock.SetVector("_TintFloor", floorTintL);
             carpetBlock.SetVector("_TintBank", bankTintL);
             if (look != null && look.floorTex != null)
@@ -2042,6 +2150,7 @@ namespace AntGarden
         {
             if (ground.Count == 0) return;
             if (tris == null) PrepareGround();
+            if (RenderSettings.sun != null) moonTo = -RenderSettings.sun.transform.forward;
             double wanted = 0;
             foreach (GroundTri g in tris) wanted += g.area * g.kind * Mathf.Lerp(groundFar, groundNear, Focus(g.x, g.z));
             float scale = wanted > groundBudget ? (float)(groundBudget / wanted) : 1f;
@@ -2142,6 +2251,10 @@ namespace AntGarden
                 Color lw = c[ia] * s + c[ib] * u + c[ic] * w;   // floor, bank, plateau, open
                 float lum = 0.3f * lw.r + 0.75f * lw.g + 0.32f * lw.b + 1.4f * lw.g * lw.b;
                 lum *= 0.55f + 0.45f * lw.a;
+                // (a nest lit as one: on the sides turned from the moon its points as dim as the surface there; the floor and
+                // the walls facing the moon as they were. Unlit, they were as bright on a shaded wall as on a lit one, a glitter
+                // over it, the kiln's, k14-k16)
+                if (pointShade > 0f) lum *= Mathf.Lerp(1f, Mathf.Min(1f, 0.35f + 0.9f * Mathf.Max(0f, Vector3.Dot(n, moonTo))), pointShade);
                 float jitter = rng.Next(), roll = rng.Next(), splatRoll = rng.Next();
                 Color col;
                 if (textured)
@@ -2160,6 +2273,7 @@ namespace AntGarden
                     lum *= (0.4f + 1.2f * jitter) * (0.3f + 1.2f * patch) * (1 + (layers - 1) * lw.g);
                     col = LayerTint(lw) * lum;
                 }
+                col = Wash(col, p, lw);
                 // like a splat capture: most points fine, some soft middling splats, a few large faint ones under them
                 bool large = splatRoll < splats * 0.2f, middling = !large && splatRoll < splats;
                 uint size = large ? 40u : middling ? 20u : 10u;
@@ -2184,6 +2298,20 @@ namespace AntGarden
             if (th.floorPatchB.a > 0)
                 tint = Color.Lerp(tint, th.floorPatchB.linear, th.floorPatchB.a * floor * Mathf.SmoothStep(0f, 1f, (Noise(p.x / 2.9f - 27.7f, p.z / 2.9f + 11.3f) - 0.5f) / 0.25f));
             return tint;
+        }
+
+        /// <summary>A nest's brighter patches over its floor and walls (NestTheme.floorWash, wallWash): the whole of a point's
+        /// colour times the wash's, by layer (the floor's on the floor, the walls' on bank and plateau), in broad soft-edged
+        /// patches, up its walls as across its floor (the carpet's: ParticleCarpet.shader).</summary>
+        static Color Wash(Color col, Vector3 p, Color lw)
+        {
+            NestTheme th = NestTheme.Current;
+            if (th == null || (th.floorWash.a <= 0f && th.wallWash.a <= 0f)) return col;
+            float floor = lw.r / Mathf.Max(1e-3f, lw.r + lw.g + lw.b);
+            float patch = Mathf.SmoothStep(0f, 1f, (Noise((p.x + 0.6f * p.y) / 4.3f + 31.7f, (p.z - 0.4f * p.y) / 4.3f + 31.7f) - 0.45f) / 0.25f);
+            Color w = Color.Lerp(th.wallWash, th.floorWash, floor);
+            float a = w.a * patch;
+            return new Color(col.r * (1f + (w.r - 1f) * a), col.g * (1f + (w.g - 1f) * a), col.b * (1f + (w.b - 1f) * a), col.a);
         }
 
         Color LayerTint(Color lw)
@@ -2236,6 +2364,16 @@ namespace AntGarden
         /// <summary>A colour whose hue lies outside the band (centre and half-width, degrees) turned to the band's nearer
         /// edge and half as saturated: a nest keeps to its own palette what its turn of the plants' colours threw out of it
         /// (a green moss turned pink in the red nest becomes a dull crimson-brown).</summary>
+        /// <summary>As Fold, keeping its saturation (a palette's tint turned into the band stays as vivid: halved, the
+        /// granary's croziers and cluster grey-sage).</summary>
+        static Color FoldHue(Color c, float centre, float half)
+        {
+            Color.RGBToHSV(c, out float h, out float s, out float v);
+            float d = Mathf.DeltaAngle(centre, h * 360f);
+            if (Mathf.Abs(d) <= half || s < 0.08f) return c;
+            return Color.HSVToRGB(Mathf.Repeat((centre + Mathf.Sign(d) * half) / 360f, 1f), s, v, true);
+        }
+
         static Color Fold(Color c, float centre, float half)
         {
             Color.RGBToHSV(c, out float h, out float s, out float v);

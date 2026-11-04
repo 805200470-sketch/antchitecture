@@ -50,7 +50,8 @@ namespace AntGarden
                 if (n >= pos.Length) break;
                 if (g.flash <= 0.01f) continue;
                 pos[n] = g.pos;
-                info[n] = new Vector4(Mathf.Max(g.reach, g.height * 0.45f) + 0.3f, g.height, g.flash, 0);
+                // (as strong as its nest has an antenna's touch: NestTheme.touchGain, 1 but in the moss forest)
+                info[n] = new Vector4(Mathf.Max(g.reach, g.height * 0.45f) + 0.3f, g.height, g.flash * (NestTheme.Current != null ? NestTheme.Current.touchGain : 1f), 0);
                 n++;
             }
             return n;

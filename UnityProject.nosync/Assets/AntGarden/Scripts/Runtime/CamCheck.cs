@@ -13,10 +13,16 @@ namespace AntGarden
     /// camera is measured against the ant: how fast its offset from the ant changes, how hard that offset jolts,
     /// how often the boom is pulled in, how much the ant jumps on screen and what shortened the boom. Writes
     /// cam_report.json and a frame every two seconds, then quits. -camstyle classic measures the previous camera.
+    /// In a particle nest (11-03) it then also walks the nest's glowing way, as a player does: on the keys, running, on
+    /// the pad's stick (steering as smoothly as a thumb does), and looking round with the right stick while walking.
+    /// Beside the jolts relative to the ant it counts the camera's own jolts in the world, the view's turning jolts and
+    /// the ant's own, how often the ground hides the ant, the camera inside a prop or under the ground, and writes every
+    /// frame to cam_frames.csv. -camsteady 0 measures the particle nests' camera as it was before (CameraRig.steady).
     /// </summary>
     public static class CamCheck
     {
         const int Fps = 30;
+        static StringBuilder csv;
 
         class Seg
         {
@@ -26,6 +32,11 @@ namespace AntGarden
             public float accMax, screenJumpMax, boomMin = 1e9f;
             public readonly List<float> acc = new List<float>();
             public readonly Dictionary<string, int> blocked = new Dictionary<string, int>();
+            // (11-03) the camera's own jolts in the world, the view's turning jolts, the ant's own; hidden, inside, under
+            public int worldJolts, turnJolts, antJolts, groundHidden, propLine, inProp, underGround, lensOn;
+            public float turnMax, liftMax, slideMax, clampMax;
+            public double liftSum;
+            public readonly List<float> turn = new List<float>();
         }
 
         public static IEnumerator Run(Game game, string dir)
@@ -36,6 +47,7 @@ namespace AntGarden
             game.hud.SetStatsVisible(false);
             Time.captureFramerate = Fps;   // a fixed clock: the same run however fast the machine is
             yield return new WaitForSeconds(1.5f);
+            csv = new StringBuilder("seg,f,antx,anty,antz,camx,camy,camz,fwdx,fwdy,fwdz,acc,wacc,tacc,aacc,boom,yaw,lift,slid,clamp,blocked,keyx,keyy,speed,inprop,lens\n");
             var segs = new List<Seg>();
             for (int r = 0; r < game.world.regions.Count; r++)
             {
@@ -60,10 +72,33 @@ namespace AntGarden
                 game.rig.Nudge(1.1f);
                 yield return Measure(game, dir, segs, "drag_then_W", 5f, () => new Vector2(0, 1), false);
             }
+            // a particle nest: its glowing way from where the ant starts, walked as a player walks it
+            List<Vector2> track = game.LabNest?.Track;
+            if (track != null && track.Count > 12)
+            {
+                DemoMode.PlaceFacing(game, track[2], track[6]);
+                game.rig.SnapBehind(game.player.heading);
+                for (int i = 0; i < 20; i++) yield return null;
+                var tb = new Bot(track);
+                yield return Measure(game, dir, segs, "t_walk", 20f, () => tb.Keys(game), false);
+                yield return Measure(game, dir, segs, "t_sprint", 14f, () => tb.Keys(game), true);
+                yield return Measure(game, dir, segs, "t_pad", 14f, () => tb.Stick(game), false);
+                // the right stick while walking on the left: turned left a little over a second, let go, right, let go
+                float lookT = 0;
+                yield return Measure(game, dir, segs, "t_look", 10f, () =>
+                {
+                    float ph = lookT % 5f;
+                    lookT += 1f / Fps;
+                    game.rig.checkLook = ph < 1.2f ? new Vector2(-0.8f, 0) : ph >= 2.5f && ph < 3.7f ? new Vector2(0.8f, 0) : (Vector2?)null;
+                    return tb.Stick(game);
+                }, false);
+                game.rig.checkLook = null;
+            }
             game.demoKeys = null;
+            File.WriteAllText(Path.Combine(dir, "cam_frames.csv"), csv.ToString());
 
             var sb = new StringBuilder();
-            sb.Append("{\n  \"style\": \"").Append(game.rig.classic ? "classic" : "follow").Append("\",\n  \"segments\": [\n");
+            sb.Append("{\n  \"style\": \"").Append(game.rig.classic ? "classic" : game.rig.steady ? "steady" : "follow").Append("\",\n  \"segments\": [\n");
             for (int i = 0; i < segs.Count; i++)
             {
                 Seg s = segs[i];
@@ -78,7 +113,13 @@ namespace AntGarden
                   .Append($" \"offsetAccP50\": {P(0.5f):F2}, \"offsetAccP95\": {P(0.95f):F2}, \"offsetAccMax\": {s.accMax:F1}, \"jolts\": {s.jolts},")
                   .Append($" \"pullIns\": {s.pullIns}, \"boomMean\": {s.boomSum / Mathf.Max(1, s.frames):F2}, \"boomMin\": {s.boomMin:F2},")
                   .Append($" \"screenDriftPerSec\": {s.screenPath / secs:F3}, \"screenJumpMax\": {s.screenJumpMax:F3},")
-                  .Append($" \"antTurnDegPerSec\": {s.antTurn / secs * Mathf.Rad2Deg:F1}, \"blockedBy\": \"{string.Join(", ", why)}\" }}")
+                  .Append($" \"antTurnDegPerSec\": {s.antTurn / secs * Mathf.Rad2Deg:F1}, \"blockedBy\": \"{string.Join(", ", why)}\",");
+                s.turn.Sort();
+                float T(float q) => s.turn.Count == 0 ? 0 : s.turn[Mathf.Min(s.turn.Count - 1, (int)(q * s.turn.Count))];
+                float pct(int n) => n * 100f / Mathf.Max(1, s.frames);
+                sb.Append($" \"worldJolts\": {s.worldJolts}, \"turnAccP95\": {T(0.95f):F2}, \"turnAccMax\": {s.turnMax:F1}, \"turnJolts\": {s.turnJolts}, \"antJolts\": {s.antJolts},")
+                  .Append($" \"groundHiddenPct\": {pct(s.groundHidden):F1}, \"propLinePct\": {pct(s.propLine):F1}, \"camInPropPct\": {pct(s.inProp):F1}, \"lensClearPct\": {pct(s.lensOn):F1}, \"underGround\": {s.underGround},")
+                  .Append($" \"liftMean\": {s.liftSum / Mathf.Max(1, s.frames):F2}, \"liftMax\": {s.liftMax:F2}, \"slideMax\": {s.slideMax:F2}, \"clampMax\": {s.clampMax:F2} }}")
                   .Append(i < segs.Count - 1 ? ",\n" : "\n");
             }
             sb.Append("  ]\n}\n");
@@ -95,17 +136,59 @@ namespace AntGarden
             CameraRig rig = game.rig;
             Camera cam = rig.cam;
             Vector3 off1 = Vector3.zero, off2 = Vector3.zero;
+            Vector3 cam1 = Vector3.zero, cam2 = Vector3.zero, fw1 = Vector3.zero, fw2 = Vector3.zero, antP1 = Vector3.zero, antP2 = Vector3.zero;
             Vector2 lastScreen = Vector2.zero, lastAnt = Vector2.zero;
             float lastYaw = 0, lastYawRate = 0, lastHeading = game.player.heading;
             var boomHist = new Queue<float>();
             int cooldown = 0, n = (int)(seconds * Fps), skip = name.StartsWith("drag") ? 12 : 2;
+            World world = game.world;
             for (int f = 0; f < n; f++)
             {
-                game.demoKeys = keys();
+                Vector2 held = keys();
+                game.demoKeys = held;
                 game.demoFast = fast;
                 yield return null;   // the game moves the ant and the camera
                 Vector3 ant = game.player.Position;
                 Vector3 off = cam.transform.position - ant;
+                Vector3 camPos = cam.transform.position, camFw = cam.transform.forward;
+                bool inProp = InProp(world, camPos, 0.6f);
+                float wacc = (camPos - 2 * cam1 + cam2).magnitude * Fps * Fps;
+                float tacc = (camFw - 2 * fw1 + fw2).magnitude * Fps * Fps;
+                float aacc = (ant - 2 * antP1 + antP2).magnitude * Fps * Fps;
+                if (f >= skip)
+                {
+                    // the camera's own jolt in the world, the view's turning jolt (radians / s²), the ant's own
+                    if (wacc > 25f) s.worldJolts++;
+                    if (aacc > 25f) s.antJolts++;
+                    s.turn.Add(tacc);
+                    s.turnMax = Mathf.Max(s.turnMax, tacc);
+                    if (tacc > 10f) s.turnJolts++;
+                    // the ground between the camera and the ant, a tall prop on that line, the camera inside one or under the ground
+                    Vector3 eye = ant + Vector3.up * 0.25f;
+                    bool hidden = false, prop = false;
+                    for (int k = 1; k <= 20; k++)
+                    {
+                        float t = 0.04f + 0.88f * k / 20f;
+                        Vector3 p = Vector3.Lerp(camPos, eye, t);
+                        if (world.Height(p.x, p.z) > p.y) hidden = true;
+                        if (t > 0.1f && t < 0.85f && InProp(world, p, 1f)) prop = true;
+                    }
+                    if (hidden) s.groundHidden++;
+                    if (prop) s.propLine++;
+                    if (inProp) s.inProp++;
+                    if (rig.lensClear > 0.2f) s.lensOn++;
+                    if (camPos.y < world.Height(camPos.x, camPos.z) + 0.05f) s.underGround++;
+                    s.liftSum += rig.lifted;
+                    s.liftMax = Mathf.Max(s.liftMax, rig.lifted);
+                    s.slideMax = Mathf.Max(s.slideMax, rig.slideBy);
+                    s.clampMax = Mathf.Max(s.clampMax, rig.clamped);
+                }
+                csv.Append($"{name},{f},{ant.x:F3},{ant.y:F3},{ant.z:F3},{camPos.x:F3},{camPos.y:F3},{camPos.z:F3},{camFw.x:F4},{camFw.y:F4},{camFw.z:F4},")
+                   .Append($"{(off - 2 * off1 + off2).magnitude * Fps * Fps:F1},{wacc:F1},{tacc:F2},{aacc:F1},{off.magnitude:F3},{rig.yaw:F4},{rig.lifted:F3},{rig.slideBy:F3},{rig.clamped:F3},{rig.blockedBy},")
+                   .Append($"{held.x:F2},{held.y:F2},{game.player.speed:F2},{(inProp ? 1 : 0)},{rig.lensClear:F2}\n");
+                cam2 = cam1; cam1 = camPos;
+                fw2 = fw1; fw1 = camFw;
+                antP2 = antP1; antP1 = ant;
                 Vector3 vp = cam.WorldToViewportPoint(ant + Vector3.up * 0.2f);
                 var screen = new Vector2(vp.x, vp.y);
                 var ant2 = new Vector2(ant.x, ant.z);
@@ -158,6 +241,20 @@ namespace AntGarden
                 }
             }
             game.demoKeys = Vector2.zero;
+        }
+
+        /// <summary>Inside a prop at least minH tall (its footprint circles, as the camera saw them, below its top).</summary>
+        static readonly List<Circle> around = new List<Circle>(128);
+
+        static bool InProp(World world, Vector3 p, float minH)
+        {
+            foreach (Circle c in world.colliders.Around(p.x, p.z, 0f, around))
+            {
+                if (c.h < minH) continue;
+                float dx = p.x - c.x, dz = p.z - c.z, r = c.r * 0.85f;
+                if (dx * dx + dz * dz < r * r && p.y < world.Height(c.x, c.z) + c.h) return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -233,7 +330,8 @@ namespace AntGarden
                 }
             }
 
-            public Vector2 Keys(Game game)
+            /// <summary>Where to go: a point 1.6 units further along the route than the ant (and how to get there).</summary>
+            Vector2 Want(Game game)
             {
                 Vector2 p = new Vector2(game.player.Position.x, game.player.Position.z);
                 float best = (route[idx] - p).sqrMagnitude;
@@ -242,7 +340,6 @@ namespace AntGarden
                     float d = (route[i] - p).sqrMagnitude;
                     if (d < best) { best = d; idx = i; }
                 }
-                // a point 1.6 units further along the route
                 float need = 1.6f;
                 int j = idx;
                 Vector2 aim = route[j];
@@ -252,7 +349,21 @@ namespace AntGarden
                     if (l >= need) { aim = route[j] + (route[j + 1] - route[j]) * (need / l); need = 0; }
                     else { need -= l; j++; aim = route[j]; }
                 }
-                Vector2 want = aim - p;
+                return aim - p;
+            }
+
+            /// <summary>The pad's left stick: pushed straight toward the way ahead, relative to the camera, as a thumb steers.</summary>
+            public Vector2 Stick(Game game)
+            {
+                Vector2 want = Want(game);
+                var (fwd, right) = game.rig.Basis();
+                var st = new Vector2(Vector2.Dot(want, right), Vector2.Dot(want, fwd));
+                return st.sqrMagnitude > 1e-6f ? st.normalized : Vector2.zero;
+            }
+
+            public Vector2 Keys(Game game)
+            {
+                Vector2 want = Want(game);
                 var (fwd, right) = game.rig.Basis();
                 float a = Mathf.Atan2(Vector2.Dot(want, right), Vector2.Dot(want, fwd)) * Mathf.Rad2Deg;
                 wait -= Time.deltaTime;

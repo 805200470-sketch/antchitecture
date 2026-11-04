@@ -480,6 +480,7 @@ namespace AntGarden
                 stem = Color.Lerp(stem, nt.vineDark, Mathf.Min(1f, nt.vineDarken + 0.25f * V()));   // darker than the plants
                 Color light = (glowPal != null && glowPal.Length >= 8 ? glowPal[cool[(int)(V() * 4) % 4]].linear : new Color(0.4f, 0.85f, 0.85f))
                     * (NestTheme.Current ?? NestTheme.Cyan).vineGlow;
+                if (nt.vineLight.a > 0f) light = nt.vineLight.linear * nt.vineGlow;   // (its nest's own: NestTheme.vineLight)
                 bool vein = V() < 0.55f, leaves = V() < 0.45f;
                 // the glowing tip: its last stretch, never more than the last 0.8 units of a long vine
                 float pores = V() < 0.5f ? 0.012f + 0.025f * V() : 0.003f, tip = Mathf.Min(0.1f + 0.15f * V(), 0.8f / len);

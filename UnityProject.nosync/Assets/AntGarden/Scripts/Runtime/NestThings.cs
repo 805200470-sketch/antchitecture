@@ -35,6 +35,10 @@ namespace AntGarden
         public Color Tint = Color.clear;
         /// <summary>How much of a splat's own hue is kept under the tint (0..1).</summary>
         public float Keep = 0.2f;
+        /// <summary>Set while a thing's clear parts are drawn (honey): their splats' indices go to Glass, so they can be
+        /// drawn see-through in a pass of their own (SolidThings; a trial, -glass).</summary>
+        public bool Clear;
+        public readonly List<int> Glass = new List<int>();
 
         public ThingPen(List<SolidPoint> into) { this.into = into; }
 
@@ -81,6 +85,7 @@ namespace AntGarden
                 float lum = albedo.r * 0.3f + albedo.g * 0.55f + albedo.b * 0.15f;
                 albedo = Color.Lerp(Tint * (lum * 2.1f), albedo, Keep);
             }
+            if (Clear) Glass.Add(into.Count);
             into.Add(new SolidPoint { pos = pos, nrm = PackNormal(normal), col = Pack(albedo, glow), radius = radius });
         }
 

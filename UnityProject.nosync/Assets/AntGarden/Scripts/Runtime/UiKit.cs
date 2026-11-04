@@ -26,6 +26,8 @@ namespace AntGarden
                     {
                         "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "DengXian", "SimHei",
                         "Noto Sans CJK SC", "Source Han Sans SC", "Hiragino Sans GB", "Arial Unicode MS", "Arial",
+                        // (last, only for a sign none of those has: the pad's View button ⧉, 11-04)
+                        "Apple Symbols", "Segoe UI Symbol", "Cambria Math",
                     }, 16);
                 return font;
             }

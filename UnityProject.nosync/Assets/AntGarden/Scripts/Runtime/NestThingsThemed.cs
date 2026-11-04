@@ -46,6 +46,12 @@ namespace AntGarden
             public ThingPen Pen => pen;
         }
 
+        // (trials, by the command line: the honey's clear parts drawn see-through, -glass N its opacity, SolidThings;
+        // the spill of a dark pollen's colour as far as N of its heap's width, -darkreach N)
+        static float ArgOr(string name, float otherwise) => Game.Arg(name) is string a && float.TryParse(a, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float v) ? v : otherwise;
+        static readonly bool GlassTrial = Game.Arg("-glass") != null;
+        static readonly float DarkReach = ArgOr("-darkreach", 0.75f);
+
         /// <summary>A random point inside the unit ball, and how far out it is (0 middle .. 1 skin).</summary>
         static Vector3 InBall(ThingPen pen, out float f)
         {
@@ -141,25 +147,38 @@ namespace AntGarden
         /// <summary>
         /// The moss forest: a bunch of moss stalks as tall as street lamps are to us, rising from a small dark cushion of
         /// moss: six to eleven thin setae of different heights and thickness, leaning out and curving each its own way,
-        /// dark red-brown at the foot turning gold toward the top, each bent over at its top like a shepherd's crook and
-        /// hanging a pear-shaped capsule from it, like a lamp's head. Its light is in its parts, as in the glow references
-        /// (Docs/参考_发光): the capsule a whole warm amber-brown body lit softly from inside, most where it is widest, six
-        /// fine ribs from neck to mouth a little lighter, a small core of light inside; most still have their pale lid over
-        /// the mouth, many stand open, the crown of pale teeth round the mouth a ring of bright dots; and its own light rises
-        /// softly along the seta, none at its foot. (First version: a capsule a twentieth of the ant, its lid lit, a dull
-        /// khaki speck; then, its core filling it, a solid cream blob; then three to six straight sticks standing apart,
-        /// each capsule a skin half gaps round near-white ribs: lines hung with hollow wireframe lanterns, review k12.)
-        /// size is the tallest one's height (0.8 to 2.4).
+        /// dark red-brown, a little lighter toward the top, each bent over at its top like a shepherd's crook and hanging a
+        /// capsule from it: a small solid pot, a short neck widening into a round body, a little narrower at the mouth;
+        /// the ripe ones dark amber-brown, a third young ones still green and closed. Its only light is at the mouth (the
+        /// user, 10-30): most ripe ones stand open, dark inside, the crown of pale teeth round the mouth a ring of bright
+        /// dots; the rest still have their dark lid. (First
+        /// version: a capsule a twentieth of the ant, its lid lit, a dull khaki speck; then, its core filling it, a solid
+        /// cream blob; then three to six straight sticks standing apart, each capsule a skin half gaps round near-white
+        /// ribs: lines hung with hollow wireframe lanterns, review k12; then a pear lit softly from inside along six lit
+        /// ribs, its skin two thirds gaps: a hollow gold leaf, reviews k14 to k23.) size is the tallest one's height (0.8
+        /// to 2.4).
         /// </summary>
         public static void Sporophyte(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var s = new NestThingsGrowth.Spot(pen, p, n, ta, tb);
             int count = 6 + (int)(s.R() * 5.99f);
-            Color seta0 = new Color(0.16f, 0.06f, 0.04f), seta1 = new Color(0.44f, 0.28f, 0.10f);
-            Color skin0 = new Color(0.22f, 0.14f, 0.06f), skin1 = new Color(0.46f, 0.30f, 0.11f);
-            Color core = new Color(0.98f, 0.80f, 0.45f), lid = new Color(0.80f, 0.74f, 0.50f), tooth = new Color(0.98f, 0.95f, 0.80f);
-            Color rib = Color.Lerp(skin1, new Color(0.95f, 0.80f, 0.50f), 0.35f);
+            // (its setae red-brown, not gold toward the top: orange-gold, they were six in ten of the bright, vivid pixels
+            // of its pictures and took it toward the leafcut garden, k29 content review)
+            Color seta0 = new Color(0.14f, 0.05f, 0.035f), seta1 = new Color(0.30f, 0.14f, 0.06f);
+            Color skin0 = new Color(0.15f, 0.085f, 0.035f), skin1 = new Color(0.34f, 0.20f, 0.07f);
+            Color young0 = new Color(0.05f, 0.10f, 0.035f), young1 = new Color(0.13f, 0.24f, 0.07f);
+            Color lid = new Color(0.20f, 0.13f, 0.06f), tooth = new Color(0.98f, 0.95f, 0.80f);
             Color moss0 = new Color(0.03f, 0.08f, 0.03f), moss1 = new Color(0.10f, 0.20f, 0.06f);
+            // (11-04, the user, of a screenshot with its pots before the lens: "黄色的饱和度有点太高了，稍微降一些，或者减少一些这些
+            // 很黄色的部分": its ripe pots, their lids and its setae about a third less saturated, the pots a little darker, and
+            // half of them young and green, not a third. -mossrich 0: as before)
+            if (MossRich)
+            {
+                Color Calm(Color c, float keep, float k) { float y = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b; return new Color((y + (c.r - y) * keep) * k, (y + (c.g - y) * keep) * k, (y + (c.b - y) * keep) * k, c.a); }
+                (skin0, skin1, lid) = (Calm(skin0, 0.65f, 0.9f), Calm(skin1, 0.65f, 0.9f), Calm(lid, 0.7f, 1f));
+                (seta0, seta1) = (Calm(seta0, 0.7f, 1f), Calm(seta1, 0.7f, 1f));
+            }
+            float r0 = s.Thin;
             // the cushion it rises from: a low dark dome of moss, lighter toward its top
             float cr = size * 0.13f, ch = size * 0.06f;
             for (int j = 0, mc = s.Count(3.1416f * cr * cr * 1.3f, 60); j < mc; j++)
@@ -182,62 +201,55 @@ namespace AntGarden
                 {
                     float f0 = (q - 1) / 10f, f1 = q / 10f;
                     Vector3 cur = b0 + Vector3.up * (h * f1) + lean * (h * f1 * f1) + bow * Mathf.Sin(Mathf.PI * f1);
-                    // (its own light along its growth, soft: none at its foot, a little under the capsule)
-                    NestThingsGrowth.Tube(s, prev, cur, rs * (1.1f - 0.15f * f0), rs * (1.1f - 0.15f * f1), Color.Lerp(seta0, seta1, f0), Color.Lerp(seta0, seta1, f1), 0.1f * f1 * f1);
+                    // (no light of its own along it: its light is at the capsule's mouth only)
+                    NestThingsGrowth.Tube(s, prev, cur, rs * (1.1f - 0.15f * f0), rs * (1.1f - 0.15f * f1), Color.Lerp(seta0, seta1, f0), Color.Lerp(seta0, seta1, f1));
                     prev = cur;
                 }
                 // the crook: the seta's top bends over, and the capsule hangs from it, its axis (neck to mouth) out and down
                 var nod = new Vector3(Mathf.Cos(ang + 1.3f), 0f, Mathf.Sin(ang + 1.3f));
                 Vector3 axis = (nod * s.U(0.6f, 0.9f) + Vector3.down * s.U(0.35f, 0.75f)).normalized;
-                // (at a quarter to a half of the ant long, it read as a gold leaf hung on a stick)
-                float lc = Mathf.Lerp(0.09f, 0.17f, Mathf.Clamp01(h / 2.4f)) * s.U(0.85f, 1.15f), rc = lc * s.U(0.38f, 0.48f);
+                // (at a quarter to a half of the ant long, it read as a gold leaf hung on a stick; at a fifth to a third,
+                // pear-shaped, still a gold leaf, k20 and k23: a small pot now)
+                float lc = Mathf.Lerp(0.06f, 0.11f, Mathf.Clamp01(h / 2.4f)) * s.U(0.85f, 1.15f), rc = lc * s.U(0.5f, 0.6f);
                 Vector3 bend = prev + Vector3.up * (lc * 0.3f) + nod * (lc * 0.12f), neck = bend + nod * (lc * 0.3f) + Vector3.down * (lc * 0.06f);
-                NestThingsGrowth.Tube(s, prev, bend, rs, rs * 1.2f, seta1, seta1, 0.1f);
-                NestThingsGrowth.Tube(s, bend, neck, rs * 1.2f, rs * 1.6f, seta1, skin1, 0.12f);
+                NestThingsGrowth.Tube(s, prev, bend, rs, rs * 1.2f, seta1, seta1);
+                NestThingsGrowth.Tube(s, bend, neck, rs * 1.2f, rs * 1.6f, seta1, skin0);
                 NestThingsGrowth.Perp(axis, out Vector3 u, out Vector3 v);
                 Vector3 c = neck + axis * lc;
-                bool open = s.R() < 0.45f;
-                float light = s.U(0.55f, 0.85f), spin = s.R() * Tau;
-                // its body, pear-shaped (narrow at the neck, closing a little at the mouth), as a lantern pod in the
-                // references: a whole warm amber-brown skin, lit softly from inside, most where it is widest (a dark skin
-                // half gaps round its ribs read as a hollow wireframe)
-                float Pear(float z) => Mathf.Lerp(0.5f, 1f, Mathf.SmoothStep(0f, 1f, (z + 1f) / 1.2f)) * (z > 0.8f ? Mathf.Lerp(1f, 0.82f, (z - 0.8f) / 0.2f) : 1f);
-                int m = s.Count(NestThingsGrowth.EllipsoidArea(rc, lc, rc), 40);
+                // a third of them young, still green and closed (a whole bunch of amber pots, k29: the bunch's orange the
+                // loudest colour of its world)
+                bool young = s.R() < (MossRich ? 0.5f : 0.35f), open = !young && s.R() < 0.85f;
+                Color body0 = young ? young0 : skin0, body1 = young ? young1 : skin1;
+                if (young) { lc *= 0.72f; rc *= 0.72f; c = neck + axis * lc; }   // (as large as the ripe ones, k32: flat green leaves)
+                // its body a solid little pot, the user's pick (10-30, "留着，做实"): a short neck widening into a round
+                // body, a little narrower again at the mouth; its skin covered whole, not lit, in small even splats so its
+                // outline stays a smooth pot even beside the lens (a skin two thirds gaps, lit from inside, with six lit
+                // ribs over it, read as a hollow gold leaf, k20 and k23; covered in the pen's varied splats, the big ones
+                // made it a lumpy brown blob beside the lens, k29)
+                float Pot(float z) => z < -0.55f ? Mathf.Lerp(0.42f, 1f, Mathf.SmoothStep(-1f, -0.55f, z)) : z > 0.55f ? Mathf.Lerp(1f, 0.76f, Mathf.SmoothStep(0.55f, 1f, z)) : 1f;
+                float rk = r0 * 1.7f;
+                int m = Mathf.RoundToInt(2f * 3.1416f * rc * 2f * lc * 0.9f / (3.1416f * rk * rk) * 1.6f);
                 for (int j = 0; j < m; j++)
                 {
-                    float z = s.S(), t = s.R() * Tau, rr = Mathf.Sqrt(Mathf.Max(0f, 1f - z * z));
-                    if ((open && z > 0.86f) || s.R() < 0.1f) continue;
-                    Vector3 radial = u * (rr * Mathf.Cos(t)) + v * (rr * Mathf.Sin(t));
-                    float along = (z + 1f) * 0.5f;
-                    s.Put(c + axis * (lc * z) + radial * (rc * Pear(z)), radial + axis * (z * 0.6f), s.V(Color.Lerp(skin0, skin1, along) * 1.1f, 0.1f), s.Rad(0.55f),
-                        (0.06f + 0.18f * rr * Pear(z)) * light);   // (at 0.05 + 0.12, k15: filled but no light to be seen in it)
+                    float z = s.S(), t = s.R() * Tau, along = (z + 1f) * 0.5f;
+                    Vector3 radial = u * Mathf.Cos(t) + v * Mathf.Sin(t);
+                    s.Put(c + axis * (lc * z) + radial * (rc * Pot(z)), radial + axis * (z < -0.55f ? -0.5f : z > 0.55f ? 0.4f : 0f), s.V(Color.Lerp(body0, body1, 0.3f + 0.5f * along), 0.06f), rk * s.U(0.85f, 1.15f));
                 }
-                // six fine ribs from neck to mouth, a little lighter than the body, amber, drawn along their lines (picked
-                // out of the skin's scattered points, they read as specks, not lines; near white, the capsules' gold
-                // outlines stood out of the green as glints)
-                for (int k = 0; k < 6; k++)
+                for (int j = 0, k = m / 6; j < k; j++)   // (a dark core, so no splat's gap shows through it)
                 {
-                    float a = spin + k * Tau / 6f;
-                    Vector3 o = u * Mathf.Cos(a) + v * Mathf.Sin(a);
-                    int steps = Mathf.Clamp(Mathf.RoundToInt(lc * 2f / (s.Rad(0.26f) * 1.1f)), 8, 60);
-                    for (int j = 0; j < steps; j++)
-                    {
-                        float z = Mathf.Lerp(-0.9f, open ? 0.84f : 0.9f, (j + 0.5f) / steps), rr = Mathf.Sqrt(Mathf.Max(0f, 1f - z * z)), along = (z + 1f) * 0.5f;
-                        s.Put(c + axis * (lc * z) + o * (rc * Pear(z) * rr * 1.02f), o + axis * (z * 0.6f), s.V(rib, 0.05f), s.Rad(0.26f), (0.15f + 0.2f * along) * light);
-                    }
+                    Vector3 d = InBall(pen, out _);
+                    s.Put(c + axis * (lc * 0.8f * d.y) + (u * d.x + v * d.z) * (rc * 0.7f), d, s.V(body0 * 0.5f, 0.05f), rk * 2f);
                 }
-                // the light inside: a small soft amber core, bright in its middle and darker out from it (larger and
-                // filling the capsule, it made it a solid cream blob)
-                for (int j = 0, k = Mathf.RoundToInt(m * 0.12f); j < k; j++)
-                {
-                    Vector3 d = InBall(pen, out float f);
-                    float mid = 0.3f + 0.7f * (1f - f) * (1f - f);
-                    s.Put(c + axis * (lc * 0.5f * d.y) + (u * d.x + v * d.z) * (rc * 0.5f), axis, s.V(core * mid, 0.06f), s.Rad(0.55f), light * mid);
-                }
-                Vector3 mouth = c + axis * (lc * 0.86f);
+                Vector3 mouth = c + axis * lc;
                 if (open)
                 {
-                    // the crown of teeth round the open mouth, bent in: a ring of small bright dots
+                    // the open mouth dark inside, and round it the crown of teeth, bent in: a ring of small bright dots,
+                    // its only light
+                    for (int j = 0, kd = Mathf.Max(8, m / 12); j < kd; j++)
+                    {
+                        float a = s.R() * Tau, q = Mathf.Sqrt(s.R()) * rc * 0.62f;
+                        s.Put(mouth - axis * (lc * 0.06f) + (u * Mathf.Cos(a) + v * Mathf.Sin(a)) * q, axis, s.V(skin0 * 0.35f, 0.05f), rk);
+                    }
                     for (int k = 0; k < 16; k++)
                     {
                         float a = (k + 0.3f * s.S()) / 16f * Tau;
@@ -245,24 +257,28 @@ namespace AntGarden
                         for (int j = 0; j < 3; j++)
                         {
                             float t = j / 2f;
-                            s.Put(mouth + axis * (lc * 0.07f * t) + o * (rc * 0.8f * (1f - 0.45f * t)), axis + o * 0.5f, s.V(tooth, 0.05f), s.Rad(0.4f), 0.6f + 0.3f * light);
+                            s.Put(mouth + axis * (lc * 0.07f * t) + o * (rc * 0.8f * (1f - 0.45f * t)), axis + o * 0.5f, s.V(tooth, 0.05f), r0 * 1.5f, 1f);   // (half as large and at 0.75, k29: no marking of its own to be seen)
                         }
                     }
                 }
                 else
                 {
-                    // its lid: a pale low dome over the mouth with a short beak, lit a little more than the skin
-                    for (int j = 0, kl = Mathf.Max(12, m / 6); j < kl; j++)
+                    // its lid: a dark low dome over the mouth with a short beak, not lit (on a young one, its own green)
+                    Color lc0 = young ? young0 * 1.2f : lid;
+                    for (int j = 0, kl = Mathf.Max(12, m / 8); j < kl; j++)
                     {
                         Vector3 d = InBall(pen, out _).normalized;
                         Vector3 o = u * d.x + v * d.z;
-                        s.Put(mouth + o * (rc * 0.78f) + axis * (rc * 0.45f * Mathf.Abs(d.y)), o + axis, s.V(lid, 0.08f), s.Rad(0.45f), 0.3f * light);
+                        s.Put(mouth + o * (rc * 0.74f) + axis * (rc * 0.4f * Mathf.Abs(d.y)), o + axis, s.V(lc0, 0.08f), rk);
                     }
                     for (int j = 0; j < 3; j++)
-                        s.Put(mouth + axis * (rc * (0.5f + 0.2f * j)), axis, s.V(lid, 0.05f), s.Rad(0.3f), 0.5f * light);
+                        s.Put(mouth + axis * (rc * (0.45f + 0.2f * j)), axis, s.V(lc0, 0.05f), rk * 0.7f);
                 }
             }
         }
+
+        static readonly bool MossRich = Game.Arg("-mossrich") != "0";   // (the moss forest's 11-04 changes: -mossrich 0, as before)
+        static readonly bool MossLichen = Game.Arg("-mosslichen") == "1";   // (and its flat lichen, a trial: not yet, the richness review, k34)
 
         /// <summary>
         /// The moss forest: star moss (haircap moss) as a colony of round tufts, at ant scale cushions about as tall as the
@@ -298,16 +314,16 @@ namespace AntGarden
                 Vector3 c = Vector3.zero;
                 for (int tries = 0; tries < 12; tries++)
                 {
-                    float a = s.R() * Tau, q = i == 0 ? s.R() * rad * 0.2f : s.U(0.4f, 1f) * (rad - rt * 0.5f);
+                    float a = s.R() * Tau, q = i == 0 ? s.R() * rad * 0.2f : s.U(0.25f, 0.85f) * (rad - rt * 0.5f);
                     c = new Vector3(Mathf.Cos(a) * q, 0f, Mathf.Sin(a) * q);
                     bool clear = true;
                     for (int j = 0; j < i; j++)
-                        if ((c - tc[j]).magnitude < 0.8f * (rt + tr[j])) clear = false;
+                        if ((c - tc[j]).magnitude < 0.6f * (rt + tr[j])) clear = false;   // (0.8: round balls apart, in a row, review k26)
                     if (clear) break;
                 }
                 tc[i] = c;
                 tr[i] = rt;
-                th[i] = rt * s.U(1.1f, 1.4f);
+                th[i] = rt * s.U(0.95f, 1.5f);
             }
             // a dome: an ellipsoid standing a tenth of its height up, cut at the floor; how far into the nearest other
             // dome a point is (under 1: hidden in it; a little over: in the crease where they meet)
@@ -350,13 +366,91 @@ namespace AntGarden
                     if (q.y < -0.12f || other < 0.97f) continue;
                     nrm.Normalize();
                     float up = Mathf.Clamp01(x.y / ht);
-                    x += nrm * (rt * 0.14f * Lump(x) * Mathf.SmoothStep(0f, 1f, up / 0.25f));
+                    x += nrm * (rt * 0.2f * Lump(x) * Mathf.SmoothStep(0f, 1f, up / 0.25f));   // (0.14, k26: still too round and even)
                     if (up < 0.3f) x += new Vector3(nrm.x, 0f, nrm.z) * (rt * 0.08f * s.R() * (1f - up / 0.3f));   // (its foot frayed)
                     float mottle = 0.72f + 0.56f * Mathf.PerlinNoise(x.x * 7f + seed, (x.z + x.y) * 7f - seed);
                     Color col = Color.Lerp(deep, tk[i] * mottle, Mathf.SmoothStep(0f, 1f, up / 0.5f));
                     col = Color.Lerp(col, crown, Mathf.SmoothStep(0f, 1f, (up - 0.5f) / 0.5f) * 0.2f * (0.5f + 0.5f * Mathf.Max(0f, nrm.y)));
                     col = Color.Lerp(deep, col, Mathf.SmoothStep(0f, 1f, (other - 0.97f) / 0.25f));
                     s.Put(x, nrm + new Vector3(s.S(), s.S(), s.S()) * 0.35f, s.V(col, 0.18f), s.Rad(1f / Mathf.Sqrt(fill)));
+                }
+            }
+            // at the foot of about half the colonies, a leafy lichen or two pressed flat to the floor: a rosette of rounded
+            // lobes, a dark grey-green, only their rims a little lighter (the user, 11-04, of the nests but the blue one: "可以
+            // 增加一些大的素材也好、小的素材也好"; the floor's lichen crusts, pale all over, read as white crumpled paper, k22
+            // and k23). A trial, -mosslichen 1 (the richness review against v15, k34: not now)
+            if (MossLichen && s.R() < 0.55f)
+            {
+                Color lichen = new Color(0.04f, 0.055f, 0.04f), rim = new Color(0.12f, 0.15f, 0.11f);
+                for (int l = 0, nl = 1 + (int)(s.R() * 2.4f); l < nl; l++)
+                {
+                    float la = s.R() * Tau, lr = s.U(0.09f, 0.16f) * Mathf.Sqrt(size), ld = rad * s.U(0.75f, 1.05f) + lr * 0.6f, spin = s.R() * Tau;
+                    Vector3 lc = new Vector3(Mathf.Cos(la) * ld, 0f, Mathf.Sin(la) * ld);
+                    int lobes = 5 + (int)(s.R() * 4f), m = Mathf.Min(s.Count(3.1416f * lr * lr * 0.75f), s.Left / 8);
+                    for (int k = 0; k < m; k++)
+                    {
+                        // its outline in lobes, each a rounded tongue; its rim curled up a little
+                        float a = s.R() * Tau, edge = lr * (0.62f + 0.38f * Mathf.Pow(Mathf.Abs(Mathf.Cos((a - spin) * lobes * 0.5f)), 0.7f));
+                        float at = Mathf.Sqrt(s.R()), d = at * edge;
+                        Vector3 x = lc + new Vector3(Mathf.Cos(a) * d, 0.006f + 0.02f * lr * at * at, Mathf.Sin(a) * d);
+                        Color col = Color.Lerp(lichen, rim, Mathf.SmoothStep(0f, 1f, (at - 0.78f) / 0.2f));
+                        s.Put(x, Vector3.up + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * (0.5f * at * at), s.V(col, 0.12f), s.Rad(0.9f));
+                    }
+                }
+            }
+            // in about half the colonies a few of their shoots grown tall out of the domes, as haircap moss does: to an ant a
+            // grove of small trees (the richness review against v15, k36: "新做高苔茎丛，像金发藓那样", its mid-ground and
+            // its walls' feet nearly empty). Each a stem, red-brown low and dark green above, bowed a little and leaning its
+            // own way; its narrow leaves spiralling up it, stiff and spreading, dark, lighter toward their tips; at its top
+            // the crown the stars are, now and then a tip faintly lit. A third of what the stars would take. -mossrich 0: none
+            if (MossRich && s.R() < 0.5f)
+            {
+                Color stem0 = new Color(0.10f, 0.045f, 0.03f), stem1 = new Color(0.035f, 0.08f, 0.03f);
+                Color leaf0 = new Color(0.03f, 0.075f, 0.025f), leaf1 = new Color(0.13f, 0.22f, 0.06f);
+                int shoots = 3 + (int)(s.R() * 5f), per = s.Left / 3 / shoots;
+                for (int k = 0; k < shoots && s.Left > 300; k++)
+                {
+                    int i = (int)(s.R() * nt) % nt;
+                    float a0 = s.R() * Tau, q0 = Mathf.Sqrt(s.R()) * tr[i] * 0.6f;
+                    Vector3 b = Centre(i) + new Vector3(Mathf.Cos(a0) * q0, th[i] * 0.55f, Mathf.Sin(a0) * q0);
+                    float h = size * s.U(1f, 2.2f) * (k == 0 ? 1.2f : 1f), rs = Mathf.Lerp(0.007f, 0.014f, Mathf.Clamp01(h / 3f));
+                    Vector3 lean = new Vector3(s.S(), 0f, s.S()) * 0.12f, bow = new Vector3(s.S(), 0f, s.S()) * (0.05f * h), prev = b;
+                    Vector3 On(float f) => b + Vector3.up * (h * f) + lean * (h * f * f) + bow * Mathf.Sin(Mathf.PI * f);
+                    for (int q = 1; q <= 10; q++)
+                    {
+                        float f0 = (q - 1) / 10f, f1 = q / 10f;
+                        NestThingsGrowth.Tube(s, On(f0), On(f1), rs * (1f - 0.15f * f0), rs * (1f - 0.15f * f1),
+                            Color.Lerp(stem0, stem1, Mathf.SmoothStep(0f, 1f, f0 / 0.45f)), Color.Lerp(stem0, stem1, Mathf.SmoothStep(0f, 1f, f1 / 0.45f)));
+                    }
+                    // its leaves up its upper two thirds, the lowest longest, a golden angle apart
+                    int leaves = Mathf.Clamp(per / 6, 12, 60);
+                    float spin = s.R() * Tau, ll = Mathf.Clamp(h * 0.09f, 0.05f, 0.16f);
+                    for (int l = 0; l < leaves; l++)
+                    {
+                        float f = 0.3f + 0.68f * l / leaves, ang = spin + l * 2.4f, len = ll * (1.15f - 0.5f * f) * s.U(0.8f, 1.2f);
+                        Vector3 d = (new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) + Vector3.up * s.U(0.35f, 0.8f)).normalized;
+                        for (int j = 0; j < 4; j++)
+                        {
+                            float t = (j + 0.5f) / 4f;
+                            s.Put(On(f) + d * (len * t), d + Vector3.up * 0.3f, s.V(Color.Lerp(leaf0, leaf1, 0.25f + 0.75f * t * f), 0.12f), rs * (1.3f - 0.6f * t));
+                        }
+                    }
+                    // its crown: a dark point and a star of rays, as on the domes
+                    Vector3 top = On(1f);
+                    float cl = ll * 1.3f, cs = s.R() * Tau;
+                    bool lit = s.R() < 0.35f;
+                    s.Put(top, Vector3.up, s.V(leaf0, 0.1f), rs * 1.6f);
+                    for (int r = 0, rays = 6 + (int)(s.R() * 3f); r < rays; r++)
+                    {
+                        float a = cs + (r + 0.3f * s.S()) * Tau / rays;
+                        Vector3 d = (new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) + Vector3.up * 0.45f).normalized;
+                        for (int j = 0; j < 4; j++)
+                        {
+                            float t = (j + 0.5f) / 4f;
+                            s.Put(top + d * (cl * t) - Vector3.up * (0.25f * cl * t * t), Vector3.up + d * 0.3f, s.V(Color.Lerp(leaf0 * 1.2f, leaf1, 0.2f + 0.8f * t), 0.12f),
+                                rs * (1.4f - 0.7f * t), lit && j == 3 ? 0.15f : 0f);
+                        }
+                    }
                 }
             }
             // the stars over their upper parts, larger on a larger tuft: a dark point, five to seven narrow leaves spreading
@@ -378,7 +472,7 @@ namespace AntGarden
                     Vector3 x = NestThingsGrowth.OnEllipsoid(s, Centre(i), new Vector3(rt, 0f, 0f), new Vector3(0f, ht * 0.9f, 0f), new Vector3(0f, 0f, rt), out Vector3 nrm, out Vector3 q);
                     if (q.y < 0.3f || Others(x, i) < 1f) continue;
                     if (Mathf.PerlinNoise(x.x * 5f - seed, x.z * 5f + seed) < s.U(0.1f, 0.3f)) continue;
-                    x += nrm.normalized * (rt * 0.14f * Lump(x));   // (on the lumps, as the leaves under them)
+                    x += nrm.normalized * (rt * 0.2f * Lump(x));   // (on the lumps, as the leaves under them)
                     nrm = (nrm.normalized + new Vector3(s.S(), s.S(), s.S()) * 0.25f).normalized;
                     NestThingsGrowth.Perp(nrm, out Vector3 u, out Vector3 v);
                     bool young = s.R() < 0.2f;
@@ -1147,7 +1241,7 @@ namespace AntGarden
             // its upper half cracked at its broad end only, bent up there about 13° from a third of the way along: a split, not
             // a lid (lifted whole from near its point, at 14° it read as an open shell, "像张开的贝壳"; at 7°, a pale band of
             // honey all along its side, a filling, "瓜子里的蜜像一条平的浅黄带")
-            const float sinLid = 0.18f;   // (at 0.22 from a third of the way, a wide gap full of flat gold honey, "金黄方片"; at 0.13 from near its end, no split seen)
+            const float sinLid = 0.25f;   // (0.18, the 50th: its split not seen, "像瓜子压在一块金色垫子上")   // (at 0.22 from a third of the way, a wide gap full of flat gold honey, "金黄方片"; at 0.13 from near its end, no split seen)
             float cosLid = Mathf.Sqrt(1f - sinLid * sinLid), hingeX = A * 0.3f;
             float Half(float u) => Mathf.Sqrt(Mathf.Max(0f, 1f - u * u)) * (1f - 0.38f * u);   // teardrop: pointed at u = 1
             Vector3 World(Vector3 l) => ax * l.x + Vector3.up * l.y + ac * l.z;
@@ -1184,6 +1278,7 @@ namespace AntGarden
                     if (top && u < -0.2f)   // under its lifted husk, the kernel's pale flesh showing, a dark line where they part
                         f.Put(World(l - nl * (D * 0.12f)), -World(nl), (Mathf.Abs(v) > 0.8f ? shade : kernel) * (0.8f + 0.3f * f.R()), rad * (0.8f + 0.4f * f.R()));
                 }
+            pen.Clear = GlassTrial;
             // the honey filling it, level a little under its seam, drawn toward its mouth, where it shows: deep amber, darkest
             // away from its mouth, where it lies deepest; at its mouth welling up over the lip, lit through, gold (even and
             // pale, it read as yellow felt, "像黄毡")
@@ -1202,34 +1297,61 @@ namespace AntGarden
             // thick round spill, uneven at its edge, swollen toward its front: deep amber, gold only where it is thin at its
             // front edge and in the sheet falling over the rim, a few highlights; a drop hanging from the split's lip (a long
             // tongue with a lit crown and a round lobe at its end read as a spoon, "像一把勺子"; a flat straight-edged band,
-            // lit, as a strip of light; amber all over and evenly lit, as a cake by itself, "一块黄饼")
+            // lit, as a strip of light; amber all over and evenly lit, as a cake by itself, "一块黄饼"; swollen, lit in its
+            // middle and dark at its rim, as a slice of toast with burnt edges, "像一片焦边的面包片": flat and running on from
+            // the sheet's foot, deepest amber in its middle, lit a little within, thinning at its edge into the floor's own
+            // colour, no rim; one long highlight across it, wet)
             float poolR = size * 0.16f, poolX = A * 0.97f + size * 0.05f + poolR * 0.55f, sheetW = size * 0.075f;   // (the pool against the sheet: apart, a separate disc)
             for (int j = 0, ms = Mathf.RoundToInt(size * size * 0.03f * perArea); j < ms; j++)
             {
                 float t = f.R(), half = sheetW * (0.6f + 0.4f * t), w = f.S() * half, edge = Mathf.Abs(w) / half;
                 var l = new Vector3(A * 0.97f + size * 0.05f * t, Mathf.Max(0.012f, h0 * (1f - t)) + size * 0.012f * (1f - edge * edge), w);
-                Color col = Color.Lerp(Color.Lerp(thin, body, 1f - edge), clear, 0.4f * (1f - edge * edge));
+                Color col = Color.Lerp(Color.Lerp(Color.Lerp(thin, body, 0.5f), body, 1f - edge), clear, 0.4f * (1f - edge * edge));   // (its edges at thin, dark lines down it)
                 bool glint = edge < 0.12f && f.R() < 0.35f;   // a highlight down it
                 f.Put(World(l), (ax * 0.8f + Vector3.up).normalized, glint ? shine : col, rad * (glint ? 0.45f : 0.9f), glint ? 0.25f : 0.03f + 0.15f * (1f - edge));
             }
+            // (a long tongue, swollen and matt, the 52nd, "像面包或鼻涕虫": spread flat and wide on the floor, in lobes, deep
+            // amber where it is thick, gold where it thins toward its edge and the light comes through it)
             float spillSeed = f.R() * 30f;
-            for (int j = 0, mp = Mathf.RoundToInt(Mathf.PI * poolR * poolR * 2.8f * perArea); j < mp; j++)   // (at 1.7, holes in it: a sponge)
+            Color soil = new Color(0.07f, 0.045f, 0.008f);   // (about the granary's floor, linear: at its very edge it shows through)
+            for (int j = 0, mp = Mathf.RoundToInt(Mathf.PI * poolR * poolR * 3.6f * perArea); j < mp; j++)   // (at 1.7, holes in it: a sponge)
             {
-                float a = f.R() * Tau, d = Mathf.Sqrt(f.R()) * poolR * 1.2f;
-                float reach = poolR * (0.8f + 0.35f * Mathf.PerlinNoise(Mathf.Cos(a) * 1.7f + spillSeed, Mathf.Sin(a) * 1.7f + spillSeed));   // its edge uneven
+                float a = f.R() * Tau, d = Mathf.Sqrt(f.R()) * poolR * 1.45f;
+                float front = Mathf.Clamp01(Mathf.Cos(a));   // toward its front (+x), the way it runs
+                float reach = poolR * (0.7f + 0.55f * Mathf.PerlinNoise(Mathf.Cos(a) * 2.1f + spillSeed, Mathf.Sin(a) * 2.1f + spillSeed)) * (1f + 0.25f * front);   // its edge in lobes, a little longer the way it runs
                 if (d > reach) continue;
-                float dd = d / reach, front = Mathf.Clamp01(Mathf.Cos(a));   // 0 its middle .. 1 its edge; toward its front (+x)
-                float thick = size * 0.045f * (1f - dd * dd) * (0.7f + 0.3f * front);
-                var l = new Vector3(poolX + Mathf.Cos(a) * d, 0.012f + thick, Mathf.Sin(a) * d * 1.1f);
-                float lit = (1f - dd) * (1f - dd) * (0.55f + 0.45f * front);   // lit through where it is thick (at its thin front edge, a fried egg's rim)
-                bool glint = dd < 0.7f && f.R() < 0.03f;
-                Vector3 nl = (Vector3.up + (ax * Mathf.Cos(a) + ac * Mathf.Sin(a)) * (dd * 0.8f)).normalized;
-                Color col = Color.Lerp(Color.Lerp(body, thin, Mathf.SmoothStep(0f, 1f, (dd - 0.75f) / 0.25f)), clear, lit * 0.7f);
-                f.Put(World(l), nl, glint ? shine : col, rad * (glint ? 0.45f : 0.9f), glint ? 0.3f : 0.03f + 0.3f * lit);
+                float dd = d / reach;   // 0 its middle .. 1 its edge
+                float thick = size * 0.013f * (1f - dd * dd * dd * dd);   // (flat, its edge rounded quickly: at 0.02, a slug; at 0.045 and domed, a loaf)
+                var l = new Vector3(poolX - poolR * 0.35f + Mathf.Cos(a) * d * (1f + 0.3f * front), 0.008f + thick, Mathf.Sin(a) * d * 0.85f + W * 0.2f);   // (at 1.6 and 0.6 across, the 52nd, a long tongue to one side)
+                // one long highlight across it, toward the moon (scattered, its glints read as crumbs)
+                float band = Mathf.Abs((Mathf.Cos(a) * 0.55f - Mathf.Sin(a) * 0.83f) * d / poolR + 0.1f);
+                bool high = band < 0.04f && dd < 0.75f && f.R() < 0.6f;
+                Vector3 nl = (Vector3.up + (ax * Mathf.Cos(a) + ac * Mathf.Sin(a)) * (dd * dd * 0.6f)).normalized;
+                // (its thin edge a narrow gold band only: lit from half way out, cream at 0.55 of the light, then ochre at 0.35, it
+                // read with its deep middle as a fried egg, "煎蛋", the 53rd's trials)
+                float thinning = Mathf.SmoothStep(0f, 1f, (dd - 0.74f) / 0.18f), atEdge = Mathf.SmoothStep(0f, 1f, (dd - 0.93f) / 0.07f);
+                Color col = Color.Lerp(Color.Lerp(body, clear * 0.35f, 0.15f + 0.4f * thinning), soil, 0.4f * atEdge);
+                f.Put(World(l), nl, high ? shine * 0.75f : col, rad * (high ? 0.45f : 0.8f), high ? 0.22f : 0.05f + 0.04f * (1f - dd) + 0.05f * thinning * (1f - atEdge));
             }
+            // across the split, at its sides near its mouth, one or two strings of honey from the lifted husk down to the lower
+            // one, bowing out ("裂口边上挂一两根蜜丝", the 52nd)
+            for (int k = 0, ns = 1 + (int)(f.R() * 1.99f); k < ns; k++)
             {
-                float dr = size * 0.028f;
-                Vector3 dc = World(new Vector3(A * 0.99f, h0 - dr * 0.9f, f.S() * W * 0.12f));
+                float u = f.U(-0.93f, -0.75f), sideS = k == 0 ? 1f : -1f, z0 = sideS * Half(u) * W * 0.97f, dx = -u * A - hingeX;
+                var lo = new Vector3(-u * A, h0, z0);
+                var hi = new Vector3(hingeX + dx * cosLid, h0 + dx * sinLid, z0);
+                Vector3 bow = new Vector3(0.3f, 0f, sideS).normalized;
+                int ns2 = Mathf.Max(8, Mathf.RoundToInt((hi.y - lo.y) / (rad * 0.5f)));
+                for (int j = 0; j <= ns2; j++)
+                {
+                    float t = j / (float)ns2, sag = Mathf.Sin(t * Mathf.PI);
+                    f.Put(World(Vector3.Lerp(hi, lo, t) + bow * (size * 0.012f * sag)), World(bow), Color.Lerp(body, clear, 0.35f + 0.25f * sag), rad * (0.55f - 0.2f * sag), 0.08f + 0.06f * sag);
+                }
+            }
+            for (int drop = 0; drop < 2; drop++)   // (two hanging from its lip: "裂口挂一两滴")
+            {
+                float dr = size * (drop == 0 ? 0.028f : 0.019f);
+                Vector3 dc = World(new Vector3(A * (drop == 0 ? 0.99f : 0.93f), h0 - dr * (drop == 0 ? 0.9f : 1.1f), (drop == 0 ? 1f : -1f) * W * f.U(0.05f, 0.14f)));
                 for (int j = 0, md = Mathf.Max(30, Mathf.RoundToInt(NestThingsGrowth.EllipsoidArea(dr, dr * 1.3f, dr) * perArea * 1.5f)); j < md; j++)
                 {
                     Vector3 pos = OnEllipsoid(f, dc, ax * dr, Vector3.up * (dr * 1.3f), ac * dr, out Vector3 nrm, out Vector3 q);
@@ -1238,6 +1360,7 @@ namespace AntGarden
                     f.Put(pos, nrm, high ? shine : Color.Lerp(body, clear, 0.2f + 0.6f * below * below), rad * (high ? 0.4f : 0.7f), high ? 0.4f : 0.05f + 0.3f * below * below);
                 }
             }
+            pen.Clear = false;
             // round it, a few small seeds of its kind, whole, striped (none in its honey)
             for (int k = 0; k < 14; k++)
             {
@@ -1408,12 +1531,14 @@ namespace AntGarden
         {
             var s = new NestThingsGrowth.Spot(pen, p, n, ta, tb);
             float r0 = size * 0.3f, a0 = s.R() * Tau;
+            pen.Clear = GlassTrial;
             ClearDrop(s, Vector3.zero, r0);
             for (int i = 1, count = 1 + (int)(s.R() * 2.99f); i < count; i++)
             {
                 float r = size * s.U(0.13f, 0.2f), ang = a0 + i * s.U(2.2f, 2.8f), off = (r0 + r) * s.U(1.15f, 1.4f);
                 ClearDrop(s, new Vector3(Mathf.Cos(ang) * off, 0f, Mathf.Sin(ang) * off), r);
             }
+            pen.Clear = false;
         }
 
         /// <summary>A drop of clear honey on the floor at local c (r: its radius): a low smooth dome, near black amber at its
@@ -1426,8 +1551,11 @@ namespace AntGarden
         static void ClearDrop(NestThingsGrowth.Spot s, Vector3 c, float r)
         {
             // (linear colours, as dark as they are here: the granary's night 1.9 stops brighter lit a body of 0.20 bright orange)
-            Color edge = new Color(0.015f, 0.005f, 0.0006f), body = new Color(0.07f, 0.025f, 0.0025f), clear = new Color(0.95f, 0.62f, 0.16f), shine = new Color(0.98f, 0.95f, 0.86f);
-            float ht = r * s.U(0.32f, 0.4f);   // (spread on the floor: higher, a mushroom's cap)
+            Color edge = new Color(0.03f, 0.011f, 0.0012f), body = new Color(0.11f, 0.04f, 0.004f), clear = new Color(0.85f, 0.48f, 0.08f), shine = new Color(0.98f, 0.95f, 0.86f);   // (the 41st: its middle near white, its body near black, in the game's view a brown bean, "中心发白、像褐色小豆": warmer, more amber)
+            float ht = r * s.U(0.3f, 0.36f);   // (a low dome: higher, a mushroom's cap; at 0.32-0.4 with a white highlight, the 50th, a bean; at 0.22-0.3, the 52nd, a coin, "像硬币或煎饼")
+            float tone = s.R();   // (lemon to deep amber, drop by drop)
+            clear = Color.Lerp(new Color(0.9f, 0.68f, 0.14f), new Color(0.8f, 0.38f, 0.05f), tone);
+            body = Color.Lerp(new Color(0.14f, 0.065f, 0.006f), new Color(0.09f, 0.03f, 0.003f), tone);
             int m = s.Count(NestThingsGrowth.EllipsoidArea(r, ht, r) * 5f, 50);   // (finer and more: coarse, its splats read one by one)
             for (int j = 0; j < m; j++)
             {
@@ -1435,10 +1563,11 @@ namespace AntGarden
                 if (q.y < 0f) continue;   // (a dome on the floor)
                 float outer = Mathf.Sqrt(q.x * q.x + q.z * q.z);   // 0 at its middle .. 1 at its edge
                 float hx = q.x + 0.35f, hz = q.z;
-                bool high = q.y > 0.55f && hx * hx + hz * hz < 0.022f;   // toward the moon
-                float through = 1f - Mathf.SmoothStep(0f, 1f, outer / 0.62f);   // the light through its middle
-                Color col = high ? shine : Color.Lerp(Color.Lerp(body, edge, Mathf.SmoothStep(0f, 1f, (outer - 0.72f) / 0.26f)), clear, through * through * 0.85f);
-                s.Put(pos, nrm, col, s.Rad(high ? 0.35f : 0.48f), high ? 0.6f : 0.02f + 0.5f * through * through);
+                bool high = q.y > 0.7f && hx * hx + hz * hz < 0.018f;   // a small warm highlight on top toward the moon (none, the 52nd, a coin; hard and white, a bean's, the 46th and 50th)
+                float rimLit = Mathf.Max(0f, q.x) * Mathf.SmoothStep(0f, 1f, (outer - 0.78f) / 0.18f);   // a thin bright rim on its side away from the moon
+                float through = 1f - Mathf.SmoothStep(0f, 1f, outer / 0.5f);   // the light through its middle (at 0.62 and 0.32 lit, the 52nd, a coin lit in its middle)
+                Color col = Color.Lerp(Color.Lerp(Color.Lerp(body, edge, Mathf.SmoothStep(0f, 1f, (outer - 0.68f) / 0.28f)), clear, through * through * 0.6f), clear, 0.6f * rimLit);
+                s.Put(pos, nrm, high ? Color.Lerp(clear, shine, 0.45f) : col, s.Rad(high ? 0.32f : 0.48f), high ? 0.2f : 0.03f + 0.2f * through * through + 0.25f * rimLit);   // (its highlight a warm gold, the 46th: a hard white one, a bean's)
             }
             // the light come through it, on the floor on its far side from the moon (+x): a gold spot
             for (int j = 0, k = s.Count(r * r * 2f, 16); j < k; j++)
@@ -1499,16 +1628,18 @@ namespace AntGarden
         /// mound glowing, "发白光的白丘"); in the seams where the patches meet and round their edge, honey that has not set,
         /// deep amber, lit a little; and beside it a drop of the same honey clear (ClearDrop), so the two read against each
         /// other. (Its first versions, gold six-sided needles, read as a white blaze and then as gems, "像宝石"; one smooth
-        /// mound, as an egg, "像一颗蛋"; low lumpy heaps, as dough, "像土黄面团".) size is its width (0.5 to 1.2).
+        /// mound, as an egg, "像一颗蛋"; low lumpy heaps, as dough, "像土黄面团"; cream puffed lumps, as popcorn, "像一堆奶油色
+        /// 爆米花": a flatter crust of small flat facets, each catching the light its own way, golder, lit a little within.)
+        /// size is its width (0.5 to 1.2).
         /// </summary>
         public static void SugarCrystals(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var s = new NestThingsGrowth.Spot(pen, p, n, ta, tb);
             // (linear colours: at 0.70 its cream read near white; at 0.44, still pale)
-            Color cream = new Color(0.19f, 0.11f, 0.035f), foot = new Color(0.06f, 0.032f, 0.009f), grain = new Color(0.36f, 0.27f, 0.14f);   // (at 0.38, the granary's night 1.9 stops brighter, a pale flat blob; at 0.16, ochre dough)
+            Color cream = new Color(0.2f, 0.13f, 0.04f), foot = new Color(0.05f, 0.022f, 0.004f), grain = new Color(0.5f, 0.38f, 0.18f);   // (the 50th, gold flakes spread, "一撮金碎屑": a compact crust, cream gold, matte)   // (the 40th: cream 0.19, 0.11, 0.035, popcorn)   // (at 0.38, the granary's night 1.9 stops brighter, a pale flat blob; at 0.16, ochre dough)
             Color amber = new Color(0.07f, 0.025f, 0.003f), core = new Color(0.55f, 0.3f, 0.06f), shine = new Color(0.95f, 0.92f, 0.80f);
             // the heaps: low lumpy domes, one big, the others crowding round it, each its own
-            int heaps = 3 + (int)(s.R() * 2.99f);
+            int heaps = 2 + (int)(s.R() * 2.99f);
             var hc = new Vector3[heaps];
             var hr = new float[heaps];
             var hh = new float[heaps];
@@ -1516,8 +1647,8 @@ namespace AntGarden
             for (int i = 0; i < heaps; i++)
             {
                 hr[i] = size * (i == 0 ? 0.26f : s.U(0.13f, 0.2f));
-                hh[i] = hr[i] * s.U(0.3f, 0.42f);   // (small lumps: as heaps, smooth, an egg; lumpy and tall, dough; a flat crust, a powder like the sand's)
-                float ang = i * Tau / (heaps - 1) + s.S() * 0.6f, off = i == 0 ? 0f : (hr[0] + hr[i]) * s.U(0.72f, 0.85f);   // (run together into one, they read as one smooth mound)
+                hh[i] = hr[i] * s.U(0.21f, 0.29f);   // (0.22-0.32, the 52nd: a heap of soft cream fluff, "奶白的软绒"; 0.17-0.25, the 53rd's trial: sunk in the floor's points, not seen)   // (0.3-0.42, the 40th: puffed, popcorn)   // (small lumps: as heaps, smooth, an egg; lumpy and tall, dough; a flat crust, a powder like the sand's)
+                float ang = i * Tau / (heaps - 1) + s.S() * 0.6f, off = i == 0 ? 0f : (hr[0] + hr[i]) * s.U(0.45f, 0.6f);   // (run together into one, they read as one smooth mound)
                 hc[i] = new Vector3(Mathf.Cos(ang) * off, 0f, Mathf.Sin(ang) * off);
             }
             // how far inside heap o a point lies (under 1: inside it)
@@ -1529,7 +1660,7 @@ namespace AntGarden
             for (int i = 0; i < heaps; i++)
             {
                 float r = hr[i], ht = hh[i];
-                int m = s.Count(NestThingsGrowth.EllipsoidArea(r, ht, r) * 2.4f, 60);   // (fine and well covered: at 1.6 speckled; coarse, a heap of pale scraps; sparse, white flakes like snow)
+                int m = s.Count(NestThingsGrowth.EllipsoidArea(r, ht, r) * 3.2f, 60);   // (finer: 2.4 at 0.9 of a splat)   // (fine and well covered: at 1.6 speckled; coarse, a heap of pale scraps; sparse, white flakes like snow)
                 for (int j = 0; j < m; j++)
                 {
                     Vector3 pos = NestThingsGrowth.OnEllipsoid(s, hc[i], Vector3.right * r, Vector3.up * ht, Vector3.forward * r, out Vector3 nrm, out Vector3 q);
@@ -1542,20 +1673,30 @@ namespace AntGarden
                         // a seam: honey that has not set, deep amber, lit a little, deepest where they meet
                         float deep = 1f - (seam - 0.94f) / 0.41f;
                         bool glint = s.R() < 0.06f;
+                        pen.Clear = GlassTrial;
                         s.Put(pos + nrm.normalized * (r * 0.01f), nrm, glint ? shine : s.V(Color.Lerp(amber, core, 0.2f + 0.45f * deep * deep), 0.05f),
                             s.Rad(glint ? 0.4f : 0.6f), glint ? 0.35f : 0.05f + 0.2f * deep * deep);
+                        pen.Clear = false;
                         continue;
                     }
                     // set honey: lumpy, and coarse grains (each splat further in or out, lighter or darker, now and then
                     // one catching the light), paler on top, shaded toward its foot; unlit
                     float lump = Mathf.PerlinNoise(pos.x * 7f / size + lumps, pos.z * 7f / size + lumps * 0.7f) - 0.5f;
-                    pos += nrm.normalized * (r * (0.06f * lump + 0.05f * s.S()));
+                    pos += nrm.normalized * (r * (0.035f * lump + 0.04f * s.S()));
+                    // its facets: the splats in each small cell share a tilt, so each cell catches the light as one flat face
+                    float cell = size * 0.07f;   // (0.045, the 52nd: its facets too small to be seen, fluff)
+                    int cx = Mathf.FloorToInt(pos.x / cell), cy = Mathf.FloorToInt(pos.y / cell), cz = Mathf.FloorToInt(pos.z / cell);
+                    uint ch = (uint)(cx * 73856093 ^ cy * 19349663 ^ cz * 83492791);
+                    float H(uint k) { uint x = (ch + k * 2654435761u) * 2246822519u; x ^= x >> 13; x *= 3266489917u; x ^= x >> 16; return (x & 0xffffff) / 16777216f; }
+                    Vector3 facet = (nrm.normalized + new Vector3(H(1) - 0.5f, (H(2) - 0.5f) * 0.6f, H(3) - 0.5f) * 0.8f).normalized;
                     float g = s.R();
-                    bool caught = g > 0.97f;
-                    Color col = caught ? grain : Color.Lerp(foot, cream, 0.55f + 0.45f * q.y) * (0.72f + 0.5f * g);   // (darker grains read as dark spots; paler ones and coarse, as pale scraps)
-                    s.Put(pos, nrm, col, s.Rad(caught ? 0.5f : 0.9f), caught ? 0.1f : 0f);
+                    bool caught = H(4) > 0.94f && g > 0.4f, grainLit = !caught && g > 0.985f;   // (a facet turned to the light: its splats flash; now and then one grain)
+                    Color col = caught ? grain : grainLit ? Color.Lerp(grain, shine, 0.5f) : Color.Lerp(foot, cream, 0.55f + 0.45f * q.y) * (0.62f + 0.7f * H(5)) * (0.92f + 0.16f * g);   // (each facet lighter or darker, seen as a facet; at 0.8-1.15, the 52nd, one soft cream)
+                    if (caught || grainLit) s.Put(pos, facet, col, s.Rad(grainLit ? 0.35f : 0.45f), grainLit ? 0.3f : 0.1f);
+                    else s.Put(pos, facet, col, s.Rad(0.62f), 0.01f);
                 }
             }
+            pen.Clear = GlassTrial;
             // round their feet a skirt of the honey that has not set: flat, glossy, deepest (and most lit) against the
             // heaps (wide and lit, with the mound it read as a glow)
             float reach = size * 0.85f;
@@ -1576,8 +1717,9 @@ namespace AntGarden
                     s.Rad(glint ? 0.5f : 1.15f), glint ? 0.3f : 0.04f + 0.16f * deep);   // (large, few: covering the skirt within the cap)
             }
             // beside it, a drop of the same honey clear
-            float da = s.R() * Tau, dr = size * s.U(0.16f, 0.2f);   // (smaller, it was not seen)
-            ClearDrop(s, new Vector3(Mathf.Cos(da), 0f, Mathf.Sin(da)) * (size * 0.72f + dr), dr);
+            float da = s.R() * Tau, dr = size * s.U(0.32f, 0.38f);   // (0.28-0.34, the 52nd: not seen beside it)   // (smaller, it was not seen; at 0.16-0.2 and 0.2-0.25, the 40th and 41st, a small white dot)
+            ClearDrop(s, new Vector3(Mathf.Cos(da), 0f, Mathf.Sin(da)) * (size * 0.6f + dr), dr);
+            pen.Clear = false;
         }
 
         /// <summary>
@@ -1595,7 +1737,9 @@ namespace AntGarden
                 float a = pen.R() * Tau, d = Mathf.Sqrt(pen.R()) * reach * k;
                 return new Vector3(Mathf.Cos(a) * d, 0f, Mathf.Sin(a) * d);
             }
-            HoneyStain(s, Somewhere(0.4f), size * s.U(0.16f, 0.24f));   // (no broken grass: at the stain's end it read as a caterpillar with a lit head, "像毛毛虫")
+            pen.Clear = GlassTrial;
+            HoneyStain(s, Somewhere(0.4f), size * s.U(0.16f, 0.24f));
+            pen.Clear = false;   // (no broken grass: at the stain's end it read as a caterpillar with a lit head, "像毛毛虫")
             for (int i = 0, k = 1 + (int)(s.R() * 1.99f); i < k; i++) Husk(s, Somewhere(0.85f), size * s.U(0.36f, 0.48f), s.R() * Tau);
         }
 
@@ -1689,11 +1833,11 @@ namespace AntGarden
         }
 
         /// <summary>A honey stain on the floor at local c (r: its radius): a flat, irregular smear, two or three spills run
-        /// together, deep amber and glossy, darker at its rim, a little lit from within where it is thickest; a drop or two
-        /// standing in it.</summary>
+        /// together, deep amber and glossy, darker at its rim, a little lit from within where it is thickest; one or two
+        /// small highlights on it.</summary>
         static void HoneyStain(NestThingsGrowth.Spot s, Vector3 c, float r)
         {
-            Color amber = new Color(0.07f, 0.026f, 0.003f), core = new Color(0.62f, 0.36f, 0.08f), rim = new Color(0.02f, 0.007f, 0.001f), shine = new Color(0.95f, 0.92f, 0.80f);   // (linear; at 0.52, a heap of gold coins; at 0.22, the granary's night 1.9 stops brighter, a flat orange sticker)
+            Color amber = new Color(0.09f, 0.034f, 0.004f), core = new Color(0.62f, 0.36f, 0.08f), rim = new Color(0.06f, 0.034f, 0.006f), shine = new Color(0.95f, 0.92f, 0.80f);   // (the 41st: its rim near black, dark ovals on the floor, "像洞": its rim the floor's own, a wet glint along its edge toward the moon)   // (linear; at 0.52, a heap of gold coins; at 0.22, the granary's night 1.9 stops brighter, a flat orange sticker)
             int blobs = 2 + (int)(s.R() * 1.99f);
             var bc = new Vector2[blobs];
             var br = new float[blobs];
@@ -1704,6 +1848,10 @@ namespace AntGarden
                 br[i] = r * (i == 0 ? 0.65f : s.U(0.35f, 0.5f));
             }
             float seed = s.R() * 40f;
+            int hl = 1 + (int)(s.R() * 1.99f);
+            var hc = new Vector2[hl];
+            for (int h = 0; h < hl; h++) hc[h] = bc[h % blobs] + new Vector2(-0.25f, s.S() * 0.3f) * br[h % blobs];   // (toward the moon, -x)
+            float hr2 = r * r * 0.012f;
             int m = s.Count(Mathf.PI * r * r * 2.6f, 40);   // (fine and covered: sparse and coarse, it read as flakes of gold leaf, then as gold coins)
             for (int j = 0; j < m; j++)
             {
@@ -1711,26 +1859,15 @@ namespace AntGarden
                 var q = new Vector2(Mathf.Cos(a) * d, Mathf.Sin(a) * d);
                 float depth = 0f;
                 for (int i = 0; i < blobs; i++)
-                    depth = Mathf.Max(depth, 1f - (q - bc[i]).magnitude / (br[i] * (0.85f + 0.3f * Mathf.PerlinNoise(q.x * 6f + seed, q.y * 6f))));
+                    depth = Mathf.Max(depth, 1f - (q - bc[i]).magnitude / (br[i] * (0.9f + 0.16f * Mathf.PerlinNoise(q.x * 4f + seed, q.y * 4f))));   // (its edge smoother: at 0.3 by 6, a broken biscuit, "像碎饼干", the 52nd)
                 if (depth <= 0f) continue;
-                bool edge = depth < 0.15f, glint = !edge && s.R() < 0.05f;
-                Color col = glint ? shine : edge ? rim : Color.Lerp(amber * 0.9f, core, 0.25f * depth);
-                s.Put(c + new Vector3(q.x, 0.004f + 0.012f * depth, q.y), Vector3.up, s.V(col, 0.02f), s.Rad(glint ? 0.4f : 0.6f), glint ? 0.3f : edge ? 0.02f : 0.04f + 0.16f * depth * depth);
-            }
-            for (int i = 0, k = 1 + (int)(s.R() * 1.99f); i < k; i++)
-            {
-                float rd = r * s.U(0.1f, 0.16f);
-                Vector2 at = bc[(int)(s.R() * blobs) % blobs] + new Vector2(s.S(), s.S()) * (r * 0.15f);
-                var dc = c + new Vector3(at.x, rd * 0.7f, at.y);
-                int md = s.Count(NestThingsGrowth.EllipsoidArea(rd, rd * 0.8f, rd), 14);
-                for (int j = 0; j < md; j++)
-                {
-                    Vector3 pos = NestThingsGrowth.OnEllipsoid(s, dc, Vector3.right * rd, Vector3.up * (rd * 0.8f), Vector3.forward * rd, out Vector3 nrm, out Vector3 q);
-                    if (q.y < -0.6f) continue;
-                    bool high = q.y > 0.3f && q.x < -0.2f && q.z < 0.2f && q.z > -0.4f;   // a highlight toward the moon
-                    s.Put(pos, nrm, high ? shine : s.V(Color.Lerp(amber, core, 0.3f + 0.4f * Mathf.Max(0f, -q.y)), 0.05f), s.Rad(high ? 0.45f : 0.7f),
-                        high ? 0.6f : 0.2f + 0.25f * Mathf.Max(0f, -q.y));
-                }
+                // glossy amber, thin, its rim deep, lit a little where it is thickest; one or two small highlights on it (its
+                // glints scattered and drops standing in it read as crumbs, "像碎饼干", the 52nd)
+                bool edge = depth < 0.15f;
+                bool high = false;
+                for (int h = 0; h < hl; h++) high |= (q - hc[h]).sqrMagnitude < hr2 && depth > 0.3f;
+                Color col = high ? shine * 0.8f : edge ? rim : Color.Lerp(amber, core, 0.2f + 0.35f * depth);
+                s.Put(c + new Vector3(q.x, 0.004f + 0.01f * depth, q.y), Vector3.up, high ? col : s.V(col, 0.02f), s.Rad(high ? 0.4f : 0.6f), high ? 0.25f : edge ? 0.02f : 0.05f + 0.22f * depth * depth);
             }
         }
 
@@ -1739,29 +1876,36 @@ namespace AntGarden
         /// bean, packed and a little flattened as the loads on a forager's legs are, coarse, in its own pollen's colour (yellows, oranges,
         /// ochre, now and then one dark violet: the flowers they came from), matte and powdery (fine paler grains over it),
         /// dark underneath, a dark gap between each and the next; round them a dusting of loose pollen spilled off them;
-        /// they do not glow. (Round and in six colours, a row of them read as sweets, "像糖豆"; round and pale in a heap,
-        /// as a clutch of eggs.) size is how wide they lie (0.4 to 1).
+        /// faintly lit of themselves, their tops a little more. (Round and in six colours, a row of them read as sweets,
+        /// "像糖豆"; round and pale in a heap, as a clutch of eggs; orange and dark at their foot, in the game's view as
+        /// beans or eggs, "橙褐色，像豆子或蛋".) size is how wide they lie (0.4 to 1).
         /// </summary>
         public static void PollenPellets(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var s = new NestThingsGrowth.Spot(pen, p, n, ta, tb);
             // (linear colours: at 0.86 they read pale, near cream; in six colours, olive and violet among them, sweets)
-            Color[] pollen = { new Color(0.3f, 0.11f, 0.01f), new Color(0.32f, 0.21f, 0.018f), new Color(0.19f, 0.1f, 0.016f),
-                new Color(0.28f, 0.16f, 0.014f), new Color(0.24f, 0.16f, 0.035f), new Color(0.24f, 0.085f, 0.01f) };   // (at 0.5-0.6, pale cream and orange)
+            Color[] pollen = { new Color(0.34f, 0.22f, 0.02f), new Color(0.36f, 0.25f, 0.025f), new Color(0.3f, 0.19f, 0.016f),
+                new Color(0.33f, 0.2f, 0.018f), new Color(0.3f, 0.21f, 0.04f), new Color(0.34f, 0.18f, 0.014f) };   // (pollen yellows: the 40th's oranges and ochres, 0.35-0.55 green to red, orange-brown in the game's view)   // (at 0.5-0.6, pale cream and orange)
             // and in some heaps one dark violet (phacelia's): the one colour in it not gold ("最多加一颗暗紫")
-            Color violet = new Color(0.05f, 0.022f, 0.085f), powder = new Color(0.45f, 0.37f, 0.2f);
-            bool oneViolet = s.R() < 0.25f;
+            // and in some heaps one of another flower's: a dark violet (phacelia's) or a brick orange (10-30, the user: "环境中
+            // 增加一点有活力的颜色"; at most one to a heap, "最多加一颗暗紫")
+            // (the 50th: one in a close-up, none in the game's view, "游戏视角里看不到鲜活的颜色": in most heaps one, in real
+            // pollens' colours: an orange, a brick red, a dark violet, a grey blue, a pale green)
+            Color[] others = { new Color(0.5f, 0.15f, 0.02f), new Color(0.42f, 0.1f, 0.012f), new Color(0.065f, 0.025f, 0.12f), new Color(0.07f, 0.09f, 0.16f), new Color(0.13f, 0.26f, 0.05f) };   // (an orange 0.5, 0.2 and a pale green 0.2, 0.26 to the 53rd: of its own honey's hues, no lively note)
+            Color powder = new Color(0.45f, 0.37f, 0.2f);
+            Color otherCol = others[(int)(s.R() * 4.99f)];
+            bool oneOther = s.R() < 0.75f;
             Color shadow = new Color(0.035f, 0.025f, 0.015f);
-            int want = 1 + (int)(s.R() * 2.99f), first = (int)(s.R() * 5.99f), placed = 0;   // (one to three: four to six in a heap read as a clutch of eggs, "像一窝彩蛋")
+            int want = 2 + (int)(s.R() * 1.99f), first = (int)(s.R() * 5.99f), placed = 0;   // (two or three, the 50th: one on another, "像雪人")   // (one to three: four to six in a heap read as a clutch of eggs, "像一窝彩蛋")
             var bc = new Vector3[want];
             var br = new float[want];
             for (int tries = 0; placed < want && tries < 80; tries++)
             {
-                float r = size * s.U(0.09f, 0.13f), ang = s.R() * Tau, off = placed == 0 ? 0f : size * s.U(0.14f, 0.32f);   // (a loose heap, not a row)
+                float r = size * s.U(0.09f, 0.13f), ang = s.R() * Tau, off = placed == 0 ? 0f : size * s.U(0.26f, 0.42f);   // (a loose heap, not a row; at 0.14-0.32 one on another)
                 var c = new Vector3(Mathf.Cos(ang) * off, r * 0.62f, Mathf.Sin(ang) * off);
                 bool apart = true;
                 for (int o = 0; o < placed && apart; o++)
-                    apart = new Vector2(c.x - bc[o].x, c.z - bc[o].z).magnitude > (r + br[o]) * 1.06f;   // a dark gap between each two
+                    apart = new Vector2(c.x - bc[o].x, c.z - bc[o].z).magnitude > (r + br[o]) * 1.4f;   // a dark gap between each two
                 if (!apart) continue;
                 bc[placed] = c;
                 br[placed++] = r;
@@ -1777,7 +1921,8 @@ namespace AntGarden
                     float a = s.R() * Tau, d = r * Mathf.Sqrt(s.U(0.5f, 1.6f));
                     s.Put(new Vector3(c.x + Mathf.Cos(a) * d, 0.002f, c.z + Mathf.Sin(a) * d), Vector3.up, s.V(shadow, 0.1f), s.Rad(0.8f));
                 }
-                Color col = (oneViolet && i == placed - 1 && placed > 1 ? violet : pollen[(first + i) % pollen.Length]) * s.U(0.9f, 1.05f);
+                bool odd = i == placed - 1 && placed > 1;
+                Color col = (odd && oneOther ? otherCol : pollen[(first + i) % pollen.Length]) * s.U(0.9f, 1.05f);
                 int m = s.Count(NestThingsGrowth.EllipsoidArea(r, ry, rz) * 3.2f, 40);   // (fine splats, more than cover it: sparse, they read as fragments, the floor between them)
                 for (int j = 0; j < m; j++)
                 {
@@ -1786,17 +1931,33 @@ namespace AntGarden
                     if (q.y < -0.55f) continue;   // (on the floor under it, unseen)
                     float u = Vector3.Dot(pos - c, along) / r;
                     pos += across * (bend * (u * u - 0.35f)) + nrm.normalized * (r * 0.07f * s.S());   // coarse: pollen packed (smooth, an egg)
-                    float lit = 0.22f + 0.85f * Mathf.Clamp01(q.y * 0.6f + 0.45f);   // shaded, darkest round its foot
+                    float lit = 0.34f + 0.75f * Mathf.Clamp01(q.y * 0.6f + 0.45f);   // shaded, darkest round its foot (at 0.22, its foot brown)
                     bool grain = s.R() < 0.22f;   // powdery: fine paler grains over it
-                    s.Put(pos, nrm, s.V((grain ? Color.Lerp(col, powder, 0.35f) : col) * lit * (s.R() < 0.1f ? 0.75f : 1f), 0.05f), s.Rad(grain ? 0.4f : 0.6f));
+                    float top = Mathf.Clamp01((q.y - 0.4f) / 0.5f);
+                    s.Put(pos, nrm, s.V((grain ? Color.Lerp(col, powder, 0.35f) : col) * lit * (s.R() < 0.1f ? 0.75f : 1f), 0.05f), s.Rad(grain ? 0.4f : 0.6f),
+                        0.05f + (grain ? 0.22f : 0.08f) * top);   // (a faint light of its own, its top's grains a little more: matte, an ordinary thing, the 40th)
                 }
             }
-            // round them, loose pollen spilled off them: a dusting of fine grains, thinning out
+            // round them, loose pollen spilled off them: a dusting of fine grains, thinning out; round a heap with another
+            // flower's pellet in it, a wider, denser spill of that colour, crumbled off it (one pellet's colour alone was
+            // not seen in the game's view, 0.08 % of it, the amber nest's lively colours 1.7 %: the 51st)
+            // (the 52nd: the violet's spill wide and flat, "紫色撒粉偏大、偏平": round the pellet it came off, dense close to it,
+            // thinning out, as far as before; within three of its widths, the 53rd's trial, the views' lively colour 0.55 % to 0.05 %)
             for (int j = 0, k = s.Count(Mathf.PI * size * size * 0.12f, 30); j < k; j++)
             {
                 float a = s.R() * Tau, d = size * (0.12f + 0.42f * Mathf.Sqrt(s.R()));
                 if (s.R() > 1.2f - d / (size * 0.55f)) continue;
                 s.Put(new Vector3(Mathf.Cos(a) * d, 0.003f, Mathf.Sin(a) * d), Vector3.up, s.V(dust * 0.8f, 0.1f), s.Rad(0.35f));
+            }
+            if (oneOther && placed > 1)
+            {
+                Vector3 oc = bc[placed - 1];
+                float or0 = br[placed - 1], reach = size * (otherCol.r + otherCol.g + otherCol.b < 0.35f ? DarkReach : 0.75f);
+                for (int j = 0, k = s.Count(Mathf.PI * size * size * 0.81f, 60); j < k; j++)
+                {
+                    float a = s.R() * Tau, d = or0 * 0.9f + (reach - or0 * 0.9f) * Mathf.Pow(s.R(), 1.6f);   // (most of it close by)
+                    s.Put(new Vector3(oc.x + Mathf.Cos(a) * d, 0.003f, oc.z + Mathf.Sin(a) * d), Vector3.up, s.V(Color.Lerp(otherCol, powder, 0.15f) * 0.85f, 0.12f), s.Rad(0.5f));
+                }
             }
         }
 
@@ -1812,7 +1973,7 @@ namespace AntGarden
         public static void HoneyDrip(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var s = new NestThingsGrowth.Spot(pen, p, n, ta, tb);
-            Color straw = new Color(0.11f, 0.075f, 0.03f), root = new Color(0.045f, 0.03f, 0.012f), seed = new Color(0.15f, 0.10f, 0.04f);   // (dark, linear: paler, from the front it read as a candle; at 0.30, pale gold)
+            Color straw = new Color(0.13f, 0.088f, 0.035f), root = new Color(0.045f, 0.03f, 0.012f), seed = new Color(0.15f, 0.10f, 0.04f);   // (dark, linear: paler, from the front it read as a candle; at 0.30, pale gold; at 0.11, the 52nd, not seen)
             // (its honey gold-amber: paler, lemon cream, "浅柠檬奶油色、不透", with its string a little tap, "像个小龙头")
             Color honey = new Color(0.2f, 0.08f, 0.008f), core = new Color(0.95f, 0.62f, 0.16f), deep = new Color(0.05f, 0.017f, 0.002f), thin = new Color(0.015f, 0.005f, 0.0006f), shine = new Color(0.98f, 0.95f, 0.85f);   // (a third as light as they read: the granary's night is 1.9 stops brighter)
             float yaw = s.R() * Tau, cs = Mathf.Cos(yaw), sn = Mathf.Sin(yaw);
@@ -1829,7 +1990,7 @@ namespace AntGarden
                 return u * u * u * a0 + 3f * u * u * t * b0 + 3f * u * t * t * b1 + t * t * t * a1;
             }
             const int segs = 16;
-            float r0 = Mathf.Max(s.Thin, L * 0.016f), r1 = Mathf.Max(s.Thin, L * 0.008f);   // (a grass's: at 0.026, a thick arm on a short stump; thinner still, its lit honey was all of it)
+            float r0 = Mathf.Max(s.Thin, L * 0.02f), r1 = Mathf.Max(s.Thin, L * 0.011f);   // (a grass's: at 0.026, a thick arm on a short stump; at 0.016, the 52nd, not seen in the game's view, its drop, string and pool alone a gold goblet, "像金色高脚杯")
             for (int i = 0; i < segs; i++)
             {
                 float t0 = i / (float)segs, t1 = (i + 1) / (float)segs;
@@ -1848,19 +2009,34 @@ namespace AntGarden
                     NestThingsGrowth.Tube(s, Q(q0, q1, q2, t0), Q(q0, q1, q2, t1), Mathf.Lerp(rb, rb * 0.3f, t0), Mathf.Lerp(rb, rb * 0.3f, t1), Color.Lerp(root, straw, t0 * 1.3f), Color.Lerp(root, straw, t1 * 1.3f));
                 }
             }
-            // honey along the last third of it: beads hanging under it, glossy, lit a little from within (more, and brighter,
-            // the stalk read as a lamp post: "像一盏路灯")
-            for (float t = 0.66f; t < 0.93f; t += s.U(0.04f, 0.07f))
+            pen.Clear = GlassTrial;
+            // honey along the last third of it: a film over it, amber, a bright wet edge along its top, and one or two beads
+            // of it hanging at its bend (a bead every few lengths, lit, read as a caterpillar beside it, "一节一节的茎像毛虫",
+            // the 50th; the film dark and thin, its stalk not seen and its drop hanging from nothing, the 52nd)
+            for (int i = 0; i < 10; i++)
             {
-                float rb = Mathf.Lerp(r0, r1, t) * s.U(1.3f, 2f);   // (larger, with its drop they read as two balls stacked)
-                Vector3 c = At(t) + Vector3.down * (rb * 0.45f);
-                int m = s.Count(NestThingsGrowth.EllipsoidArea(rb, rb * 1.1f, rb), 10);
+                float t0 = 0.66f + 0.034f * i, t1 = t0 + 0.034f;
+                NestThingsGrowth.Tube(s, At(t0), At(t1), Mathf.Lerp(r0, r1, t0) * 1.6f, Mathf.Lerp(r0, r1, t1) * 1.6f, Color.Lerp(honey, deep, 0.2f), Color.Lerp(honey, deep, 0.2f));
+            }
+            for (int j = 0, k = Mathf.Clamp(Mathf.RoundToInt(0.45f * L / (s.Thin * 0.9f)), 12, 400); j < k; j++)
+            {
+                float t = s.U(0.67f, 0.99f);
+                Vector3 tg = (At(t + 0.01f) - At(t - 0.01f)).normalized, up = (Vector3.up - tg * tg.y).normalized;
+                s.Put(At(t) + up * (Mathf.Lerp(r0, r1, t) * 1.45f), up, s.V(Color.Lerp(core, shine, 0.1f) * 0.5f, 0.08f), s.Thin * 1.1f, 0.12f);
+            }
+            for (int bead = 0, nbead = 1 + (int)(s.R() * 1.99f); bead < nbead; bead++)
+            {
+                float t = bead == 0 ? s.U(0.72f, 0.78f) : s.U(0.84f, 0.88f);
+                float rb = Mathf.Lerp(r0, r1, t) * (bead == 0 ? s.U(1.8f, 2.2f) : s.U(1.3f, 1.6f));
+                Vector3 c = At(t) + Vector3.down * (rb * 0.6f);
+                int m = s.Count(NestThingsGrowth.EllipsoidArea(rb, rb * 1.15f, rb), 10);
                 for (int j = 0; j < m; j++)
                 {
-                    Vector3 pos = NestThingsGrowth.OnEllipsoid(s, c, Vector3.right * rb, Vector3.up * (rb * 1.1f), Vector3.forward * rb, out Vector3 nrm, out Vector3 q);
-                    s.Put(pos, nrm, s.V(Color.Lerp(honey, core, 0.2f + 0.3f * Mathf.Max(0f, -q.y)), 0.08f), s.Rad(0.85f), 0.05f + 0.06f * Mathf.Max(0f, -q.y));
+                    Vector3 pos = NestThingsGrowth.OnEllipsoid(s, c, Vector3.right * rb, Vector3.up * (rb * 1.15f), Vector3.forward * rb, out Vector3 nrm, out Vector3 q);
+                    s.Put(pos, nrm, s.V(Color.Lerp(honey, core, 0.2f + 0.3f * Mathf.Max(0f, -q.y)), 0.06f), s.Rad(0.85f), 0.05f + 0.08f * Mathf.Max(0f, -q.y));
                 }
             }
+            pen.Clear = false;
             // its seed head at the tip: husks along the last of it, alternate sides, a few coated
             Vector3 dir = (At(1f) - At(0.94f)).normalized;
             for (int i = 0; i < 8; i++)
@@ -1875,57 +2051,75 @@ namespace AntGarden
                     s.Put(pos, nrm, s.V(coated ? Color.Lerp(honey, core, 0.3f) : seed, 0.1f), s.Rad(0.8f), coated ? 0.1f : 0f);
                 }
             }
-            // the drop hanging from its tip: drawn to a neck at the tip, round below; a skin lit from within, a light
-            // inside, a highlight toward the moon
+            pen.Clear = GlassTrial;
+            // the drop hanging from its tip on a short neck: deep amber, a light in its middle only, a small warm highlight
+            // toward the moon (lit below, its lower half read near white; with its string and pool, a goblet, "像金色高脚杯",
+            // the 52nd)
             Vector3 tip = At(1f);
-            float rd = Mathf.Max(0.05f, L * s.U(0.04f, 0.052f)), hd = rd * 1.5f;   // longer than wide: a drop, not a ball
-            Vector3 dc = tip + Vector3.down * (hd * 0.95f);
+            float rd = Mathf.Max(0.05f, L * s.U(0.04f, 0.05f)), hd = rd * 1.4f;   // longer than wide: a drop, not a ball
+            Vector3 dc = tip + Vector3.down * (hd * 1.25f), neckFoot = dc + Vector3.up * (hd * 0.8f);
+            for (int j = 0, k = s.Count(Tau * rd * 0.3f * Mathf.Max(0.01f, tip.y - neckFoot.y), 16); j < k; j++)
+            {
+                float t = s.R(), a = s.R() * Tau;
+                var o = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                s.Put(Vector3.Lerp(tip, neckFoot, t) + o * (rd * Mathf.Lerp(0.16f, 0.42f, t * t)), o, s.V(Color.Lerp(honey, deep, 0.3f), 0.06f), s.Thin, 0.05f);
+            }
             int md = s.Count(NestThingsGrowth.EllipsoidArea(rd, hd, rd) * 1.2f, 40);
             for (int j = 0; j < md; j++)
             {
                 Vector3 pos = NestThingsGrowth.OnEllipsoid(s, dc, Vector3.right * rd, Vector3.up * hd, Vector3.forward * rd, out Vector3 nrm, out Vector3 q);
                 if (q.y > -0.2f)
                 {
-                    // drawn up to a point at the tip
+                    // drawn up to its neck
                     float pinch = Mathf.Pow((q.y + 0.2f) / 1.2f, 1.5f);
-                    pos.x = dc.x + (pos.x - dc.x) * (1f - 0.85f * pinch);
-                    pos.z = dc.z + (pos.z - dc.z) * (1f - 0.85f * pinch);
+                    pos.x = dc.x + (pos.x - dc.x) * (1f - 0.6f * pinch);
+                    pos.z = dc.z + (pos.z - dc.z) * (1f - 0.6f * pinch);
                 }
-                // amber, deepest at its rim and lit below, where the light inside gathers; a highlight toward the moon
-                bool high = q.y > 0.0f && q.y < 0.45f && q.x < -0.25f && q.z < 0.1f && q.z > -0.5f;
                 float below = Mathf.Max(0f, -q.y);
-                s.Put(pos, nrm, high ? shine : s.V(Color.Lerp(deep, Color.Lerp(honey, core, 0.5f), 0.35f + 0.65f * below), 0.06f), s.Rad(high ? 0.5f : 0.85f), high ? 0.35f : 0.05f + 0.3f * below * below);   // (brighter all over, a row of little street lamps, "像小路灯"; the stalk and its drop a candle)
+                bool high = q.y > 0.1f && q.y < 0.4f && q.x < -0.55f && Mathf.Abs(q.z) < 0.25f;
+                s.Put(pos, nrm, high ? Color.Lerp(core, shine, 0.4f) * 0.8f : s.V(Color.Lerp(deep, honey, 0.45f + 0.35f * below), 0.06f), s.Rad(high ? 0.4f : 0.85f), high ? 0.18f : 0.04f + 0.06f * below);
             }
-            for (int j = 0, k = md / 2; j < k; j++)
+            for (int j = 0, k = md / 3; j < k; j++)   // the light in its middle, seen through it
             {
                 Vector3 d = InBall(pen, out float f);
-                s.Put(dc + new Vector3(d.x * rd, d.y * hd, d.z * rd) * 0.8f, Vector3.up, s.V(Color.Lerp(core, shine, 0.3f * (1f - f)), 0.06f), s.Rad(0.38f), 0.1f - 0.06f * f);
+                s.Put(dc + new Vector3(d.x * rd, d.y * hd, d.z * rd) * 0.5f + Vector3.down * (hd * 0.1f), Vector3.up, s.V(core * (0.7f - 0.3f * f), 0.06f), s.Rad(0.38f), 0.14f - 0.08f * f);
             }
-            // the string from the drop down to the floor, thicker where it leaves the drop, beaded once or twice
+            // under it a short tail of honey, and one or two drops falling apart from it (a string down to the floor read,
+            // with the drop and its pool, as a goblet's stem, the 52nd)
             Vector3 from = dc + Vector3.down * (hd * 0.92f), to = new Vector3(from.x, 0f, from.z);
-            float len = from.y;
-            int steps = Mathf.Max(6, Mathf.RoundToInt(len / Mathf.Max(0.004f, s.Thin)));
+            float len = from.y, tail = Mathf.Min(len * 0.25f, hd * 1.6f);
+            int steps = Mathf.Max(4, Mathf.RoundToInt(tail / Mathf.Max(0.004f, s.Thin)));
             for (int k = 0; k <= steps; k++)
             {
-                float t = k / (float)steps, thick = s.Thin * (0.8f + 1.2f * Mathf.Pow(1f - t, 3f)) * (0.8f + 0.35f * Mathf.Abs(Mathf.Sin(t * 11f + L * 7f)));   // (even, it read as a beam of light)
-                bool bead = s.R() < 0.05f;
-                s.Put(Vector3.Lerp(from, to, t), Vector3.up, s.V(Color.Lerp(honey, deep, 0.25f), 0.06f), bead ? thick * 2.2f : thick, 0.04f);   // (paler and lit, a white beam)
+                float t = k / (float)steps;
+                s.Put(from + Vector3.down * (tail * t), Vector3.up, s.V(Color.Lerp(honey, deep, 0.25f), 0.06f), s.Thin * (0.55f + 1.3f * (1f - t) * (1f - t)), 0.05f);
             }
-            // the pool: a low glossy dome of honey on the floor, deep amber at its edge, glowing where it is deepest, its
-            // rim catching the light
-            float rp = L * s.U(0.08f, 0.11f), rz = rp * s.U(0.7f, 0.95f), hp = rp * 0.06f;   // flat (wider, with its drop it read as a lamp; at 0.11-0.15, white)
-            var pc = new Vector3(to.x, 0f, to.z);
+            for (int fd = 0, nfd = 1 + (int)(s.R() * 1.99f); fd < nfd; fd++)
+            {
+                float rf = rd * (fd == 0 ? 0.34f : 0.24f), y = from.y - tail - len * (fd == 0 ? s.U(0.14f, 0.22f) : s.U(0.38f, 0.48f));
+                if (y < rf * 3f) break;
+                var fc = new Vector3(from.x, y, from.z);
+                for (int j = 0, mf = s.Count(NestThingsGrowth.EllipsoidArea(rf, rf * 1.3f, rf) * 1.5f, 14); j < mf; j++)
+                {
+                    Vector3 pos = NestThingsGrowth.OnEllipsoid(s, fc, Vector3.right * rf, Vector3.up * (rf * 1.3f), Vector3.forward * rf, out Vector3 nrm, out Vector3 q);
+                    s.Put(pos, nrm, s.V(Color.Lerp(honey, core, 0.12f + 0.2f * Mathf.Max(0f, -q.y)), 0.06f), s.Rad(0.5f), 0.05f + 0.06f * Mathf.Max(0f, -q.y));
+                }
+            }
+            // the pool: small and low, uneven at its edge, deep amber, glowing a little where it is deepest (wider and
+            // round, with a bright rim, a goblet's foot, the 52nd; wider still, with its drop, a lamp; at 0.11-0.15, white)
+            float rp = L * s.U(0.05f, 0.07f), rz = rp * s.U(0.65f, 0.9f), hp = rp * 0.07f, pseed = s.R() * 20f;
+            var pc = new Vector3(to.x, 0f, to.z) + Turn(new Vector3(rp * 0.3f, 0f, 0f));   // (run a little off the drop's line)
             int mp = s.Count(Mathf.PI * rp * rz * 1.3f, 40);
             for (int j = 0; j < mp; j++)
             {
-                float u = s.S(), v = s.S(), d2 = u * u + v * v;
+                float u = s.S(), v = s.S(), edge = 0.68f + 0.5f * Mathf.PerlinNoise(Mathf.Atan2(v, u) * 1.3f + pseed, pseed), d2 = (u * u + v * v) / (edge * edge);
                 if (d2 > 1f) continue;
-                float depth = 1f - d2, dd = Mathf.Sqrt(d2);
+                float depth = 1f - d2;
                 var lp = Turn(new Vector3(u * rp, 0f, v * rz)) + pc + Vector3.up * (hp * Mathf.Sqrt(depth));
                 var nrm = new Vector3(Turn(new Vector3(u, 0f, v)).x * 0.5f, 1f, Turn(new Vector3(u, 0f, v)).z * 0.5f);
-                bool rim = dd > 0.86f && s.R() < 0.2f;
-                s.Put(lp, nrm, rim ? Color.Lerp(core, shine, 0.2f) : s.V(Color.Lerp(thin, Color.Lerp(honey, core, 0.35f), depth * depth), 0.08f), s.Rad(rim ? 0.5f : 0.9f), rim ? 0.08f : 0.02f + 0.16f * depth * depth * depth);
+                s.Put(lp, nrm, s.V(Color.Lerp(thin, Color.Lerp(honey, core, 0.3f), depth * depth), 0.08f), s.Rad(0.9f), 0.02f + 0.14f * depth * depth * depth);
             }
+            pen.Clear = false;
             // at its root, a broken bit of its own straw and a husk or two from its seed head (the granary's way lined with
             // what falls and is dropped: "路边要看得见种壳、碎草")
             for (int i = 0, k = 2 + (int)(s.R() * 1.99f); i < k; i++)
@@ -2291,14 +2485,41 @@ namespace AntGarden
         public static void AmberNodules(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var s = new NestThingsGrowth.Spot(pen, p, n, ta, tb);
+            // by the way, its biggest lump's broken face toward the way and back toward the way in, so the ant walking in
+            // sees into it, its small lumps beside and behind it (k26: facing anywhere, those by the way showed the game's
+            // view their crust, "plain brown stones", or faced it from ahead, k25 content review)
+            float faceAt = float.NaN;
+            var track = Game.Instance != null && Game.Instance.LabNest != null ? Game.Instance.LabNest.Track : null;
+            if (track != null && track.Count > 2)
+            {
+                var here = new Vector2(p.x, p.z);
+                int at = 0;
+                float best = float.MaxValue;
+                for (int i = 0; i < track.Count; i++)
+                {
+                    float d2 = (track[i] - here).sqrMagnitude;
+                    if (d2 < best) { best = d2; at = i; }
+                }
+                if (best < 3.2f * 3.2f && best > 1e-4f)
+                {
+                    Vector2 back = track[Mathf.Max(0, at - 1)] - track[Mathf.Min(track.Count - 1, at + 1)];
+                    Vector2 face = (track[at] - here).normalized * 0.8f + back.normalized * 0.45f;
+                    faceAt = Mathf.Atan2(face.x * tb.x + face.y * tb.z, face.x * ta.x + face.y * ta.z);   // (in its own frame: x along ta, z along tb)
+                }
+            }
             int count = 1 + (int)(s.R() * 2.99f);
             for (int i = 0; i < count; i++)
             {
                 float r = size * (i == 0 ? 0.34f : s.U(0.14f, 0.24f)), h = r * s.U(0.65f, 0.85f);
                 float ang = s.R() * Tau, off = i == 0 ? 0f : size * s.U(0.32f, 0.52f);
-                float fa = s.R() * Tau;   // the broken face: facing out and well up (a little up, from the game's view its window was edge on, a two-tone pebble, k20)
+                float fa = s.R() * Tau;   // the broken face: facing out, a little up (well up, from the game's view its face lit white, a lamp beside the ant, k24; flat out, edge on, a two-tone pebble, k20)
+                if (!float.IsNaN(faceAt))
+                {
+                    if (i == 0) fa = faceAt + s.S() * 0.3f;
+                    else ang = faceAt + Mathf.PI + s.S() * 1.6f;   // (not between it and the way)
+                }
                 Nodule(pen, s.Put, a => s.Count(a, 20), s.Rad, new Vector3(Mathf.Cos(ang) * off, h * 0.15f, Mathf.Sin(ang) * off), r, h,
-                    new Vector3(Mathf.Cos(fa), s.U(0.55f, 0.95f), Mathf.Sin(fa)).normalized, s.U(0.4f, 0.6f), -1);
+                    new Vector3(Mathf.Cos(fa), s.U(0.2f, 0.5f), Mathf.Sin(fa)).normalized, s.U(0.8f, 0.88f), -1);   // (its window a third of its side: at 0.62-0.76 still "cut bread", at 0.4-0.6 most of its top, k24)
             }
             // a few chips of amber broken off and lying about them, each lit a little from within
             for (int i = 0, chips = 3 + (int)(s.R() * 3.99f); i < chips; i++)
@@ -2347,14 +2568,21 @@ namespace AntGarden
         static void Nodule(ThingPen pen, System.Action<Vector3, Vector3, Color, float, float> put, System.Func<float, int> count, System.Func<float, float> rad,
             Vector3 c, float r, float h, Vector3 fn, float cut, int caughtKind)
         {
-            Color crust0 = new Color(0.09f, 0.075f, 0.06f), crust1 = new Color(0.23f, 0.20f, 0.17f);   // (weathered: grey-brown, as a pebble; at 0.34 twice as light as its amber, "a grey pebble, one end painted orange")
-            Color rimRed = new Color(0.50f, 0.13f, 0.025f), deep = new Color(0.66f, 0.28f, 0.05f), gold = new Color(1.0f, 0.60f, 0.14f), edgeLit = new Color(0.80f, 0.40f, 0.10f), caught = new Color(0.05f, 0.03f, 0.015f);
+            // (its crust weathered amber's own rind, a dull dark red-brown crazed with fine cracks: as a grey pebble's, k23, it
+            // read as "a golden yolk in a grey stone"; at 0.34 grey, twice as light as its amber, "a grey pebble, one end
+            // painted orange")
+            Color crust0 = new Color(0.07f, 0.032f, 0.015f), crust1 = new Color(0.18f, 0.085f, 0.035f);   // (darker again, k24: "a mid-brown lump")
+            // (k26: a little darker, its broken edge a deep red-brown: at 0.42-0.78 a white core at its window's foot, "a coal
+            // burning in a stone", k25 content review)
+            Color rimRed = new Color(0.34f, 0.08f, 0.02f), deep = new Color(0.48f, 0.16f, 0.03f), gold = new Color(0.64f, 0.24f, 0.035f), edgeLit = new Color(0.95f, 0.62f, 0.28f), caught = new Color(0.05f, 0.03f, 0.015f);
             Color V(Color col, float amount) => col * (1f + (pen.R() * 2f - 1f) * amount);
             // a lump, not a ball (its surface swelling and sinking a little), and its window's edge ragged, broken along
             // an uneven line (a round lump cut straight across read as a two-tone egg or an acorn)
             float sl = pen.R() * 40f, se = pen.R() * 40f;
             float Swell(Vector3 q) => 1f + 0.16f * (Mathf.PerlinNoise(q.x * 1.3f + sl, q.z * 1.3f + q.y * 1.1f) - 0.5f);
-            float Edge(Vector3 q) => cut + 0.2f * (Mathf.PerlinNoise(q.x * 2.6f + se, q.z * 2.6f + q.y * 2.1f) - 0.5f);
+            // (k26: a clean conchoidal break, one broad gentle curve: at 0.2 and 2.6 its ragged edge's tongues read as flames,
+            // "a fire burning in a stone", k25 content review)
+            float Edge(Vector3 q) => cut + 0.06f * (Mathf.PerlinNoise(q.x * 1.3f + se, q.z * 1.3f + q.y * 1.1f) - 0.5f);
             Vector3 Local(Vector3 q) => c + new Vector3(q.x * r, q.y * h, q.z * r) * Swell(q);
             Vector3 Normal(Vector3 q) => new Vector3(q.x / r, q.y / h, q.z / r).normalized;
             float top = Mathf.Max(0.01f, c.y + h);
@@ -2372,11 +2600,12 @@ namespace AntGarden
                 float d = Vector3.Dot(q, fn), ed = Edge(q);
                 Vector3 pos = Local(q);
                 if (pos.y < 0f || d > ed) continue;
-                bool edge = d > ed - 0.035f;
+                bool edge = d > ed - 0.022f;   // (a sharp broken edge: a thin bright line)
                 float lump = Mathf.PerlinNoise(q.x * 3.1f + seed, q.z * 3.1f + q.y * 2.3f);
-                Color col = edge ? edgeLit : Color.Lerp(crust0, crust1, lump) * (0.6f + 0.4f * Mathf.Clamp01(pos.y / top));
+                bool crack = Mathf.Abs(Mathf.PerlinNoise(q.x * 4.5f + seed * 2f, q.z * 4.5f + q.y * 3.5f) - 0.5f) < 0.075f;   // (k26: at 0.05 none to be seen, k25)   // (coarse enough to be seen from the way: at 7 and 0.03, not, k24)
+                Color col = edge ? edgeLit : Color.Lerp(crust0, crust1, lump) * (0.6f + 0.4f * Mathf.Clamp01(pos.y / top)) * (crack ? 0.3f : 1f);
                 // (rough: its surface lifted and sunk a little by the same lumps)
-                put(edge ? pos : Local(q * (1f + 0.05f * (lump - 0.5f))), Normal(q), V(col, edge ? 0.05f : 0.16f), rad(edge ? 0.55f : 1f), edge ? 0.2f : 0f);
+                put(edge ? pos : Local(q * (1f + 0.05f * (lump - 0.5f))), Normal(q), V(col, edge ? 0.05f : 0.16f), rad(edge ? 0.5f : 1f), edge ? 0.32f : 0f);
             }
             // what is inside, in the window's own coordinates (u along e1, v along e2, both within capR): the light
             // patches, and the caught thing's strokes (a line from a to b, its half width)
@@ -2391,7 +2620,13 @@ namespace AntGarden
             float lay = pen.R() * Tau;
             Vector2 dirL = new Vector2(Mathf.Cos(lay), Mathf.Sin(lay)), acrossL = new Vector2(-dirL.y, dirL.x);
             Vector2 mid0 = new Vector2(pen.R() * 2f - 1f, pen.R() * 2f - 1f) * (capR * (caughtKind == 2 ? 0.06f : 0.25f));
-            if (caughtKind < 0) { }
+            if (caughtKind < 0)
+                for (int i = 0, specks = 1 + (int)(pen.R() * 1.99f); i < specks; i++)   // (nothing caught: one or two dark specks of grit in it, k23, k26)
+                {
+                    float pa = pen.R() * Tau, pr = capR * (0.15f + 0.5f * pen.R());
+                    Vector2 at = new Vector2(Mathf.Cos(pa), Mathf.Sin(pa)) * pr;
+                    strokes.Add((at, at, capR * (0.025f + 0.025f * pen.R())));
+                }
             else if (caughtKind == 2)
             {
                 // a fern frond: its stem, and leaflets in pairs, angled toward its tip, shorter toward it
@@ -2419,11 +2654,21 @@ namespace AntGarden
                 }
                 return best;
             }
-            // the window: clear amber on the lump's own curve, a little sunk below the crust, glossy; a deep orange-red at
-            // its broken edge, amber, then gold toward its middle and over the patches, never white; dark over what it
-            // caught. A third of its splats a layer further in, deep amber, so no gap between the others shows the lump's
-            // dark inside (k20: "full of black seams, gold leaf or a shell with holes", its middle milky white)
+            // the window: a broken face of clear amber, flat or a little dished as amber breaks (conchoidally), never proud
+            // of the crust; a deep orange-red at its broken edge where the amber is thick, clearer and more golden toward
+            // its middle, as if seen into; never white; dark over what it caught. A third of its splats a layer behind,
+            // deep amber, so no gap between the others shows the lump's dark inside (k20: "full of black seams"; on the
+            // lump's own curve, all gold from edge to middle, "a golden yolk swelling out of a grey stone", k23)
+            Vector3 OnFace(Vector3 qs, float deeper)
+            {
+                float z = Vector3.Dot(qs, fn), rho = Mathf.Sqrt(Mathf.Max(0f, 1f - z * z)), w = 1f - Mathf.Clamp01(rho / Mathf.Max(1e-3f, capR));
+                Vector3 q = qs - fn * (z - Mathf.Min(cut, z)) - fn * ((0.05f + deeper) * (1f - (1f - w) * (1f - w)));
+                return c + new Vector3(q.x * r, q.y * h, q.z * r) * Swell(qs);
+            }
             int mw = count(2f * Mathf.PI * (1f - cut) * r * Mathf.Max(r, h) * 2.2f);
+            // (conchoidal: faint ripples in arcs round the point at its edge where it broke, k26)
+            float hitA = pen.R() * Tau;
+            Vector2 hit = new Vector2(Mathf.Cos(hitA), Mathf.Sin(hitA)) * capR;
             for (int j = 0; j < mw; j++)
             {
                 float z = (cut - 0.1f) + (1.1f - cut) * pen.R(), phi = pen.R() * Tau;
@@ -2432,8 +2677,7 @@ namespace AntGarden
                 Vector3 qs = fn * z + (e1 * Mathf.Cos(phi) + e2 * Mathf.Sin(phi)) * rho;
                 if (z < Edge(qs)) continue;   // (the crust still there)
                 bool under = j % 3 == 0;
-                Vector3 q = qs * (under ? 0.9f : 0.965f);
-                Vector3 pos = c + new Vector3(q.x * r, q.y * h, q.z * r) * Swell(qs);
+                Vector3 pos = OnFace(qs, under ? 0.06f : 0f);
                 if (pos.y < 0f) continue;
                 var uv = new Vector2(Mathf.Cos(phi), Mathf.Sin(phi)) * rho;
                 float light = 0f;
@@ -2445,47 +2689,54 @@ namespace AntGarden
                 // smooth and glassy, one piece (each splat varied, small, it read as gold dust or crystallised honey): its
                 // colour hardly varied splat to splat, larger splats (a soft gloss band across it read as a seam down it,
                 // then whitened its middle: one or two glints instead, below)
-                float ink = Ink(uv), ripple = 0.97f + 0.03f * Mathf.Sin(rho * 25f + phi * 0.5f);
+                float ink = Ink(uv), ripple = 0.92f + 0.08f * Mathf.Sin((uv - hit).magnitude / Mathf.Max(1e-3f, capR) * 17f);
                 float inward = 1f - Mathf.Clamp01(rho / Mathf.Max(1e-3f, capR));   // 0 at its broken edge, 1 at its middle
-                Color col = under ? deep : Color.Lerp(Color.Lerp(rimRed, deep, Mathf.Clamp01(inward * 2.5f)), gold, Mathf.Clamp01(0.55f * inward + 0.45f * light)) * ripple;
+                Color col = under ? deep * 0.8f : Color.Lerp(Color.Lerp(rimRed, deep, Mathf.Clamp01(inward * 1.8f)), gold, Mathf.Clamp01(1.1f * inward * inward + 0.35f * light)) * ripple;
                 col = Color.Lerp(col, caught, 0.85f * ink);
-                put(pos, Normal(q), V(col, 0.02f), rad(under ? 1.5f : 1.25f), (under ? 0.1f : 0.12f + 0.16f * inward + 0.18f * light) * (1f - ink));   // (lit from within, gold at most: at 0.16 + 0.5 by its patches they bloomed white)
+                Vector3 faceN = Normal((fn - (e1 * Mathf.Cos(phi) + e2 * Mathf.Sin(phi)) * (0.2f * (1f - inward))).normalized);   // (flat, a little dished)
+                put(pos, faceN, V(col, 0.02f), rad(under ? 1.5f : 1.25f), (under ? 0.03f : 0.03f + 0.05f * inward + 0.04f * light) * (1f - ink));   // (k26: 0.04 + 0.08 + 0.06 to k25)   // (at 0.06 + 0.12 + 0.1, from the game's view four tenths of its face near white, k24)   // (lit from within, gold at most: at 0.16 + 0.5 by its patches they bloomed white; facing up, at 0.1 + 0.2 + 0.15 a glowing yellow lamp, k24)
             }
-            // one or two glints of glass on it, small, where the light catches it
-            for (int g = 0, glints = 1 + (int)(pen.R() * 1.99f); g < glints; g++)
+            // one glint of glass on it, small and warm, where the light catches it (k26: two, of three near-white splats
+            // each, from the game's view two white spots on its window, eyes)
+            for (int g = 0, glints = 1; g < glints; g++)
             {
                 float pa = pen.R() * Tau, pr = capR * (0.2f + 0.45f * pen.R());
                 Vector3 qg = (fn * Mathf.Sqrt(Mathf.Max(0f, 1f - pr * pr)) + (e1 * Mathf.Cos(pa) + e2 * Mathf.Sin(pa)) * pr).normalized;
                 if (Vector3.Dot(qg, fn) < Edge(qg) + 0.04f) continue;
-                Vector3 gc = c + new Vector3(qg.x * r, qg.y * h, qg.z * r) * Swell(qg);
-                for (int j = 0; j < 3; j++)
-                    put(gc + (e1 * (pen.R() - 0.5f) + e2 * (pen.R() - 0.5f)) * (r * 0.05f), Normal(qg), new Color(0.98f, 0.9f, 0.74f), rad(1.4f), 0.3f);
+                Vector3 gc = OnFace(qg, 0f) + Normal(fn) * 0.004f;
+                for (int j = 0; j < 2; j++)
+                    put(gc + (e1 * (pen.R() - 0.5f) + e2 * (pen.R() - 0.5f)) * (r * 0.02f), Normal(fn), new Color(0.95f, 0.72f, 0.4f), rad(0.4f), 0.12f);
             }
         }
 
         /// <summary>
-        /// Resin running from a wound: a short broken branch stub standing in the floor (a little tilted, its bark furrowed
-        /// up and down, its broken top jagged and pale), split open near its top, and from the split two or three runs of
-        /// resin flowing down its side, thin where they leave the wound and fuller as they go, each ending in a teardrop:
-        /// hanging from the bark where it stops part way down, or in a small pool where it reaches the floor. The resin a
-        /// glassy amber over a warm light, brightest in the drops, a glint on each; the bark dark (the references: light in
-        /// parts, the body dark). (Lying on the floor, on a piece of bark, the runs read as yellow jelly fungus on a branch:
-        /// resin reads as resin when it runs down.) size is the stub's height (0.6 to 1.2).
+        /// Resin running from a wound: a broken branch stuck in the floor aslant (its bark furrowed along it, its broken
+        /// end jagged and pale, torn wood fibres standing from it), and from its broken end one run of resin down its
+        /// underside, thin where it leaves the break and fuller as it goes, stopping part way down with a teardrop hanging
+        /// from it. The resin a glassy amber over a warm light, brightest in the drop, a glint on it; the bark dark (the
+        /// references: light in parts, the body dark). (Upright, two or three runs round it and a pool at its foot, it read
+        /// as a stake in the sand or a candle, its resin a gold glow at its foot, k25 content review; lying on the floor, on
+        /// a piece of bark, the runs read as yellow jelly fungus on a branch: resin reads as resin when it runs down.) size
+        /// is the branch's length (0.6 to 1.2).
         /// </summary>
         public static void ResinRun(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var s = new NestThingsGrowth.Spot(pen, p, n, ta, tb);
             Color bark0 = new Color(0.08f, 0.05f, 0.03f), bark1 = new Color(0.22f, 0.14f, 0.075f), wood = new Color(0.45f, 0.32f, 0.18f);
             Color skin = new Color(0.36f, 0.14f, 0.025f), rimLit = new Color(0.82f, 0.42f, 0.10f), core = new Color(0.85f, 0.45f, 0.11f), glint = new Color(0.98f, 0.88f, 0.66f);
-            float H = size * s.U(0.8f, 1f), R = size * s.U(0.13f, 0.18f), lean = s.U(0.05f, 0.2f), turn = s.R() * Tau;
-            Vector3 axis = (Vector3.up + new Vector3(Mathf.Cos(turn), 0f, Mathf.Sin(turn)) * lean).normalized;
+            // (k26: a branch, longer and thinner, leaning 26-46° from upright, its foot a little in the sand, its length
+            // over its place: 0.8-1 long, 0.13-0.18 thick and 3-11° from upright, it stood as a stake, k25)
+            float H = size * s.U(1f, 1.2f), R = size * s.U(0.085f, 0.11f), tilt = s.U(0.45f, 0.8f), turn = s.R() * Tau;
+            Vector3 leanDir = new Vector3(Mathf.Cos(turn), 0f, Mathf.Sin(turn));
+            Vector3 axis = Vector3.up * Mathf.Cos(tilt) + leanDir * Mathf.Sin(tilt);
+            Vector3 sunk = -leanDir * (0.35f * H * Mathf.Sin(tilt)) - Vector3.up * (R * 0.6f);
             NestThingsGrowth.Perp(axis, out Vector3 u, out Vector3 v);
-            // a point on its bark: y up it (0..1), a round it; its foot a little wider, its broken top jagged
+            // a point on its bark: y along it (0..H), a round it; a little thinner toward its broken end
             float seed = s.R() * 30f, slant = s.R() * Tau;
             // (broken off aslant and raggedly, high on one side, low on the other, its edge jagged: at 0.14 it read as a post,
             // flat-topped; at 0.26 in gentle waves still "a sawn stump", k20)
             float TopAt(float a) => H * (0.7f + 0.13f * Mathf.Cos(a - slant) + 0.1f * Mathf.PerlinNoise(a * 2.8f + seed, seed) + 0.06f * Mathf.PerlinNoise(a * 9f + seed, seed * 0.5f));
-            Vector3 Bark(float y, float a, float lift) => axis * y + (u * Mathf.Cos(a) + v * Mathf.Sin(a)) * (R * (1f + 0.25f * Mathf.Max(0f, 1f - y / (H * 0.2f))) + lift);
+            Vector3 Bark(float y, float a, float lift) => sunk + axis * y + (u * Mathf.Cos(a) + v * Mathf.Sin(a)) * (R * (1f - 0.15f * y / H) + lift);
             Vector3 BarkN(float a) => u * Mathf.Cos(a) + v * Mathf.Sin(a);
             float furrows = Mathf.Round(s.U(7f, 11f));
             int m = s.Count(Tau * R * H * 1.1f, 40);
@@ -2493,18 +2744,20 @@ namespace AntGarden
             {
                 float a = s.R() * Tau, y = s.R() * TopAt(a);
                 float ridge = Mathf.Abs(Mathf.Sin(a * furrows + 1.3f * Mathf.Sin(y / H * 4f + seed)));
+                Vector3 pos = Bark(y, a, R * 0.08f * ridge);
+                if (pos.y < 0.01f) continue;   // (in the sand)
                 Color col = Color.Lerp(bark0, bark1, ridge) * (0.65f + 0.35f * y / H);   // (darker toward its foot)
-                s.Put(Bark(y, a, R * 0.08f * ridge), BarkN(a), s.V(col, 0.12f), s.Rad(0.85f), 0f);
+                s.Put(pos, BarkN(a), s.V(col, 0.12f), s.Rad(0.85f), 0f);
             }
-            // its broken top: pale splintered wood across it, sloping with the break
+            // its broken end: pale splintered wood across it, sloping with the break
             int mt = s.Count(Mathf.PI * R * R * 1.2f, 16);
             for (int j = 0; j < mt; j++)
             {
-                float a = s.R() * Tau, rr = R * Mathf.Sqrt(s.R());
-                Vector3 pos = axis * Mathf.Lerp(H * 0.66f, TopAt(a), rr / R) + (u * Mathf.Cos(a) + v * Mathf.Sin(a)) * rr;
+                float a = s.R() * Tau, rr = R * 0.87f * Mathf.Sqrt(s.R());
+                Vector3 pos = sunk + axis * Mathf.Lerp(H * 0.66f, TopAt(a), rr / (R * 0.87f)) + (u * Mathf.Cos(a) + v * Mathf.Sin(a)) * rr;
                 s.Put(pos, axis, s.V(wood, 0.15f), s.Rad(0.7f), 0f);
             }
-            // and splinters standing up from the break, long and short, leaning out a little: pale where they split from
+            // and splinters standing from the break, long and short, leaning out a little: pale where they split from
             // the wood, bark-dark on their outer side (a branch broken off, not sawn)
             for (int i = 0, splinters = 4 + (int)(s.R() * 3.99f); i < splinters; i++)
             {
@@ -2519,67 +2772,58 @@ namespace AntGarden
                     s.Put(at + outN * (wt * 0.2f), outN, s.V(bark1, 0.12f), s.Rad(0.6f) * (1f - 0.4f * t), 0f);
                 }
             }
-            // the wound: a short split down its side near the top, pale wood in it (below the break on its low side too);
-            // the runs leave from its foot
-            float aw = s.R() * Tau, yw = Mathf.Min(H * s.U(0.55f, 0.68f), TopAt(aw) - H * 0.12f);
-            for (int j = 0, mw = s.Count(R * 0.5f * H * 0.18f, 10); j < mw; j++)
-                s.Put(Bark(yw + s.S() * H * 0.08f, aw + s.S() * 0.12f, R * 0.06f), BarkN(aw), s.V(wood * 1.15f, 0.1f), s.Rad(0.6f), 0f);
-            int runs = 2 + (int)(s.R() * 1.99f);
-            for (int k = 0; k < runs; k++)
+            // its one run of resin, from the break down its underside, the way resin runs, a little to one side and
+            // drifting under as it goes; stopping where the branch is still high enough for its tear to hang free
+            float rd = size * s.U(0.045f, 0.06f);
+            Vector3 downN = Vector3.ProjectOnPlane(Vector3.down, axis).normalized;
+            float aDown = Mathf.Atan2(Vector3.Dot(downN, v), Vector3.Dot(downN, u));
+            float a0 = aDown + s.S() * 0.6f, drift = (aDown - a0) * 0.7f;
+            float y0 = TopAt(a0) - H * 0.05f, y1 = Mathf.Max(y0 * s.U(0.55f, 0.7f), (2.6f * rd + 1.7f * R) / Mathf.Cos(tilt));
+            Vector3 At(float t) => Bark(Mathf.Lerp(y0, y1, t), a0 + drift * t, R * 0.1f + size * 0.015f * t);
+            const int steps = 12;
+            Vector3 prev = At(0f);
+            for (int q = 1; q <= steps; q++)
             {
-                // (round the stub, so one shows from wherever it is seen: from one split alone, seen from its other side a
-                // stub showed no resin at all)
-                float a0 = aw + k * Tau / runs + s.S() * 0.3f, drift = s.S() * 0.35f, end = k == 0 ? 0f : s.U(0.15f, 0.45f);   // (the first reaches the floor)
-                float y0 = yw - H * 0.08f, y1 = Mathf.Max(0.02f, end * yw);
-                Vector3 At(float t) => Bark(Mathf.Lerp(y0, y1, t), a0 + drift * t * t, R * 0.1f + size * 0.02f * t);
-                const int steps = 12;
-                Vector3 prev = At(0f);
-                for (int q = 1; q <= steps; q++)
+                float t0 = (q - 1) / (float)steps, t1 = q / (float)steps;
+                Vector3 cur = At(t1);
+                // (thin where it leaves the break, a lighter gold; deep amber where it runs thick)
+                NestThingsGrowth.Tube(s, prev, cur, size * Mathf.Lerp(0.016f, 0.04f, t0), size * Mathf.Lerp(0.016f, 0.04f, t1),
+                    Color.Lerp(rimLit * 0.8f, skin, 0.25f + 0.6f * t0), Color.Lerp(rimLit * 0.8f, skin, 0.25f + 0.6f * t1), 0.04f + 0.06f * t1);
+                prev = cur;
+            }
+            // a light inside it, along its middle, brightening as it fills (one even colour, the run read as a stripe of
+            // yellow paint: resin is dark at its edges and lit through its middle)
+            for (int j = 0, mc = s.Count((y0 - y1) * size * 0.03f, 16); j < mc; j++)
+            {
+                float t = s.R();
+                Vector3 outN = BarkN(a0 + drift * t);
+                s.Put(At(t) + outN * (size * Mathf.Lerp(0.016f, 0.04f, t) * 0.55f), outN, s.V(core, 0.06f), s.Rad(0.35f), 0.12f + 0.16f * t);   // (at 0.22 + 0.28, "opaque gold paint", k24)
+            }
+            // its tear, hanging from the run's end, its point up, brightest where it gathers at its foot, a glint on it
+            // (solid: at 0.95 of its surface in splats half the usual size, and an inside at half as many, a drop read as a
+            // ball of gold dots with black seams, k20)
+            Vector3 outward = BarkN(a0 + drift), side = Vector3.ProjectOnPlane(outward, Vector3.up);
+            side = side.sqrMagnitude > 1e-4f ? side.normalized : leanDir;
+            Vector3 cd = At(1f) + outward * (rd * 0.3f) - Vector3.up * (rd * 0.9f);
+            Vector3 ex = side * rd, ey = Vector3.up * (rd * 1.25f), ez = Vector3.Cross(Vector3.up, side).normalized * rd;
+            int md = s.Count(NestThingsGrowth.EllipsoidArea(rd, rd * 1.25f, rd) * 1.8f, 32);
+            for (int j = 0; j < md; j++)
+            {
+                Vector3 pos = NestThingsGrowth.OnEllipsoid(s, cd, ex, ey, ez, out Vector3 nrm, out Vector3 qq);
+                if (qq.y > 0f)   // drawn up to a point where it hangs from the run
                 {
-                    float t0 = (q - 1) / (float)steps, t1 = q / (float)steps;
-                    Vector3 cur = At(t1);
-                    NestThingsGrowth.Tube(s, prev, cur, size * Mathf.Lerp(0.018f, 0.05f, t0), size * Mathf.Lerp(0.018f, 0.05f, t1),
-                        Color.Lerp(skin, rimLit, 0.12f + 0.2f * t0), Color.Lerp(skin, rimLit, 0.12f + 0.2f * t1), 0.05f + 0.1f * t1);
-                    prev = cur;
+                    float pinch = qq.y * qq.y;
+                    pos = cd + (pos - cd - Vector3.up * Vector3.Dot(pos - cd, Vector3.up)) * (1f - 0.65f * pinch) + Vector3.up * (Vector3.Dot(pos - cd, Vector3.up) * (1f + 0.4f * pinch));
                 }
-                // a light inside it, along its middle, brightening as it fills (one even colour, the run read as a stripe of
-                // yellow paint: resin is dark at its edges and lit through its middle)
-                for (int j = 0, mc = s.Count((y0 - y1) * size * 0.03f, 16); j < mc; j++)
-                {
-                    float t = s.R();
-                    Vector3 outN = BarkN(a0 + drift * t * t);
-                    s.Put(At(t) + outN * (size * Mathf.Lerp(0.018f, 0.05f, t) * 0.55f), outN, s.V(core, 0.06f), s.Rad(0.35f), 0.22f + 0.28f * t);
-                }
-                // its drop: hanging from the bark (a teardrop, its point up), or a small pool where it reaches the floor
-                float rd = size * s.U(0.06f, 0.08f);
-                bool pool = end <= 0f;
-                Vector3 outward = BarkN(a0 + drift);
-                Vector3 cd = pool ? new Vector3(At(1f).x, 0f, At(1f).z) + outward * rd * 1.2f + Vector3.up * (rd * 0.3f) : At(1f) + outward * (rd * 0.6f) - Vector3.up * (rd * 0.9f);
-                // (solid: at 0.95 of its surface in splats half the usual size, and an inside at half as many, the drop read
-                // as a ball of gold dots with black seams, k20; its pool wider, a little puddle of resin at the stub's foot)
-                Vector3 ey = Vector3.up * (pool ? rd * 0.2f : rd * 1.25f);
-                Vector3 ex = pool ? outward * rd * 2.3f : outward * rd;
-                Vector3 ez = Vector3.Cross(Vector3.up, outward).normalized * (pool ? rd * 2f : rd);
-                int md = s.Count(NestThingsGrowth.EllipsoidArea(ex.magnitude, ey.magnitude, ez.magnitude) * 1.8f, 32);
-                for (int j = 0; j < md; j++)
-                {
-                    Vector3 pos = NestThingsGrowth.OnEllipsoid(s, cd, ex, ey, ez, out Vector3 nrm, out Vector3 qq);
-                    if (pool && qq.y < -0.1f) continue;   // (a pool only its top: its whole shell read as an empty husk at the stub's foot)
-                    if (!pool && qq.y > 0f)   // drawn up to a point where it hangs from the run
-                    {
-                        float pinch = qq.y * qq.y;
-                        pos = cd + (pos - cd - Vector3.up * Vector3.Dot(pos - cd, Vector3.up)) * (1f - 0.65f * pinch) + Vector3.up * (Vector3.Dot(pos - cd, Vector3.up) * (1f + 0.4f * pinch));
-                    }
-                    bool isGlint = qq.y > 0.2f && qq.x > 0.3f && qq.z < 0.1f && qq.z > -0.5f;
-                    float low = Mathf.Max(0f, -qq.y);   // (a hanging drop brightest where it gathers, at its foot)
-                    Color col = isGlint ? glint : Color.Lerp(skin, rimLit, 0.35f + 0.45f * low);
-                    s.Put(pos, nrm, s.V(col, 0.05f), s.Rad(isGlint ? 0.5f : 0.65f), isGlint ? 0.5f : 0.14f + 0.24f * low);
-                }
-                for (int j = 0, mi = Mathf.RoundToInt(md * 0.7f); j < mi; j++)
-                {
-                    Vector3 d = InBall(pen, out float f);
-                    s.Put(cd + ex * (d.x * 0.75f) + ey * (d.y * 0.7f) + ez * (d.z * 0.75f), Vector3.up, s.V(core, 0.06f), s.Rad(0.5f), 0.3f * (1f - 0.5f * f));
-                }
+                bool isGlint = qq.y > 0.2f && qq.x > 0.3f && qq.z < 0.1f && qq.z > -0.5f;
+                float low = Mathf.Max(0f, -qq.y);   // (brightest where it gathers, at its foot)
+                Color col = isGlint ? glint : Color.Lerp(skin, rimLit, 0.35f + 0.45f * low);
+                s.Put(pos, nrm, s.V(col, 0.05f), s.Rad(isGlint ? 0.5f : 0.65f), isGlint ? 0.35f : 0.1f + 0.16f * low);
+            }
+            for (int j = 0, mi = Mathf.RoundToInt(md * 0.7f); j < mi; j++)
+            {
+                Vector3 d = InBall(pen, out float f);
+                s.Put(cd + ex * (d.x * 0.75f) + ey * (d.y * 0.7f) + ez * (d.z * 0.75f), Vector3.up, s.V(core, 0.06f), s.Rad(0.5f), 0.18f * (1f - 0.5f * f));
             }
         }
 
@@ -2593,31 +2837,112 @@ namespace AntGarden
         public static void PineNeedles(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var s = new NestThingsGrowth.Spot(pen, p, n, ta, tb);
-            Color dark = new Color(0.07f, 0.035f, 0.014f), pale = new Color(0.13f, 0.065f, 0.025f), sheath = new Color(0.035f, 0.028f, 0.022f);   // (at 0.12-0.24 by a beam's light they lay as glowing orange streaks, k21)
+            // a dry needle's rust brown, lighter along its round back where the light catches it, darker down its side, paler
+            // toward its tip; its sheath dark; a thin shadow beside it on the floor (k21: at 0.12-0.24 by a beam's light,
+            // glowing orange streaks; k22: at 0.07-0.13 near black, the pair nearly parallel, "tyre tracks" from the game's
+            // view, and close up a row of separate flat dots, no taper, no sheath to be seen, k23)
+            // (k26: a rust and a straw a little lighter than its sand: at 0.15-0.21, darker than it, not to be found from the
+            // game's view, k25 content review)
+            Color rust0 = new Color(0.28f, 0.12f, 0.04f), rust1 = new Color(0.36f, 0.20f, 0.08f), sheath = new Color(0.04f, 0.03f, 0.024f), shadow = new Color(0.02f, 0.012f, 0.008f);   // (a dry brown: at 0.12-0.20 red, more orange, by the way's lights glowing orange streaks again, k24)
             float spin = s.R() * Tau;
-            for (int i = 0, bundles = 2 + (int)(s.R() * 3.99f); i < bundles; i++)
+            for (int i = 0, bundles = 1 + (int)(s.R() * 2.99f); i < bundles; i++)   // (fewer: two to five, "tracks", k24)
             {
-                float ang = spin + i * Tau / bundles + s.S() * 1.1f, len = size * s.U(0.65f, 1f), half = 0.028f * s.U(0.85f, 1.15f);
+                float ang = spin + i * Tau / bundles + s.S() * 1.1f, len = size * s.U(0.65f, 1f), half = 0.02f * s.U(0.85f, 1.15f);   // (thinner: at 0.024 the pairs read as tracks, k24)
                 var foot = new Vector3(s.S(), 0f, s.S()) * (size * 0.25f);
                 var along = new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang));
-                Color tone = Color.Lerp(dark, pale, s.R());
+                Color tone = Color.Lerp(rust0, rust1, s.R());
+                bool buried = s.R() < 0.3f;   // (its foot and sheath under the soil, the pair coming up out of the floor)
                 for (int k = 0; k < 2; k++)
                 {
-                    // the pair a little apart toward their tips, one a little shorter
-                    float a = ang + (k == 0 ? -1f : 1f) * s.U(0.03f, 0.12f), lk = len * (k == 0 ? 1f : s.U(0.85f, 1f));
+                    // the pair opening from the sheath in a narrow V, one a little shorter
+                    float a = ang + (k == 0 ? -1f : 1f) * s.U(0.26f, 0.5f),   // (k26: 30-60° open: at 0.16-0.3 "chopsticks", k25)
+                        lk = len * (k == 0 ? 1f : s.U(0.85f, 1f));   // (at 0.09-0.2 the pair merged into one dark line from the game's view, k24)
                     var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                    int steps = Mathf.CeilToInt(lk / (half * 1.1f));
+                    var side = new Vector3(-dir.z, 0f, dir.x);
+                    int steps = Mathf.CeilToInt(lk / (half * 0.55f));   // (packed: at 1.1 of its width apart, separate dots)
                     for (int j = 0; j < steps; j++)
                     {
-                        float t = (j + s.R()) / steps;
-                        Vector3 at = foot + dir * (t * lk) + Vector3.up * (0.02f + half * 0.6f);
-                        Color col = Color.Lerp(tone, tone * 1.45f, Mathf.Clamp01((t - 0.6f) / 0.4f));
-                        s.Put(at, Vector3.up, s.V(col, 0.08f), half * (1f - 0.5f * t * t), 0f);
+                        float t = (j + 0.5f) / steps;
+                        if (buried && t < 0.12f) continue;
+                        // round in section, a little thinner where it leaves the sheath, drawn to a sharp point
+                        float w = half * Mathf.Min(1f, 0.55f + t * 6f) * (1f - 0.85f * Mathf.Pow(t, 6f));
+                        Vector3 c = foot + dir * (t * lk) + Vector3.up * (0.04f + w);   // (clear of the floor's own points: at 0.025 its grain ate the edges, "jagged", k24)
+                        Color col = Color.Lerp(tone, tone * 1.5f, Mathf.Clamp01((t - 0.75f) / 0.25f));
+                        s.Put(c + side * (w * 0.35f) + Vector3.up * (w * 0.3f), (Vector3.up + side * 0.6f).normalized, s.V(col * 1.35f, 0.05f), w * 0.8f, 0f);   // its lit back
+                        s.Put(c - side * (w * 0.35f), (Vector3.up - side * 0.9f).normalized, s.V(col * 0.7f, 0.05f), w * 0.8f, 0f);   // its shaded side
+                        if (j % 2 == 0) s.Put(foot + dir * (t * lk) - side * (w * 1.6f) + Vector3.up * 0.02f, Vector3.up, shadow, w * 0.9f, 0f);   // its shadow
                     }
                 }
                 // the sheath: a short dark collar round their foot, a little thicker than the pair
-                for (int j = 0; j < 8; j++)
-                    s.Put(foot + along * (len * s.U(0f, 0.05f)) + Vector3.up * (0.02f + half), Vector3.up, s.V(sheath, 0.1f), half * 1.5f, 0f);
+                if (!buried)
+                    for (int j = 0; j < 10; j++)
+                        s.Put(foot + along * (len * s.U(-0.01f, 0.05f)) + Vector3.up * (0.025f + half * 1.2f), Vector3.up, s.V(sheath, 0.1f), half * 1.4f, 0f);
+            }
+        }
+
+        /// <summary>
+        /// Slabs of slate in the sand, the amber nest's (k25): one, now and then two, flat split stones lying half in the
+        /// sand, their outlines straight-sided, a blue grey, darker in the body, lighter and cooler on top where the light
+        /// catches them and along their layered edges; a few grains of sand on them. Its cool notes, on stone, dark and
+        /// small (the user's rule, 10-29; "hold 18°", 11-02): the kiln's slabs, made dark for its red floor, came out a
+        /// neutral grey on its sand, no cool pixel to be measured, k25. size is the larger slab's length.
+        /// </summary>
+        public static void SlateSlabs(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
+        {
+            var s = new NestThingsGrowth.Spot(pen, p, n, ta, tb);
+            Color sand = new Color(0.30f, 0.17f, 0.08f);
+            // OKLCH about 0.23 / 0.016 / 248 in its body, 0.28 / 0.022 / 245 on top, 0.32 / 0.02 / 240 on its layered edges:
+            // a dark grey slate, darker than its sand (k26: at 0.38-0.52 and 0.026-0.045, lighter than its sand, "blue tiles,
+            // cushions", k25 content review). (Its chroma comes out on the screen at about nine tenths: at 0.08 on top, 0.07, vivid cobalt
+            // tiles, "plastic", k25j; the kiln's warm moon halves it, this nest's does not)
+            Color edge = new Color(0.0229f, 0.0348f, 0.0454f);
+            int count = s.R() < 0.3f ? 2 : 1;
+            float spin = s.R() * Tau;
+            for (int i = 0; i < count; i++)
+            {
+                float k = s.U(0.9f, 1.1f);
+                Color slate = new Color(0.0086f * k, 0.0128f * k, 0.0178f * k), top = new Color(0.0143f * k, 0.0233f * k, 0.0333f * k);   // (at 0.47 / 0.055, its family 16-17°, but blue paving stones, blue pillows close up, k25o-k25p)
+                float a = (i == 0 ? size : size * s.U(0.45f, 0.7f)) * 0.5f, c = a * s.U(0.6f, 0.85f), b = a * s.U(0.16f, 0.24f);
+                float ph1 = s.R() * Tau;
+                // its outline broken: five to eight straight sides of different lengths, sharp corners (a regular polygon,
+                // a flat even blue, read as a tile, k25o)
+                int sides = 5 + (int)(s.R() * 3.99f);
+                float wedge = Tau / sides, rot = s.R() * Tau, sj = s.R() * 40f, chip = s.R() * 360f;   // (and a corner broken off it, k26)
+                Vector3 at = i == 0 ? Vector3.zero : new Vector3(Mathf.Cos(spin), 0f, Mathf.Sin(spin)) * ((size * 0.5f + a) * s.U(0.9f, 1.3f));
+                // lying flat, a little tilted, turned any way, half in the sand
+                float yaw = s.R() * Tau;
+                Vector3 ey = (Vector3.up + new Vector3(s.S(), 0f, s.S()) * 0.22f).normalized;   // (one side under the sand: at 0.12 laid on it, "a cushion", k25)
+                Vector3 h0 = new Vector3(Mathf.Cos(yaw), 0f, Mathf.Sin(yaw));
+                Vector3 ex = (h0 - ey * Vector3.Dot(h0, ey)).normalized, ez = Vector3.Cross(ex, ey);
+                Vector3 cc = at + Vector3.up * (b * s.U(0.1f, 0.3f));   // (deeper in the sand)
+                int m = s.Count(NestThingsGrowth.EllipsoidArea(a, b, c) * 1.7f);
+                for (int j = 0; j < m; j++)
+                {
+                    Vector3 pos = NestThingsGrowth.OnEllipsoid(s, cc, ex * a, ey * b, ez * c, out Vector3 nrm, out Vector3 q);
+                    // a slab: its outline a polygon, its top and bottom pressed flat (as the kiln's slabs)
+                    Vector3 l = pos - cc;
+                    float lx = Vector3.Dot(l, ex), ly = Vector3.Dot(l, ey), lz = Vector3.Dot(l, ez);
+                    float ang = Mathf.Atan2(lz / c, lx / a), local = Mathf.Repeat(ang - rot, wedge) - wedge * 0.5f;
+                    float side = Mathf.Cos(wedge * 0.5f) / Mathf.Cos(local) * (0.74f + 0.5f * Mathf.PerlinNoise(Mathf.Floor((ang - rot) / wedge) * 3.7f + sj, sj));
+                    float dChip = Mathf.DeltaAngle(ang * Mathf.Rad2Deg, chip) * Mathf.Deg2Rad;
+                    side *= 1f - 0.3f * Mathf.Exp(-dChip * dChip / 0.08f);
+                    float flat = Mathf.Sign(ly) * b * Mathf.Sqrt(Mathf.Abs(ly) / b);
+                    pos = cc + ex * (lx * side) + ey * flat + ez * (lz * side);
+                    if (Mathf.Abs(ly) > 0.6f * b) nrm = Vector3.Lerp(nrm.normalized, ey * Mathf.Sign(ly), 0.7f);
+                    if (pos.y < NestThingsGrowth.Lift) continue;   // sunk in the sand
+                    float up = Mathf.Clamp01(nrm.normalized.y);
+                    // its top mottled where weather and lichen-free dust have been at it, a darker crack or two across it
+                    float mot = Mathf.PerlinNoise(lx * 4f / a + sj, lz * 4f / a + sj * 0.7f);
+                    bool crack = Mathf.Abs(Mathf.PerlinNoise(lx * 2.2f / a + sj * 1.3f, lz * 2.2f / a - sj) - 0.5f) < 0.025f;
+                    Color col = Color.Lerp(slate, top, Mathf.SmoothStep(0f, 1f, (up - 0.5f) / 0.4f) * (0.45f + 0.75f * mot)) * (crack ? 0.55f : 1f);
+                    float rad = s.Rad(0.85f), sp = s.R(), rim = Mathf.Abs(ly) / b;
+                    // round its edge, two or three paler, cooler lines: its layers; and the straight edge round its top
+                    if (rim < 0.6f && Mathf.Abs(Mathf.Repeat(ly / b * 1.6f + ph1, 1f) - 0.5f) < 0.08f) col = edge * s.U(0.85f, 1.05f);
+                    else if (rim > 0.62f && rim < 0.86f && ly > 0f) col = Color.Lerp(col, edge, 0.6f);
+                    else if (up > 0.6f && sp < 0.06f + 0.22f * Mathf.Clamp01(mot * 2f - 1.1f)) col = sand * s.U(0.8f, 1.1f);   // sand on it, drifted thicker in places
+                    else if (sp < 0.14f) { col *= sp < 0.1f ? 0.75f : 1.2f; rad *= 0.6f; pos += nrm.normalized * 0.003f; }   // a grain in the stone
+                    s.Put(pos, nrm, s.V(col, 0.05f), rad);
+                }
             }
         }
 
@@ -2632,11 +2957,18 @@ namespace AntGarden
         public static void EmberCracks(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var s = new NestThingsGrowth.Spot(pen, p, n, ta, tb);
-            Color ember = new Color(1.0f, 0.24f, 0.10f), hot = new Color(1.0f, 0.52f, 0.30f), char0 = new Color(0.13f, 0.06f, 0.05f), ash = new Color(0.62f, 0.56f, 0.52f);
+            int first = pen.into.Count;
+            // (k19, back on the redesigned kiln's ash, long after its fire: its embers deeper, the log's charcoal-fire red,
+            // half as bright, so they stay below the guide's light, and only in stretches of each crack, never a line of
+            // light; the content self-check, 11-04)
+            Color ember = new Color(0.80f, 0.16f, 0.06f), hot = new Color(0.95f, 0.38f, 0.14f), char0 = new Color(0.13f, 0.06f, 0.05f), ash = new Color(0.62f, 0.56f, 0.52f);
             int branches = 3 + (int)(s.R() * 3f);
             float spin = s.R() * Tau;
             for (int i = 0; i < branches; i++)
                 Crack(s, Vector3.zero, spin + i * Tau / branches + s.S() * 0.5f, size * s.U(0.35f, 0.55f), 0.022f + 0.012f * s.R(), 0, ember, hot, char0, ash);
+            // and lit as a building's are: walking past brightens only its embers, not its charred clay and ash (a dark
+            // thing lit whole reads pale, the kiln's twigs, k16; SolidThings marks its own kinds, this one here)
+            for (int i = first; i < pen.into.Count; i++) pen.into[i] = ThingPen.Building(pen.into[i]);
         }
 
         static void Crack(NestThingsGrowth.Spot s, Vector3 from, float dir, float length, float width, int depth, Color ember, Color hot, Color char0, Color ash)
@@ -2644,6 +2976,8 @@ namespace AntGarden
             const float step = 0.03f;
             int steps = Mathf.Max(3, Mathf.RoundToInt(length / step));
             Vector3 at = from;
+            float phase = s.R() * 50f;   // (where along it its embers live, k19)
+            Color dead = new Color(char0.r * 0.5f, char0.g * 0.5f, char0.b * 0.5f);
             for (int i = 0; i < steps; i++)
             {
                 float u = i / (float)steps;
@@ -2651,9 +2985,13 @@ namespace AntGarden
                 at += new Vector3(Mathf.Cos(dir), 0f, Mathf.Sin(dir)) * step;
                 float w = width * Mathf.Sin(Mathf.PI * Mathf.Clamp01(0.15f + 0.85f * u)) * (0.7f + 0.6f * s.R());
                 var side = new Vector3(-Mathf.Sin(dir), 0f, Mathf.Cos(dir));
-                // the embers in the crack, hottest in its middle
+                // the embers in the crack, hottest in its middle, in stretches of it, the crack dark between them, and half as
+                // bright (k19: whole cracks lit at 0.8-1 read as lines of light brighter than the guide's)
                 // (lifted clear of the floor's own points, which lie a little above the ground and would hide them)
-                s.Put(at + Vector3.up * 0.018f, Vector3.up, s.V(Color.Lerp(ember, hot, s.R() * 0.6f * (1f - u)), 0.1f), Mathf.Max(w * 1.15f, s.Thin * 1.3f), s.U(0.8f, 1f));
+                if (Mathf.PerlinNoise(phase + u * length * 2.5f, depth * 3.1f + 0.5f) > 0.5f)
+                    s.Put(at + Vector3.up * 0.018f, Vector3.up, s.V(Color.Lerp(ember, hot, s.R() * 0.6f * (1f - u)), 0.1f), Mathf.Max(w * 1.15f, s.Thin * 1.3f), s.U(0.35f, 0.5f));
+                else
+                    s.Put(at + Vector3.up * 0.016f, Vector3.up, s.V(dead, 0.1f), Mathf.Max(w * 1.1f, s.Thin * 1.2f));
                 // charred clay either side, thinning out
                 for (int k = 0; k < 3; k++)
                 {
@@ -2667,64 +3005,123 @@ namespace AntGarden
         }
 
         /// <summary>
-        /// Charred twigs, long after the fire (the kiln temple, redesigned 2026-10-27): two to four burnt sticks lying across
-        /// each other, their charcoal cracked into the square checks burnt wood takes, silver grey on the raised checks, a
-        /// little grey ash settled on top. Deep in a few cracks along the grain toward one end, and in that end where it
-        /// broke, an ember still glows: small, most of a twig is dark (the light follows the grain, as the user wants a
-        /// marking to follow how a thing grew). An antenna's touch brightens it (SolidThings). size is the longest twig.
+        /// Charred twigs, long after the fire (the kiln temple, redesigned 2026-10-27): two or three burnt sticks lying apart,
+        /// none touching (one whole, one forked, one broken in two), their charcoal cracked into the square checks burnt wood
+        /// takes, grey on the raised checks, a little grey ash settled on top. Deep in a few cracks along the grain toward one
+        /// end, and in that end where it broke, an ember still glows: small, most of a twig is dark (the light follows the
+        /// grain, as the user wants a marking to follow how a thing grew). An antenna's touch brightens it (SolidThings).
+        /// size is the longest twig.
         /// </summary>
         public static void CharTwigs(ThingPen pen, Vector3 p, Vector3 n, Vector3 ta, Vector3 tb, float size)
         {
             var s = new NestThingsGrowth.Spot(pen, p, n, ta, tb);
             // (its sheen and its ash darker and fewer than k3's, whose twigs read as pale tan sticks from above; darker again
-            // in k11: lit up close, a pale grey X like glass rods, k10 content review)
-            Color char0 = new Color(0.035f, 0.03f, 0.03f), sheen = new Color(0.075f, 0.071f, 0.074f), ash = new Color(0.18f, 0.172f, 0.165f);
-            // a crust or two of lichen on some, so long after the fire the first thing on the charred wood: a pale warm grey,
-            // in its world's colours (k11-k11c grey-green, a cool note for its family, a bright green blob at twice the chroma;
-            // the user, 10-29: "在自己的环境中，所有植物应该偏向这个环境色", a green mapped into its red, not kept green)
-            Color lichenDark = new Color(0.085f, 0.072f, 0.064f), lichenPale = new Color(0.17f, 0.152f, 0.136f);
+            // in k11: lit up close, a pale grey X like glass rods, k10 content review; warmer and darker again in k17: near the
+            // ant, pale grey-blue tubes, k16. No lichen since k13: a whole pale section read as a glass rod, k12)
+            Color char0 = new Color(0.035f, 0.03f, 0.03f), sheen = new Color(0.06f, 0.054f, 0.05f), ash = new Color(0.18f, 0.172f, 0.165f);
             // (hot from 0.3 green: k2's embers read orange; both toward crimson since k8: bright, a red turns orange on the
             // screen, at 1, 0.09, 0.04 they read 18-21°, k7 colour review)
             Color ember = new Color(0.85f, 0.02f, 0.04f), hot = new Color(1.0f, 0.05f, 0.05f);   // (k8b: at 0.9, 0.035, 0.035, bright, 12°)
-            int twigs = 2 + (int)(s.R() * 3f);
-            float spin = s.R() * Tau;
+            // two or three twigs lying apart, a third of the longest at least between any two: one whole, one forked, one
+            // broken in two (k17: until k16 they lay across each other, an X, a "+" or a "人" in every group, the third time,
+            // k14-k16 content reviews). Each is a piece or two: its middle, its way, length, radius, how warm the broken end
+            // at its start, and whether it has one
+            int twigs = 2 + (int)(s.R() * 1.99f);   // (two or three: four crossing at one point read as a star, k12-k15)
+            int forked = 1 + (int)(s.R() * 1.99f), broken = 3 - forked;   // (which of the other two is forked, which broken)
+            var pieces = new System.Collections.Generic.List<(Vector3 mid, Vector3 ax, float len, float rad, float warm, bool face)>();
+            var laid = new System.Collections.Generic.List<(Vector2 a, Vector2 b, float rad)>();
             for (int t = 0; t < twigs; t++)
             {
                 // (twice as thick as k1's, which lay on the floor as a thin streak of coal bits: a twig is a log to an ant)
-                float len = size * (t == 0 ? 1f : s.U(0.45f, 0.85f)), rad = Mathf.Max(0.07f, len * s.U(0.045f, 0.065f));
-                float dir = spin + t * s.U(0.7f, 1.5f);   // (crossing the ones under it)
-                var ax = new Vector3(Mathf.Cos(dir), 0f, Mathf.Sin(dir));
+                float len = size * (t == 0 ? 1f : s.U(0.5f, 0.85f)), rad = Mathf.Max(0.07f, len * s.U(0.045f, 0.065f));
+                float warm = t == 0 ? 1f : s.U(0.15f, 0.6f);   // (one end still warm; the first twig most)
+                // where it lies: tried round the first until it is clear of the ones laid (none: left out)
+                for (int tries = 0; tries < 16; tries++)
+                {
+                    float dir = s.R() * Tau, reach = t == 0 ? 0f : size * s.U(0.35f, 0.85f), round = s.R() * Tau;
+                    var ax = new Vector3(Mathf.Cos(dir), 0f, Mathf.Sin(dir));
+                    Vector3 mid = new Vector3(Mathf.Cos(round), 0f, Mathf.Sin(round)) * reach;
+                    // a fork: a branch from two thirds along, to one side; a break: a gap a little off its middle, the far
+                    // piece turned a little
+                    // (k18: wider, longer and thicker than k17's 26-40°, a third to a half, 0.7: in no view a Y, k17 content review)
+                    float bu = s.U(0.55f, 0.75f), turn = (s.R() < 0.5f ? -1f : 1f) * s.U(0.6f, 0.95f), bLen = len * s.U(0.5f, 0.65f);
+                    float at = s.S() * 0.15f * len, gap = len * s.U(0.06f, 0.12f), kink = s.S() * 0.2f;
+                    var parts = new System.Collections.Generic.List<(Vector3 mid, Vector3 ax, float len, float rad, float warm, bool face)>();
+                    if (t == broken)
+                    {
+                        Vector3 brk = mid + ax * at, kAx = new Vector3(Mathf.Cos(dir + kink), 0f, Mathf.Sin(dir + kink));
+                        float lenA = len * 0.5f + at - gap * 0.5f, lenB = len * 0.5f - at - gap * 0.5f;
+                        parts.Add((brk - ax * (gap * 0.5f + lenA * 0.5f), -ax, lenA, rad, warm, true));
+                        parts.Add((brk + kAx * (gap * 0.5f + lenB * 0.5f), kAx, lenB, rad * 0.92f, warm * 0.5f, true));
+                    }
+                    else
+                    {
+                        parts.Add((mid, ax, len, rad, warm, true));
+                        if (t == forked)
+                        {
+                            var bAx = new Vector3(Mathf.Cos(dir + turn), 0f, Mathf.Sin(dir + turn));
+                            parts.Add((mid + ax * ((bu - 0.5f) * len) + bAx * (bLen * 0.5f), bAx, bLen, rad * 0.8f, 0f, false));
+                        }
+                    }
+                    bool clear = true;
+                    var mine = new System.Collections.Generic.List<(Vector2 a, Vector2 b, float rad)>();
+                    foreach (var q in parts)
+                    {
+                        var seg = (Flat(q.mid - q.ax * (q.len * 0.5f)), Flat(q.mid + q.ax * (q.len * 0.5f)), q.rad);
+                        foreach (var o in laid)
+                            if (SegDist(seg.Item1, seg.Item2, o.a, o.b) < seg.Item3 + o.rad + size * 0.3f) clear = false;
+                        mine.Add(seg);
+                    }
+                    if (!clear) continue;
+                    laid.AddRange(mine);
+                    pieces.AddRange(parts);
+                    break;
+                }
+            }
+            for (int i = 0; i < pieces.Count; i++)
+            {
+                var (mid, ax, len, rad, warm, face) = pieces[i];
                 var side = new Vector3(-ax.z, 0f, ax.x);
-                Vector3 mid = side * (s.S() * size * 0.16f) + ax * (s.S() * size * 0.1f);
-                float bend = s.S() * 0.1f * len, warm = t == 0 ? 1f : s.U(0.15f, 0.6f);   // (one end still warm; the first twig most)
+                // its ends first, then its sides with what is left (k18b: drawn after the sides, the last piece's ends got
+                // none of its splats, the sides had taken them all; open, seen end on, a hollow tube lit inside, k17 content
+                // review). Its far, thin end shut: a solid face of charcoal, its splats large enough to close it
+                Vector3 tip = mid + ax * (0.5f * len) + Vector3.up * rad;
+                float tipR = rad * 0.65f;
+                int tc = s.Count(3.1416f * tipR * tipR * 1.3f, 12) * 2;
+                for (int j = 0; j < tc; j++)
+                {
+                    float q = Mathf.Sqrt(s.R()), a = s.R() * Tau;
+                    Vector3 at = tip + (Vector3.up * Mathf.Cos(a) + side * Mathf.Sin(a)) * (q * tipR) + ax * (s.R() * tipR * 0.12f);
+                    s.Put(at, ax, s.V(Color.Lerp(char0, sheen, 0.3f * (1f - q)), 0.12f), s.Rad(0.7f));
+                }
+                if (face)
+                {
+                    // its broken end, where the twig snapped: a ragged face of solid charcoal, a little domed, the warm one
+                    // with embers in two or three cracks across it (embers all over its middle, ringed by charcoal, read as
+                    // a hollow tube lit inside, k17 content review)
+                    Vector3 end = mid - ax * (0.5f * len) + Vector3.up * rad;
+                    int f = s.Count(3.1416f * rad * rad * 1.3f, 14) * 2;
+                    float c1 = s.R() * 360f, c2 = c1 + s.U(100f, 150f), c3 = c2 + s.U(90f, 140f);
+                    for (int j = 0; j < f; j++)
+                    {
+                        float q = Mathf.Sqrt(s.R()), a = s.R() * Tau, deg = a * Mathf.Rad2Deg;
+                        Vector3 at = end + (Vector3.up * Mathf.Cos(a) + side * Mathf.Sin(a)) * (q * rad) - ax * (s.R() * rad * 0.15f + (1f - q * q) * rad * 0.12f);
+                        float crack = Mathf.Min(Mathf.Abs(Mathf.DeltaAngle(deg, c1)), Mathf.Min(Mathf.Abs(Mathf.DeltaAngle(deg, c2)), Mathf.Abs(Mathf.DeltaAngle(deg, c3)))) * Mathf.Deg2Rad * q;
+                        bool glowing = q > 0.15f && q < 0.85f && crack < 0.08f && s.R() < 0.9f * warm;
+                        // (as dim as its cracks' embers: at 0.5-0.8 its broken end blew out orange, k3 and k6 colour reviews)
+                        s.Put(at, -ax, s.V(glowing ? Color.Lerp(ember, hot, (1f - q) * 0.4f) : Color.Lerp(char0, sheen, 0.25f * s.R()), 0.12f), s.Rad(glowing ? 0.45f : 0.7f), glowing ? s.U(0.32f, 0.5f) * (1f - q * 0.5f) : 0f);
+                    }
+                }
+                float bend = s.S() * 0.1f * len;
                 float checkU = rad * s.U(1.6f, 2.4f);   // the checks about as long as they are wide (six round the twig)
-                int cracks = 6, m = Mathf.Min(s.Left / Mathf.Max(1, twigs - t), s.Count(Tau * rad * len, 60));
-                // its lichen: on about half the twigs, one to three lobed crusts on its top, along its cooler length
-                int lichens = s.R() < 0f ? 1 + (int)(s.R() * 2.99f) : 0;   // (none since k13: a whole pale section read as a glass rod, k12)
-                var lu = new float[lichens];
-                var la = new float[lichens];
-                var lr = new float[lichens];
-                for (int q = 0; q < lichens; q++) { lu[q] = s.U(0.3f, 0.95f); la[q] = s.U(-0.8f, 0.8f); lr[q] = rad * s.U(1f, 2f); }
+                int cracks = 6, m = Mathf.Min(s.Left / Mathf.Max(1, pieces.Count - i), s.Count(Tau * rad * len, 60));
                 for (int j = 0; j < m; j++)
                 {
                     float u = s.R(), a = s.R() * Tau;
-                    // thinner toward the far end; bowed a little; the upper twigs rest on the ones under them
+                    // thinner toward the far end; bowed a little; lying on the floor
                     float r = rad * (1f - 0.35f * u) * (1f + 0.05f * Mathf.Sin(a * 3f + u * 17f));
-                    float rest = rad * (1f + 0.9f * t * Mathf.Max(0f, 1f - Mathf.Abs(u - 0.5f) * 2.2f));
                     var o = new Vector3(0f, Mathf.Cos(a), 0f) + side * Mathf.Sin(a);
-                    Vector3 at = mid + ax * ((u - 0.5f) * len) + side * (bend * 4f * u * (1f - u)) + Vector3.up * rest + o * r;
-                    bool lichen = false;
-                    for (int q = 0; q < lichens && !lichen; q++)
-                    {
-                        float du = (u - lu[q]) * len, da = Mathf.DeltaAngle(a * Mathf.Rad2Deg, la[q] * Mathf.Rad2Deg) * Mathf.Deg2Rad * r;
-                        float lobe = lr[q] * (0.82f + 0.22f * Mathf.Sin(Mathf.Atan2(da, du) * 5f + q * 1.7f));
-                        lichen = du * du + da * da < lobe * lobe;
-                    }
-                    if (lichen)
-                    {
-                        s.Put(at + o * (r * 0.06f), o, s.V(Color.Lerp(lichenDark, lichenPale, s.R()), 0.08f), s.Rad(0.5f));
-                        continue;
-                    }
+                    Vector3 at = mid + ax * ((u - 0.5f) * len) + side * (bend * 4f * u * (1f - u)) + Vector3.up * rad + o * r;
                     // where it lies in the checks: along the grain between six cracks, across at even steps
                     float along = u * len / checkU, round = a / Tau * cracks + 0.15f * Mathf.Sin(along * 1.7f);
                     float dAlong = Mathf.Abs(along - Mathf.Round(along)) * checkU, dRound = Mathf.Abs(round - Mathf.Round(round)) * (Tau * r / cracks);
@@ -2739,24 +3136,28 @@ namespace AntGarden
                         else s.Put(at - o * (r * 0.1f), o, s.V(char0 * 0.6f, 0.2f), s.Rad(0.45f));
                         continue;
                     }
-                    // the checks: dark charcoal, silver on their raised middles; ash settled on top
+                    // the checks: dark charcoal, grey on their raised middles; ash settled on top
                     float raised = Mathf.Min(dAlong / checkU, dRound / (Tau * r / cracks)) * 2f;
                     Color col = Color.Lerp(char0, sheen, Mathf.Clamp01(raised * 1.2f) * s.U(0.4f, 1f));
                     if (o.y > 0.55f && s.R() < 0.08f) col = Color.Lerp(col, ash, s.U(0.5f, 1f));
                     s.Put(at, o, s.V(col, 0.12f), s.Rad(0.55f));
                 }
-                // its broken end, where the twig snapped: a ragged face, the warm one with embers in its middle
-                Vector3 end = mid - ax * (0.5f * len) + Vector3.up * rad;
-                int f = s.Count(3.1416f * rad * rad * 1.3f, 14);
-                for (int j = 0; j < f; j++)
-                {
-                    float q = Mathf.Sqrt(s.R()), a = s.R() * Tau;
-                    Vector3 at = end + (Vector3.up * Mathf.Cos(a) + side * Mathf.Sin(a)) * (q * rad) - ax * (s.R() * rad * 0.15f);
-                    bool glowing = q < 0.6f && s.R() < 0.7f * warm;
-                    // (as dim as its cracks' embers: at 0.5-0.8 its broken end blew out orange, k3 and k6 colour reviews)
-                    s.Put(at, -ax, s.V(glowing ? Color.Lerp(ember, hot, (1f - q) * 0.4f) : char0, 0.12f), s.Rad(0.45f), glowing ? s.U(0.32f, 0.5f) * (1f - q * 0.5f) : 0f);
-                }
             }
+        }
+
+        static Vector2 Flat(Vector3 v) => new Vector2(v.x, v.z);
+
+        /// <summary>How near two segments on the floor come to each other (0 where they cross).</summary>
+        static float SegDist(Vector2 a0, Vector2 a1, Vector2 b0, Vector2 b1)
+        {
+            float Cross(Vector2 o, Vector2 x, Vector2 y) => (x.x - o.x) * (y.y - o.y) - (x.y - o.y) * (y.x - o.x);
+            if (Cross(a0, a1, b0) * Cross(a0, a1, b1) < 0f && Cross(b0, b1, a0) * Cross(b0, b1, a1) < 0f) return 0f;
+            float ToSeg(Vector2 q, Vector2 s0, Vector2 s1)
+            {
+                Vector2 d = s1 - s0;
+                return Vector2.Distance(q, s0 + d * Mathf.Clamp01(Vector2.Dot(q - s0, d) / Mathf.Max(1e-6f, d.sqrMagnitude)));
+            }
+            return Mathf.Min(Mathf.Min(ToSeg(a0, b0, b1), ToSeg(a1, b0, b1)), Mathf.Min(ToSeg(b0, a0, a1), ToSeg(b1, a0, a1)));
         }
 
         /// <summary>
@@ -2816,8 +3217,8 @@ namespace AntGarden
                 // (k10: OKLCH 0.40 / 0.034 / 251°, and still "a blue thing", k10 content review. k11: its body a grey, C 0.02,
                 // its cool only where light catches it, its top's straight edge and its layers, lighter and bluer, C 0.04:
                 // one of the kiln's few cool notes)
-                Color slate = new Color(0.0568f * k, 0.065f * k, 0.0766f * k * s.U(0.97f, 1.03f));   // (k13: a grey slate, C 0.012; at 0.02-0.036 a blue-grey lump on the red-brown floor, k12)
-                Color edge = new Color(0.0853f * k, 0.1137f * k, 0.158f * k);   // (k14: OKLCH 0.48 / 0.03 / 255°, faintly cool where light catches it; 0.02 in k13, too little to count; 0.035 in k12b, 0.06 in k11c, blue)
+                Color slate = new Color(0.0418f * k, 0.0473f * k, 0.0552f * k * s.U(0.97f, 1.03f));   // (k16: as dark as its floor, OKLCH 0.36; at 0.40 lighter than its floor, a pale chip, k15)   // (k13: a grey slate, C 0.012; at 0.02-0.036 a blue-grey lump on the red-brown floor, k12)
+                Color edge = new Color(0.061f * k, 0.0758f * k, 0.0978f * k);   // (k16: OKLCH 0.42 / 0.02, barely cool)   // (k14: OKLCH 0.48 / 0.03 / 255°, faintly cool where light catches it; 0.02 in k13, too little to count; 0.035 in k12b, 0.06 in k11c, blue)
                 // (thicker and less sunk than k10's, whose small ones read as blue dots)
                 float a = (i == 0 ? size : size * s.U(0.4f, 0.7f)) * 0.5f, c = a * s.U(0.6f, 0.85f), b = a * s.U(0.24f, 0.34f);
                 float ph1 = s.R() * Tau;

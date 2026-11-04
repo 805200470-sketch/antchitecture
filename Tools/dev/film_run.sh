@@ -1,7 +1,9 @@
 #!/bin/zsh
 # film_run.sh <out dir> [player args...] - walk the glowing trail in each ruin (frames per ruin, 30 fps);
-# make the video with Tools/frames_to_video.sh. -lang en for the English UI.
+# make the video with Tools/frames_to_video.sh. -lang en for the English UI. Without -world, the old archipelago as
+# before (11-03: the game itself now starts in the honeycomb's blue nest when given no -world).
 O="$1"; shift; mkdir -p "$O/out"
+[[ " $* " == *" -world "* ]] || set -- -world archipelago "$@"
 APP="${0:A:h}/../../05_Builds.nosync/AntGarden_Mac/AntGarden.app"
 perl -e 'alarm 900; exec @ARGV' open -n -W "$APP" --args -mute -quality high -trailfilm "$O/out" "$@" \
   -screen-width 1920 -screen-height 1080 -screen-fullscreen 0 -logFile "$O/player.log"

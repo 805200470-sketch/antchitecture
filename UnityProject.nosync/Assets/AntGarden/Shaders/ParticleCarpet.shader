@@ -43,10 +43,13 @@ Shader "AntGarden/ParticleCarpet"
             float4 _HeightRect;     // the height map's corner (x, z) and size (x, z)
             float4 _TrailPlayer;    // global: the player's ant
             float4 _Fade;           // x: thinning out from, y: gone by (units from the ant)
+            float4 _CarpetEdge;     // toward its edge, the look of the floor it gives way to (x: from, units from the ant; z: how much; w 1: on; 11-04)
+            float4 _CarpetSat;      // and the terrain's saturation there: near the camera (x), far off (y), from z to w units (y 0: none; NestTheme.groundSatByDistance)
             float4 _FloorTint, _TintFloor, _TintBank;   // the floor texture's tint; the floor's own tints (linear)
             float _Step, _N, _Size, _Gain, _MinPixels, _FloorScale, _HueShift, _Saturation, _MeanLum, _Grain, _TexMix;
             float _Vary;    // how far its patches swing in hue (degrees; the nest's floorVary)
             float4 _PatchA, _PatchB;   // patches of other materials on the floor (linear; a: how much; NestTheme.floorPatchA, B)
+            float4 _Wash;              // brighter patches over the floor (rgb: times, linear; a: how much; NestTheme.floorWash)
 
             struct v2f
             {
@@ -122,6 +125,8 @@ Shader "AntGarden/ParticleCarpet"
                 tint = lerp(tint, _PatchA.rgb, _PatchA.a * fl * smoothstep(0, 1, (Patch(xz, 3.7, 63.1) - 0.42) / 0.25));
                 tint = lerp(tint, _PatchB.rgb, _PatchB.a * fl * smoothstep(0, 1, (Patch(xz, 2.9, 27.7) - 0.5) / 0.25));
                 float3 rgb = lerp(tint * lum, albedo * (lum / al), _TexMix) * _Gain;
+                // a nest's brighter patches, the whole of its colour (ParticleLook.Wash makes the same on its points)
+                rgb *= 1 + (_Wash.rgb - 1) * (_Wash.a * fl * smoothstep(0, 1, (Patch(xz, 4.3, 31.7) - 0.45) / 0.25));
                 // patches across the floor, leaning one way and the other in hue, lighter and darker; and a little
                 // drift from splat to splat, as in a capture
                 float pa = Patch(xz, 2.8, 17.3), pb = Patch(xz, 1.1, 41.9);
@@ -129,6 +134,23 @@ Shader "AntGarden/ParticleCarpet"
                 rgb *= 0.55 + 0.9 * pb * pa;
                 // dimmer toward the banks: the floor's edge fades into the walls' points
                 rgb *= smoothstep(0.25, 0.75, lw.r);
+                // (11-04) toward its edge the carpet takes the look of the floor it gives way to: the floor texture's own colour
+                // (as the terrain paints it) at the carpet's light, its patches' swings of hue and of light and dark evened out,
+                // and it no longer darkens as it dissolves; so where it gives way to the terrain and its points, no patch shows
+                // round the ant (the user, of the honey granary: "走过去的场景，不要让这个像一块斑一样的，一点一点出来").
+                // _CarpetEdge: from x units from the ant to the splat's reach, z of the way (w 1: on; ParticleLook.CarpetEdge)
+                float carpetKe = 0;
+                if (_CarpetEdge.w > 0.5)
+                {
+                    carpetKe = _CarpetEdge.z * smoothstep(_CarpetEdge.x, reach, d);
+                    float edgeL = dot(rgb, float3(0.2126, 0.7152, 0.0722));
+                    float3 edgeOwn = albedo * (edgeL / max(1e-4, dot(albedo, float3(0.2126, 0.7152, 0.0722))));
+                    if (_CarpetSat.y > 0) edgeOwn = lerp(edgeL.xxx, edgeOwn, lerp(_CarpetSat.x, _CarpetSat.y, smoothstep(_CarpetSat.z, _CarpetSat.w, length(xz - _WorldSpaceCameraPos.xz))));
+                    // (its light and dark as the terrain shows them too: the texture's own, rel, not _Grain's exaggerated rel², above;
+                    // its darkest blotches, the carpet's own, came out one by one at its edge)
+                    float edgeG = lerp(1, clamp(0.08 + 0.92 * pow(rel, 2.0), 0.04, 3.2), _Grain);
+                    rgb = lerp(rgb, edgeOwn * (0.775 / (0.55 + 0.9 * pb * pa)) * clamp(lerp(1, rel / edgeG, _Grain), 0.3, 3.0), carpetKe);
+                }
                 rgb *= 1 + 0.8 * (1 - smoothstep(0.5, 3.0, d));   // round the ant, as if its antennae felt the ground
                 float3 pos = float3(xz.x, Height(uv) + 0.007 - 0.005 * big, xz.y);
                 float chev = Chevron(pos, Hash(cell + 7));       // a guiding pulse passing: the splats swell, lift and light up
@@ -155,7 +177,7 @@ Shader "AntGarden/ParticleCarpet"
                 o.pos = mul(UNITY_MATRIX_VP, float4(pos + (A1 * (c.x * stretch) + A2 * (c.y / stretch)) * size, 1));
                 o.uv = c;
                 o.shape = Hash(cell + 13);
-                o.col = rgb * soft;
+                o.col = rgb * lerp(soft, 1, carpetKe);
                 // a few small grains glow faintly, breathing with the plants: more of them in some patches, none in others
                 if (_GrainGlow.a > 0 && big < 0.1 && Hash(cell + 5167) < 0.045 * smoothstep(0.45, 0.85, NestNoise2(xz * 0.27 + 5.1)))
                 {

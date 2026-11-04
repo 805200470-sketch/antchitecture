@@ -145,13 +145,16 @@ namespace AntGarden
             if (Arg("-screen-fullscreen") != "1" && Screen.fullScreenMode != FullScreenMode.Windowed && !windowChecked)
                 Screen.SetResolution(cfg.display.windowWidth, cfg.display.windowHeight, FullScreenMode.Windowed);
             windowChecked = true;
-            Selection ??= Arg("-world") ?? cfg.defaultWorld;
+            // with no -world: the blue fungal forest (v15) in the honeycomb of the particle nests (GameConfig.startWorld, 11-03);
+            // the old archipelago only with -world archipelago (or its whole selection, GameConfig.defaultWorld)
+            Selection ??= Arg("-world") ?? cfg.startWorld;
+            if (Selection == "archipelago") Selection = cfg.defaultWorld;
             QualityName ??= Arg("-quality") ?? PlayerPrefs.GetString("antgarden.quality", "medium");
             Preset = cfg.Preset(QualityName);
             QualitySettings.globalTextureMipmapLimit = Preset.textureLimit;
             Debug.Log($"[AntGarden] start: world={Selection} quality={Preset.name}");
             StartCoroutine(Build());
-            string capture = Arg("-capture") ?? Arg("-demo") ?? Arg("-photos") ?? Arg("-animcheck") ?? Arg("-lookcheck") ?? Arg("-npccheck") ?? Arg("-camcheck") ?? Arg("-sceneshots") ?? Arg("-legcheck") ?? Arg("-padcheck") ?? Arg("-trailfilm") ?? Arg("-interactshots") ?? Arg("-stuttercheck");
+            string capture = Arg("-capture") ?? Arg("-demo") ?? Arg("-photos") ?? Arg("-animcheck") ?? Arg("-lookcheck") ?? Arg("-npccheck") ?? Arg("-camcheck") ?? Arg("-sceneshots") ?? Arg("-legcheck") ?? Arg("-padcheck") ?? Arg("-trailfilm") ?? Arg("-interactshots") ?? Arg("-stuttercheck") ?? Arg("-honeycombcheck") ?? Arg("-wordscheck") ?? Arg("-mapcheck");
             if (!string.IsNullOrEmpty(capture)) StartCoroutine(Watchdog(capture));
         }
 
@@ -172,9 +175,14 @@ namespace AntGarden
         void Stage(string label, float frac)
         {
             lastStage = label;
-            hud?.SetProgress(label, frac);
+            hud?.SetProgress(Going(label), frac);
             Debug.Log($"[AntGarden] {label} ({frac:P0}) t={Time.realtimeSinceStartup:F1}s");
         }
+
+        /// <summary>On the way from one particle nest to another (a gate, the map's ring): the loading screen's stage line
+        /// names where the ant is going (11-03).</summary>
+        string Going(string label) => Lab && ArriveFrom != null
+            ? Loc.T($"前往「{Gates.WorldName(Selection)}」 · ", $"To {Gates.WorldName(Selection)} · ") + label : label;
 
         void Fail(string message)
         {
@@ -230,6 +238,7 @@ namespace AntGarden
             refs = RuntimeRefs.Load();
             if (refs == null) { Fail(Loc.T("缺少素材清单（RuntimeRefs），请在编辑器里运行 AntGarden/Build Assets", "Asset list (RuntimeRefs) missing: run AntGarden/Build Assets in the editor")); yield break; }
             worlds = ListWorlds(cfg.defaultWorld, cfg.labWorld);
+            if (Lab) HoneyMap.Prepare(cfg, worlds);   // the honeycomb's map: every nest of the ring drawn off the main thread, once a session (11-04)
 
             // 1 · path fields, one per region (main thread: Unity file APIs, and each takes well under a second)
             Stage(Loc.T("由路径计算峡谷…", "Carving the canyon from the paths…"), 0.05f);
@@ -340,12 +349,20 @@ namespace AntGarden
                 ground.SetColor("_GlowColor", r.biome.speckColor);
                 // (checks: -groundhue N turns a particle nest's ground N degrees more, to try its ground's hue without a build)
                 float groundTried = Lab && Arg("-groundhue") is string gh && float.TryParse(gh, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ghv) ? ghv : 0f;
-                ground.SetFloat("_HueShift", before ? (r.biome.id == "honey" ? -25f : 90f) : r.biome.terrainHue + groundTried);
-                ground.SetFloat("_Saturation", r.biome.terrainSaturation);
+                ground.SetFloat("_HueShift", before ? (r.biome.id == "honey" ? -25f : 90f) : r.biome.terrainHue + groundTried + (tinted != null ? tinted.groundHue : 0f));   // (NestTheme.groundHue)
+                // (and -terrainsat N sets its ground textures' saturation, to try it without a build)
+                float satTried = Lab && Arg("-terrainsat") is string tsa && float.TryParse(tsa, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float tsv) ? tsv : -1f;
+                ground.SetFloat("_Saturation", satTried >= 0f ? satTried : tinted != null && tinted.groundSat >= 0f ? tinted.groundSat : r.biome.terrainSaturation);   // (NestTheme.groundSat)
+                if (tinted != null && tinted.groundSatByDistance.y > 0f)   // (NestTheme.groundSatByDistance)
+                {
+                    ground.SetFloat("_SatNear", tinted.groundSatByDistance.x);
+                    ground.SetFloat("_SatFar", tinted.groundSatByDistance.y);
+                    ground.SetVector("_SatRange", new Vector4(tinted.groundSatByDistance.z, tinted.groundSatByDistance.w, 0f, 0f));
+                }
                 int ri = i;
                 if (r.cell) continue;   // a honeycomb's cells are built together below
                 yield return TerrainBuilder.Build(world, r, ground, refs.soilWall, root, Preset.terrainStep, 7f,
-                    p => hud.SetProgress(Loc.T("铺设峡谷地面", "Laying the canyon floor"), 0.08f + 0.3f * (ri + p) / world.regions.Count));
+                    p => hud.SetProgress(Going(Loc.T("铺设峡谷地面", "Laying the canyon floor")), 0.08f + 0.3f * (ri + p) / world.regions.Count));
             }
             var honeycomb = world.regions.FindAll(r => r.cell);
             if (honeycomb.Count > 0)
@@ -438,6 +455,7 @@ namespace AntGarden
                     if (fineCurls && rule.plant == "curl_glow") rule.biomes = "none";
                     rules.Add(rule);
                 }
+                if (theme.extraRules != null) rules.AddRange(theme.extraRules);   // (and a nest's own rules for the world's plants, last: NestTheme.extraRules)
                 cfg.scatter.rules = rules.ToArray();
             }
             int placed = 0;
@@ -448,7 +466,7 @@ namespace AntGarden
                 float density = Preset.density * (r.ids.Length >= 3 ? 0.85f : 1f);
                 var scatter = new Scatter(world, r, refs, cfg.scatter, density, 1234 + 97 * i, root);
                 int ri = i;
-                yield return scatter.Run(p => hud.SetProgress(Loc.T("让植物长出来", "Growing the plants"), 0.4f + 0.35f * (ri + p) / world.regions.Count));
+                yield return scatter.Run(p => hud.SetProgress(Going(Loc.T("让植物长出来", "Growing the plants")), 0.4f + 0.35f * (ri + p) / world.regions.Count));
                 placed += scatter.Placed;
             }
             gates = Gates.Build(world, refs, cfg.gates, root);
@@ -463,7 +481,8 @@ namespace AntGarden
                 world.glow.onFlare = at => { Sfx.Flare(at); Pad.Rumble(0.05f, 0.12f, 0.07f); lab?.OnPlantLit(hud); lab?.RippleAt(at); };
                 world.glow.onStory = (k, at) =>
                 {
-                    hud.ShowLine(Loc.T("留在这里的话 · 一位访客", "Left here · by a visitor"), Voices.T(Voices.Stories[k % Voices.Stories.Length]));
+                    var story = Voices.Stories[k % Voices.Stories.Length];
+                    hud.ShowLine("留在这里的话 · 一位访客", "Left here · by a visitor", story.zh, story.en);
                     Voices.Chime(at + Vector3.up, 1.9f, 0.35f);
                 };
             }
@@ -484,6 +503,8 @@ namespace AntGarden
             Pad.rumble = cfg.padRumble;
             if (Arg("-sfxdump") != null) { Sfx.Dump(Arg("-sfxdump")); Application.Quit(); }
             if (Lab) { cfg.atmosphere.exposure -= 0.28f - NestTheme.Current.exposureLift; cfg.atmosphere.fogDensity *= 1.35f; }   // the particle nest: a darker night, still lit
+            Shader.SetGlobalVector("_NestFar", Lab && NestTheme.Current.farDark.w > 0f ? NestTheme.Current.farDark : Vector4.zero);   // (NestTheme.farDark; the build has no fog)
+            Shader.SetGlobalVector("_NestFarSat", Lab && NestTheme.Current.farSat.w > 0f ? NestTheme.Current.farSat : Vector4.zero);   // (NestTheme.farSat: its glowing points calmer far off)
             spores = Atmosphere.Apply(cam, refs, cfg.atmosphere, Preset);
             if (Lab)
             {
@@ -526,6 +547,8 @@ namespace AntGarden
             {
                 // the particle nest: a deep mist in its theme's colour, so depth reads as haze, not as nothing
                 atmosphere.fogTint = NestTheme.Current.fog;
+                atmosphere.equatorGain = NestTheme.Current.wallAmbient;   // (1 in all but the kiln's: its shaded walls lit)
+                atmosphere.equatorGrey = NestTheme.Current.wallAmbientGrey;
                 // and its sky a deep night in that colour, not black (the zenith toward the horizon's colour; a big black
                 // sky over the walls read as a hole: "不要出现这样的一大片黑")
                 Color top = NestTheme.Current.skyTop, horizon = NestTheme.Current.skyHorizon;
@@ -551,6 +574,7 @@ namespace AntGarden
             hud.SetHelp(world.label);
             if (Lab) hud.SetHelpVisible(false);   // chapter one: one goal at a time instead
             if (Arg("-controls") != null) hud.SetControlsVisible(true);   // showing the game to people: the pad's controls top left
+            if (Tutorial.Wanted()) gameObject.AddComponent<Tutorial>().Init(this);   // the first minutes with the pad, once a session (Tutorial)
             hud.HideLoading();
             Ready = true;
             Debug.Log($"[AntGarden] ready: {world.label}");
@@ -588,11 +612,20 @@ namespace AntGarden
             }
             string padDir = Arg("-padcheck");
             if (!string.IsNullOrEmpty(padDir)) StartCoroutine(PadCheck.Run(this, padDir));
+            // check: -honeycombcheck <dir> tours the honeycomb's nests through their gates and the map's ring (HoneycombCheck)
+            string honeyDir = Arg("-honeycombcheck");
+            if (!string.IsNullOrEmpty(honeyDir)) StartCoroutine(HoneycombCheck.Run(this, honeyDir));
+            // check: -wordscheck <dir> what the nest's ants say, and the controls panel with -controls (WordsCheck, 11-04)
+            string wordsDir = Arg("-wordscheck");
+            if (!string.IsNullOrEmpty(wordsDir)) StartCoroutine(WordsCheck.Run(this, wordsDir));
+            // check: -mapcheck <dir> stills of the minimap in each nest of the ring and of the big map at this screen size (MapCheck, 11-04)
+            string mapDir = Arg("-mapcheck");
+            if (!string.IsNullOrEmpty(mapDir)) StartCoroutine(MapCheck.Run(this, mapDir));
         }
 
         static string[] SelectionIds(string spec) => spec.StartsWith("stitch:") ? spec.Split(':')[2].Split(',') : new[] { spec };
 
-        static Dictionary<string, string> ReadNetworks(string spec)
+        internal static Dictionary<string, string> ReadNetworks(string spec)   // (internal: HoneyMap reads the ring's nests too)
         {
             var texts = new Dictionary<string, string>();
             foreach (string id in SelectionIds(spec)) texts[id] = File.ReadAllText(PathFile(id));
@@ -623,7 +656,7 @@ namespace AntGarden
 
         /// <summary>Pure computation: no Unity API calls in here. Returns the field, connector and path counts, ids.
         /// A single nest's config is handed to <paramref name="passages"/> last, after widthScale (the particle nest's passages).</summary>
-        static (PathField, int, int, string[]) MakeField(string spec, Dictionary<string, string> texts, IList<double> widthScale = null,
+        internal static (PathField, int, int, string[]) MakeField(string spec, Dictionary<string, string> texts, IList<double> widthScale = null,
             Action<PathConfig> passages = null)
         {
             var pc = PathConfig.Default();
@@ -658,7 +691,7 @@ namespace AntGarden
         /// narrowest squeeze (MinHalfWidth) and the chambers at the forks and dead ends (ChamberMin) keep what labWidth
         /// gives them. Measured without Unity: floor 3.5 to 7.9 units across, 5.4 on average (it was 3.5 to 9.0, 5.9).
         /// </summary>
-        static Action<PathConfig> LabPassages(GameConfig cfg) => pc =>
+        internal static Action<PathConfig> LabPassages(GameConfig cfg) => pc =>
         {
             pc.EdgeWidthRange = new double[] { cfg.labPassageSpread.x, cfg.labPassageSpread.y };
             pc.WidthVariation = cfg.labPassageSwell;
@@ -731,7 +764,8 @@ namespace AntGarden
             player.Place(sp.x, sp.z, sp.heading);
             rig.SnapBehind(player.heading);
             // coming through a gate from another world: stand just inside the gate that leads back there
-            Gate back = ArriveFrom != null ? gates.Find(g => g.world == ArriveFrom) : null;
+            // (in the honeycomb the one RingGates gave that neighbour: a nest may have two gates to it)
+            Gate back = ArriveFrom == null ? null : gateBack.TryGetValue(ArriveFrom, out Gate main) ? main : gates.Find(g => g.world == ArriveFrom);
             if (back != null) TeleportToGate(back, false);
             // a soft ring under the player's ant tells it apart from the NPC ants
             playerRing = new Rings.Draped("PlayerRing", 0.58f, 0.66f, refs.slotRing, (NestTheme.Current != null ? NestTheme.Current.ring : new Color(0.5f, 0.9f, 0.95f)) * 0.8f);
@@ -753,7 +787,9 @@ namespace AntGarden
                 particleLook.shimmer = 0.006f;
                 particleLook.scanOverride = new Color(theme.scan.r, theme.scan.g, theme.scan.b, 1f);
                 particleLook.scanMix = 0.75f;   // the plants' own colours mostly under the one palette
-                particleLook.grain = 1f;
+                particleLook.grain = theme.groundGrain;   // (a nest's own: NestTheme.groundGrain, 1 in all but the kiln's)
+                particleLook.pointShade = theme.pointShade;   // (and NestTheme.pointShade, 0 in all but the kiln's)
+                particleLook.groundNearKeep = theme.groundNearKeep;   // (and NestTheme.groundNearKeep, 1 in all but the kiln's)
                 particleLook.bodyPalette = theme.body;
                 particleLook.glowPalette = theme.glow;
                 particleLook.bodyAccent = theme.bodyAccent;
@@ -769,7 +805,8 @@ namespace AntGarden
                 // points' light to the surface behind them, so a far wall reads as a lit wall with grain on it rather than a
                 // glitter of points on a dark one (none in v15; about 0.6 in a nest lifted two stops more)
                 // (at least 0.4 in a nest made by NestPalette: the kiln temple, lifted only half a stop, kept its walls' pale glitter)
-                float toSurface = Mathf.Max(1f - NestTheme.LightComp(0.6f), theme.segment >= 0 ? 0.4f : 0f);
+                // (and a nest's own share where it asks for more, NestTheme.toSurface: the kiln's 0.6, its shaded walls still a glitter at 0.4)
+                float toSurface = Mathf.Max(Mathf.Max(1f - NestTheme.LightComp(0.6f), theme.segment >= 0 ? 0.4f : 0f), theme.toSurface);
                 particleLook.groundDim = 1f - 0.1f * theme.groundGain * (1f + 2f * toSurface);
                 particleLook.groundBrightness = 2.6f * theme.groundGain * (1f - toSurface);
                 Color Opaque(Color c) => new Color(c.r, c.g, c.b, 1f);
@@ -867,9 +904,10 @@ namespace AntGarden
             new ScatterRule { plant = "pixie_cup_lichen", dMin = -0.4f, dMax = 3.0f, spacing = 9f, height = new Vector2(1.0f, 2.0f), tilt = 0.15f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2), patchiness = 0.3f },
             // (the capsules three or four from one spot, a grove whose heads touch, leaning out a little: one alone, its
             // seven stalks spread from a small cushion, read thin, review k12; two or three a few ants apart still stood
-            // apart, k14; three or four still thin, k15: four to six)
-            new ScatterRule { plant = "moss_capsules", dMin = -0.4f, dMax = 3.2f, spacing = 10f, height = new Vector2(1.8f, 3.2f), tilt = 0.1f, tintJitter = 0.08f, patchiness = 0.3f,
-                tuft = new Vector2Int(4, 6), tuftLean = 8f, tuftScale = new Vector2(0.6f, 1f) },
+            // apart, k14; three or four still thin, k15: four to six; four to six still a few thin lines, their heads apart,
+            // k29 plant review: seven to ten, more alike in height)
+            new ScatterRule { plant = "moss_capsules", dMin = -0.4f, dMax = 3.2f, spacing = 10f, height = new Vector2(1.8f, 3.2f), tilt = 0.1f, tintJitter = 0.05f, patchiness = 0.3f,
+                tuft = new Vector2Int(7, 10), tuftLean = 8f, tuftScale = new Vector2(0.72f, 1f) },
             // the kiln temple's own (Tripo, 02_Concepts/Kiln_Redesign_v1/fronts), the life that follows a fire: bonfire cups
             // low on the ash close beside the way, their rims beaded (half the height they had in k1: there a cup was as big
             // as the ant, the cluster a heap of clay bowls); fire morels in ones and twos, a few ants tall
@@ -880,12 +918,14 @@ namespace AntGarden
             // still lay half on the slope and sank them to its lowest ground, their stems under it, k10)
             // (faced to the way: its model's caps stand side by side from the front; turned any way, from the way the small cap
             // stood before the big one, k12)
-            new ScatterRule { plant = "fire_morel", dMin = -1.1f, dMax = -0.4f, spacing = 8.5f, height = new Vector2(1.4f, 2.6f), tilt = 0.05f, tintJitter = 0.06f, cluster = new Vector2Int(1, 2), patchiness = 0.3f, faceWay = true },
+            new ScatterRule { plant = "fire_morel", dMin = -1.1f, dMax = -0.4f, spacing = 8.5f, height = new Vector2(1.4f, 2.6f), tilt = 0.05f, tintJitter = 0.06f, cluster = new Vector2Int(1, 2), patchiness = 0.3f, faceWay = true, faceTurn = 90f },   // (faced to the way, its row of caps lay along the views looking down the way, k15: turned a quarter more)
             // the amber nest's own (Tripo, 02_Concepts/Amber_v1_候选): little frankincense trees along the way, a few ants
             // tall, tears of resin in rows down their peeling bark; gumweed in clumps low beside it, a bead of resin in each bud
             // (a gumweed tall enough that its surface is over ParticleLook.accentArea: smaller, some took a cool accent whole, lilac)
             new ScatterRule { plant = "tear_tree", dMin = -0.2f, dMax = 3.4f, spacing = 11f, height = new Vector2(2.6f, 4.2f), tilt = 0.08f, tintJitter = 0.06f, patchiness = 0.3f },
-            new ScatterRule { plant = "gumweed", dMin = -0.4f, dMax = 3.0f, spacing = 7f, height = new Vector2(1.9f, 2.6f), tilt = 0.12f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2), patchiness = 0.3f },
+            // (gumweed in tufts of three to five from one crown, leaning out: one or two loose stems read as a thin column, k23)
+            new ScatterRule { plant = "gumweed", dMin = -0.4f, dMax = 3.0f, spacing = 10f, height = new Vector2(1.9f, 2.6f), tilt = 0.12f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2), patchiness = 0.3f,
+                tuft = new Vector2Int(3, 5), tuftScale = new Vector2(0.75f, 1f), tuftLean = 12f },
         };
 
         /// <summary>Animation check: the player's ant becomes another species, in place (camera and ring stay).</summary>
@@ -933,6 +973,15 @@ namespace AntGarden
                 if (Lab) perNest = 6;    // the particle nest: few ants, each drawn as points
                 int count = Mathf.Min(Mathf.RoundToInt(perNest * r.ids.Length * qualityFactor), cfg.npcs.maxCount - n);
                 var kinds = SpeciesMix(pool, dominant.s, count, rng);
+                // the particle nest (11-04): two of its six winged (GameConfig.FlightSettings.labFlyers), in place of walkers
+                // of the other kinds, never its colony's
+                if (Lab && pool.Exists(p => p.s.canFly))
+                {
+                    var winged = pool.Find(p => p.s.canFly);
+                    int have = kinds.FindAll(k => k.s.canFly).Count;
+                    for (int i = kinds.Count - 1; i >= 0 && have < cfg.npcs.flight.labFlyers; i--)
+                        if (!kinds[i].s.canFly && kinds[i].s != dominant.s) { kinds[i] = winged; have++; }
+                }
                 var census = new Dictionary<string, int>();
                 for (int i = 0; i < kinds.Count; i++, n++)
                 {
@@ -960,7 +1009,11 @@ namespace AntGarden
                     ant.Init(world, settings, ar, rim, glow, hue, r.biome.antSaturation);
                     ant.grid = antGrid;
                     var npc = new NpcAnt(ant, sp, world, cfg.npcs, 1000 + n, ar.takeoffForward, ar.takeoffRise, ar.landForward, r.index);
-                    if (rng.NextDouble() < cfg.npcs.messengerShare) npc.lineIndex = rng.Next(Voices.AntLines.Length);
+                    // some have something to say as antennae touch: in a particle nest, its own lines (NpcLines, 11-04); the old
+                    // draw stays, so every ant's role and place stay as they were
+                    bool messenger = rng.NextDouble() < cfg.npcs.messengerShare;
+                    if (messenger) rng.Next(Voices.AntLines.Length);
+                    npc.voice = NpcLines.For(Lab ? r.biome.id : null, i, messenger);
                     double roll = rng.NextDouble();
                     NpcAnt.Role role = roll < cfg.npcs.chamberShare && chambers.Count > 0 ? NpcAnt.Role.Chamber
                         : roll < cfg.npcs.chamberShare + cfg.npcs.wanderShare ? NpcAnt.Role.Wander : NpcAnt.Role.Trail;
@@ -1139,6 +1192,8 @@ namespace AntGarden
                     if (Vector2.Distance(new Vector2(g.position.x, g.position.z), new Vector2(ex.x, ex.z)) < 6f) taken = true;
                 if (!taken) free.Add(ex);
             }
+            // a particle nest of the honeycomb opens only on its two neighbours (11-03: RingGates)
+            if (Lab && RingGates(parent, free)) return;
             string home = cfg.defaultWorld;
             var dests = new List<string>();
             string nextLab = null;
@@ -1191,14 +1246,80 @@ namespace AntGarden
             Debug.Log($"[AntGarden] world gates {made} (exits {world.exits.Count}): {string.Join(", ", gates.FindAll(g => g.world != null).ConvertAll(g => g.world))}");
         }
 
+        /// <summary>The honeycomb: for each neighbour, the gate an ant coming from there arrives at (RingGates).</summary>
+        readonly Dictionary<string, Gate> gateBack = new Dictionary<string, Gate>();
+        public IReadOnlyDictionary<string, Gate> GatesBack => gateBack;   // (checks: HoneycombCheck)
+
+        /// <summary>
+        /// The honeycomb (the user, 11-03): the particle nests stay separate worlds, a ring of hexagons in hue order
+        /// (GameConfig.labWorld, as on the map: BigMap.RingAt, the first at the top, on clockwise), and each opens on its
+        /// two neighbours only. Its way out, where its light leads (LabNest.Heart), opens on the next nest clockwise; of its
+        /// other exits, the one whose direction from the nest's middle best matches the previous nest's on the map opens on
+        /// that one; any left over on whichever of the two lies more its way, so no exit is a dead end. The gates are made
+        /// in the order they always were (the way out, then the exits as they come), so each keeps its arch of points
+        /// (ArchSplats' seed is its place in the list). False when this world is not one of the ring.
+        /// </summary>
+        bool RingGates(Transform parent, List<WExit> free)
+        {
+            var labs = worlds.FindAll(w => w.StartsWith("lab:"));
+            int n = labs.Count, li = labs.IndexOf(Selection);
+            if (n < 2 || li < 0 || free.Count == 0) return false;
+            string next = labs[(li + 1) % n], prev = labs[(li + n - 1) % n];
+            if (lab != null) lab.WayOutTo = next;   // (its chapter's last card names it)
+            Vector2 here = BigMap.RingAt(li, n), toNext = (BigMap.RingAt(li + 1, n) - here).normalized, toPrev = (BigMap.RingAt(li - 1, n) - here).normalized;
+            Region r = world.regions[0];
+            var mid = new Vector2((r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2);
+            Vector2 Dir(WExit ex) => (new Vector2(ex.x, ex.z) - mid).normalized;
+            // the way out: the exit at the end of the light's way (no light: the one facing the next nest best)
+            WExit way = free[0];
+            foreach (WExit ex in free)
+                if (lab != null ? (new Vector2(ex.x, ex.z) - lab.Heart).sqrMagnitude < (new Vector2(way.x, way.z) - lab.Heart).sqrMagnitude
+                    : Vector2.Dot(Dir(ex), toNext) > Vector2.Dot(Dir(way), toNext)) way = ex;
+            // the way back: of the others, the one facing the previous nest best
+            WExit back = null;
+            foreach (WExit ex in free)
+                if (ex != way && (back == null || Vector2.Dot(Dir(ex), toPrev) > Vector2.Dot(Dir(back), toPrev))) back = ex;
+            var order = new List<WExit> { way };
+            foreach (WExit ex in free) if (ex != way) order.Add(ex);
+            // in the nest's own light, soft, as its gates always were
+            Color c = NestTheme.Current != null ? NestTheme.Current.threadHalo * (NestTheme.Current.gateGain * 0.5f) : new Color(0.7f, 0.88f, 1f);
+            var told = new List<string>();
+            foreach (WExit ex in order)
+            {
+                string dest = ex == way ? next : ex == back ? prev : Vector2.Dot(Dir(ex), toNext) >= Vector2.Dot(Dir(ex), toPrev) ? next : prev;
+                Gate g = Gates.WorldGate(world, refs, cfg.gates, parent, ex, dest, c);
+                gates.Add(g);
+                if (ex == way || (ex == back && !gateBack.ContainsKey(dest))) gateBack[dest] = g;
+                Vector2 d = Dir(ex);
+                told.Add($"({ex.x:F0}, {ex.z:F0}) {Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg:F0}° {(ex == way ? "way out" : ex == back ? "way back" : "left over")} → {dest}");
+            }
+            Debug.Log($"[AntGarden] world gates {order.Count} (exits {world.exits.Count}): {string.Join(", ", gates.FindAll(g => g.world != null).ConvertAll(g => g.world))}");
+            Debug.Log($"[AntGarden] honeycomb: {li + 1} of {n}, next {next} (map {Mathf.Atan2(toNext.x, toNext.y) * Mathf.Rad2Deg:F0}°), previous {prev} ({Mathf.Atan2(toPrev.x, toPrev.y) * Mathf.Rad2Deg:F0}°); exits {string.Join("; ", told)}");
+            return true;
+        }
+
         float heartbeat;
         static bool windowChecked;  // only on the first load: later scene reloads keep the player's choice
 
-        /// <summary>Another app in front: drop to a low frame rate (recording and capture runs excepted).</summary>
+        /// <summary>Another app in front and the game out of sight: drop to a low frame rate (recording and capture runs
+        /// excepted). Still on screen beside the app in front, it keeps its full rate, the pad playing there too (11-04:
+        /// the user typed in another window and watched the game run at 15 fps); Update looks again once a second.</summary>
         void OnApplicationFocus(bool focused)
         {
-            if (cfg == null || Arg("-capture") != null || Arg("-demo") != null || Arg("-photos") != null || Arg("-animcheck") != null || Arg("-lookcheck") != null || Arg("-npccheck") != null || Arg("-camcheck") != null || Arg("-sceneshots") != null || Arg("-legcheck") != null || Arg("-padcheck") != null || Arg("-trailfilm") != null || Arg("-interactshots") != null || Arg("-stuttercheck") != null) return;
-            Application.targetFrameRate = focused ? cfg.display.targetFps : cfg.display.backgroundFps;
+            if (cfg == null || Arg("-capture") != null || Arg("-demo") != null || Arg("-photos") != null || Arg("-animcheck") != null || Arg("-lookcheck") != null || Arg("-npccheck") != null || Arg("-camcheck") != null || Arg("-sceneshots") != null || Arg("-legcheck") != null || Arg("-padcheck") != null || Arg("-trailfilm") != null || Arg("-interactshots") != null || Arg("-stuttercheck") != null || Arg("-honeycombcheck") != null || Arg("-wordscheck") != null || Arg("-mapcheck") != null) return;
+            Application.targetFrameRate = focused || WindowOnScreen() ? cfg.display.targetFps : cfg.display.backgroundFps;
+        }
+
+        float onScreenCheck;
+
+        /// <summary>Whether a window of the game can be seen (a Mac: not covered, not on another Space); elsewhere no.</summary>
+        static bool WindowOnScreen()
+        {
+#if UNITY_STANDALONE_OSX && !UNITY_EDITOR
+            return GameControllerMac.WindowOnScreen();
+#else
+            return false;
+#endif
         }
 
         /// <summary>L: switch the UI between 中文 and English without rebuilding the world.</summary>
@@ -1207,8 +1328,13 @@ namespace AntGarden
             Loc.Toggle();
             world.label = WorldLabel();
             hud.SetHelp(world.label);
+            hud.RelabelObjective();   // the chapter's goal top left (written once by LabNest; 11-03, found on the headset)
+            hud.RelabelLine();   // what an ant, a relic or a memory plant is saying (the tutorial writes itself again: Tutorial)
+            if (hud.SlotOpen && nearSlot != null) OpenSlot(nearSlot);   // a story slot's panel, open
             lastPrompt = null;   // the prompt and the nest banner are written again in the new language
-            currentNest = -1;
+            // (a chapter's card on screen is written again in place instead; and while the tutorial's line is up, the banner
+            // only if it shows: popping up under the line it crowded the top of the screen)
+            if (!hud.RelabelChapter() && (!Tutorial.Active || hud.BannerShowing)) currentNest = -1;
             bool open = bigmap.IsOpen;
             bigmap.Destroy();
             bigmap = new BigMap(hud.canvas, painter, world, cfg, gates, Teleport, TeleportToGate, SwitchWorld, worlds);
@@ -1229,6 +1355,7 @@ namespace AntGarden
         {
             heartbeat += Time.unscaledDeltaTime;
             if (heartbeat > 2f) { heartbeat = 0; Debug.Log($"[AntGarden] heartbeat frame={Time.frameCount} t={Time.realtimeSinceStartup:F1}s stage={lastStage}"); }
+            if (!Application.isFocused && (onScreenCheck -= Time.unscaledDeltaTime) < 0) { onScreenCheck = 1; OnApplicationFocus(false); }
             if (!Ready) return;
             float dt = Mathf.Min(0.05f, Time.deltaTime);
             bool mapOpen = bigmap.IsOpen;
@@ -1239,15 +1366,16 @@ namespace AntGarden
                 // keyboard, or the pad: Y map, B back (or the antennae), ☰ help, A = E
                 if (Input.GetKeyDown(KeyCode.M) || Pad.Map) { bigmap.Toggle(); Sfx.Map(bigmap.IsOpen); }
                 bool back = Input.GetKeyDown(KeyCode.Escape) || (Pad.Back && (bigmap.IsOpen || hud.SlotOpen));
-                if (back) { if (bigmap.IsOpen) Sfx.Map(false); bigmap.Toggle(false); hud.HideSlot(); }
-                if (Input.GetKeyDown(KeyCode.H) || Pad.Help) hud.ToggleHelp();
-                if (Input.GetKeyDown(KeyCode.Tab)) CycleQuality();
+                if (back) { if (bigmap.IsOpen) Sfx.Map(false); bigmap.Back(); hud.HideSlot(); }   // (the map: one step back, 11-04)
+                if ((Input.GetKeyDown(KeyCode.H) || Pad.Help) && !Tutorial.Active) hud.ToggleHelp();   // (in the tutorial ☰ / H work when let go: held, they skip it)
+                if (Input.GetKeyDown(KeyCode.C) || Pad.Controls) hud.ToggleControls();   // the controls top left put away or back (⧉; or their ×; 11-04)
+                if (Input.GetKeyDown(KeyCode.Tab) && !mapOpen) CycleQuality();   // (on the map Tab changes its step: HoneyMapScreen)
                 if (Input.GetKeyDown(KeyCode.F) || Input.GetKeyDown(KeyCode.F11)) ToggleFullScreen();
-                if (Input.GetKeyDown(KeyCode.L)) ToggleLanguage();
+                if (Input.GetKeyDown(KeyCode.L) || Pad.Language) ToggleLanguage();   // or X on the pad (as on the headset)
                 if (Input.GetKeyDown(KeyCode.P) && particleLook != null)
                 {
                     particleLook.SetOn(!particleLook.On);
-                    hud.ShowLine(Loc.T("粒子化（实验）", "Particle look (experiment)"), particleLook.On ? Loc.T("开", "on") : Loc.T("关", "off"));
+                    hud.ShowLine("粒子化（实验）", "Particle look (experiment)", particleLook.On ? "开" : "关", particleLook.On ? "on" : "off");
                 }
                 if (!mapOpen && (Input.GetKeyDown(KeyCode.Space) || (Pad.Back && !back)) && player.speed < 0.1f)
                 {
@@ -1492,11 +1620,12 @@ namespace AntGarden
                 player.PlayTalk();
                 Sfx.Touch(nearNpc.ant.Position);
                 Pad.Rumble(0.12f, 0.22f, 0.12f);
-                // some ants have something to say; the rest just touch antennae back
-                string line = nearNpc.NextLine();
-                if (line != null)
+                // some ants have something to say, a line of their nest's (NpcLines, 11-04); the rest just touch antennae back
+                var said = NpcLines.Say(nearNpc.voice, hud.LineShowing);
+                if (said.HasValue)
                 {
-                    hud.ShowLine(Loc.T("一只蚂蚁 · ", "An ant · ") + nearNpc.species.id.Replace("_", " "), line);
+                    var who = NpcLines.Speaker;   // (一只蚂蚁 / An ant: no longer the model's number, "Ant 001")
+                    hud.ShowLine(who.zh, who.en, said.Value.zh, said.Value.en);
                     Voices.Chime(nearNpc.ant.Position + Vector3.up * 0.5f, 1.6f, 0.3f);
                 }
             }

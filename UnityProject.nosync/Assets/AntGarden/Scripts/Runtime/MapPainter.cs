@@ -21,7 +21,10 @@ namespace AntGarden
             float s = longSide / Mathf.Max(bw, bh);
             w = Mathf.CeilToInt(bw * s);
             h = Mathf.CeilToInt(bh * s);
-            texture = new Texture2D(w, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            // (with mipmaps, 11-04: shrunk four times into the minimap, its 2-pixel frame lines came and went with the screen's
+            // size, a whole side of the hexagon missing at one; not halved by the low preset's texture limit either)
+            texture = new Texture2D(w, h, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear };
+            texture.ignoreMipmapLimit = true;
             var px = new Color32[w * h];
             var light = new Vector3(-0.5f, 0.75f, 0.45f).normalized;
             for (int y = 0; y < h; y++)
@@ -71,7 +74,7 @@ namespace AntGarden
                         }
                     }
                 }
-            texture.Apply();
+            texture.Apply(true);
         }
 
         /// <summary>The same YIQ hue rotation as AG_HueShift in the shaders, so the map matches the ground.</summary>

@@ -44,6 +44,8 @@ namespace AntGarden
             public float glow;    // this share of its points glowing in their own colours, the lighter ones more often (0:
                                   // none; as specks they can hide its face)
             public float shine;   // how bright the line of light its tide sends up it (0: 0.5)
+            public int with;      // stands beside this one (its item, listed before it) under one ring: two things that
+                                  // belong together (bought together); at and side are then that one's
         }
 
         class Thing
@@ -56,6 +58,7 @@ namespace AntGarden
             public float reach, top, at;
             public bool touching;
             public Halo halo;          // the ring of light round its foot, made of points
+            public Thing partner;      // the one it stands beside under one ring ("with"; the first of the two keeps the ring)
             public float lit, want;    // how lit its ring is after it was read, following want (1 when read, fading)
             public Vector4 sphere;     // round it as placed (xyz its middle, w how far): the solid shader finds its splats by it
             public float foot, tall, phase, light;    // its tide: where its foot is (height), how tall it is, when, how bright
@@ -83,6 +86,9 @@ namespace AntGarden
         // that lead along the way, 11-03; the user may send the colours they want)
         static readonly Color HaloColour = new Color(1.8f, 1.8f, 1.75f);
         const float RiseHeight = 0.7f;   // how high the few points rising off a ring go before they fade (a little spray)
+        /// <summary>This share of a ring's points (1; the headset's QuestLook lowers it: 28 fps beside a visitor's model with
+        /// its card open, 11-03). Set before Place.</summary>
+        public static float HaloShare = 1f;
         RectTransform card;
         CanvasGroup cardGroup;
         RawImage cardPicture;
@@ -142,8 +148,17 @@ namespace AntGarden
             var holder = new GameObject("VisitorThings").transform;
             holder.SetParent(parent, false);
             var folders = new List<string>();
-            if (File.Exists(Path.Combine(root, "manifest.json"))) folders.Add(root);
-            else folders.AddRange(Directory.GetDirectories(root));
+            try
+            {
+                if (File.Exists(Path.Combine(root, "manifest.json"))) folders.Add(root);
+                else folders.AddRange(Directory.GetDirectories(root));
+            }
+            catch (System.Exception e)
+            {
+                // (a folder adb made can be the shell's alone, which the app may not list: the headset's, 11-03; uncaught,
+                // its world never finished loading)
+                Debug.LogWarning($"[AntGarden] uploads: {root} not listed ({e.Message})");
+            }
             folders.Sort(System.StringComparer.Ordinal);   // the same order every run
             foreach (string dir in folders)
             {
@@ -221,7 +236,11 @@ namespace AntGarden
             // (leaning back, it lies over more of the floor, behind its foot)
             float lean = e.lean * Mathf.Deg2Rad, behind = scale * Mathf.Sin(Mathf.Max(0f, lean));
             float r = Mathf.Max(0.3f, Mathf.Max(plant.footprintRadius * scale, 0.5f * (behind + scale * size.z * Mathf.Cos(lean))));
-            if (!Spot(track, e.at, e.side, r, longest, lab.Objects, out Vector2 c, out Vector2 a)) throw new System.Exception("no room beside the way");
+            // (two that belong together, "with": this one beside the other, under one ring; where there is no room there, as any)
+            Thing partner = e.with > 0 ? things.Find(o => o.index == e.with) : null;
+            Vector2 c = default, a = default;
+            if (partner != null && !Beside(partner, r, longest, lab.Objects, out c, out a)) partner = null;
+            if (partner == null && !Spot(track, e.at, e.side, r, longest, lab.Objects, out c, out a)) throw new System.Exception("no room beside the way");
             float yaw = Mathf.Atan2(a.x - c.x, a.y - c.y) * Mathf.Rad2Deg + e.turn;
             float y = world.Height(c.x, c.y);
             for (int q = 0; q < 6; q++)
@@ -274,7 +293,7 @@ namespace AntGarden
             // its tide (the user, 11-03: on the ground as all else, "像潮汐这样律动的发光"): a soft line of light rising up its
             // lower part and sinking back, slowly; the solid shader lights its splats, found inside its sphere (round the
             // corners of its bounds as placed)
-            t.phase = Mathf.Repeat(item.index * 2.399f, 2f * Mathf.PI);
+            t.phase = partner != null ? partner.phase : Mathf.Repeat(item.index * 2.399f, 2f * Mathf.PI);   // (a pair in time)
             t.light = e.shine > 0f ? e.shine : 0.5f;
             var corners = new Vector3[8];
             Vector3 mid = Vector3.zero;
@@ -292,10 +311,56 @@ namespace AntGarden
             t.foot = world.Height(c.x, c.y);
             t.tall = Mathf.Max(0.3f, highest - t.foot);
             // and round its foot a ring of light made of points, ebbing and flowing with it: here is something to read
-            t.halo = MakeHalo(holder, refs, c, r + 0.35f, item.index);
+            if (partner == null) t.halo = MakeHalo(holder, refs, c, r + 0.35f, item.index);
+            else
+            {
+                // (a pair: one ring round the two, kept by the first)
+                var c0 = new Vector2(partner.pos.x, partner.pos.z);
+                if (partner.halo != null) UnityEngine.Object.Destroy(partner.halo.ps.gameObject);
+                partner.halo = MakeHalo(holder, refs, (c0 + c) * 0.5f, 0.5f * (c - c0).magnitude + Mathf.Max(partner.reach - 0.25f, r) + 0.35f, partner.index);
+                if (partner.halo != null) UpdateHalo(partner.halo, Swell(NestClock.SinceLoad, partner.phase), 1f, NestClock.SinceLoad);
+                partner.partner = t;
+                t.partner = partner;
+            }
             if (t.halo != null) UpdateHalo(t.halo, Swell(NestClock.SinceLoad, t.phase), 1f, NestClock.SinceLoad);
             things.Add(t);
             Debug.Log($"[AntGarden] uploads: #{item.index} ({e.make}) at ({c.x:F1}, {c.y:F1}), {longest:F1} long, {e.at:P0} along the way");
+        }
+
+        /// <summary>Beside a thing already placed ("with"), along the way from it, a hand's breadth between them: on fairly
+        /// flat floor, clear of the nest's relics, in from the rim (as Spot).</summary>
+        bool Beside(Thing p, float r, float size, List<(string id, Vector2 at, Vector2 from)> relics, out Vector2 c, out Vector2 a)
+        {
+            Vector2 c0 = new Vector2(p.pos.x, p.pos.z), n = (c0 - p.from).normalized, d = new Vector2(-n.y, n.x);
+            float apart = (p.reach - 0.25f) + r + 0.25f;
+            for (float extra = 0f; extra < 1f; extra += 0.25f)
+            for (int s = 1; s >= -1; s -= 2)
+            {
+                c = c0 + d * (s * (apart + extra));
+                a = p.from + d * (s * (apart + extra));
+                if (world.HexDist(c.x, c.y) > -(r + 1.5f) || world.Dist(c.x, c.y) > 1f || world.colliders.Overlaps(c.x, c.y, r * 0.8f)) continue;
+                float lo = float.MaxValue, hi = float.MinValue;
+                for (int q = 0; q < 8; q++)
+                {
+                    float ang = q * Mathf.PI / 4;
+                    float h = world.Height(c.x + Mathf.Cos(ang) * r * 0.8f, c.y + Mathf.Sin(ang) * r * 0.8f);
+                    lo = Mathf.Min(lo, h);
+                    hi = Mathf.Max(hi, h);
+                }
+                if (hi - lo > Mathf.Max(0.45f, 0.2f * size)) continue;
+                bool clear = true;
+                foreach (var (id, at0, _) in relics)
+                {
+                    if (id.StartsWith("upload_")) continue;
+                    float room = 1f;
+                    foreach (Circle o in world.reserved.Near(at0.x, at0.y))
+                        if (Mathf.Abs(o.x - at0.x) < 0.05f && Mathf.Abs(o.z - at0.y) < 0.05f) room = Mathf.Max(room, o.r);
+                    if ((at0 - c).magnitude < room + r + 2f) { clear = false; break; }
+                }
+                if (clear) return true;
+            }
+            c = a = Vector2.zero;
+            return false;
         }
 
         /// <summary>Near a thing's foot, out of the way, on fairly flat floor (as LabNest finds its relics' places): near where
@@ -783,7 +848,8 @@ namespace AntGarden
                 float far = Flat(player.Position, t.pos);
                 if (t.halo == null || far > 50f) continue;   // (out of sight: left as it was)
                 float near = 1f - Mathf.Clamp01((far - t.reach) / 6f);
-                float lit = t.lit * t.lit * (3f - 2f * t.lit);
+                float lt = t.partner != null ? Mathf.Max(t.lit, t.partner.lit) : t.lit;   // (a pair's ring: either read)
+                float lit = lt * lt * (3f - 2f * lt);
                 float now = NestClock.SinceLoad;
                 UpdateHalo(t.halo, Swell(now, t.phase), (1f + 0.3f * near) * (1f + 0.45f * lit), now);
             }
@@ -821,7 +887,7 @@ namespace AntGarden
             var ps = go.AddComponent<ParticleSystem>();
             ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             // (as many points again, larger and brighter, after the first: "可以再突出一些", 11-03)
-            int rim = Mathf.RoundToInt(340f * radius), loose = rim * 2 / 5, rising = Mathf.Max(30, rim / 10), n = rim + loose + rising;
+            int rim = Mathf.RoundToInt(340f * radius * HaloShare), loose = rim * 2 / 5, rising = Mathf.Max(Mathf.RoundToInt(30f * HaloShare), rim / 10), n = rim + loose + rising;
             var main = ps.main;
             main.loop = false;
             main.playOnAwake = false;
@@ -839,6 +905,7 @@ namespace AntGarden
             pr.renderMode = ParticleSystemRenderMode.Billboard;
             pr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             pr.receiveShadows = false;
+            pr.maxParticleSize = 0.025f;   // (a camera right beside one saw its near points as large white blots: the headset's, 11-03)
             var h = new Halo { ps = ps, parts = new ParticleSystem.Particle[n], at = new Vector3[n], ang = new float[n], size = new float[n], bright = new float[n], rise = new float[n], age = new float[n] };
             var rng = new System.Random(seed * 31 + 7);
             float R() => (float)rng.NextDouble();
@@ -916,6 +983,7 @@ namespace AntGarden
             cardTitle.text = "<b>" + Loc.T(Unbroken(t.zhName), t.enName) + "</b>";
             cardSub.text = Loc.T("一位访客留下的", "Left by a visitor") + (string.IsNullOrEmpty(t.zhWhen) ? "" : " · " + Loc.T(t.zhWhen, t.enWhen));
             cardBody.text = Loc.T(Unbroken(t.zhText), t.enText);
+            if (!Loc.En) Unstopped(cardBody);
             // the picture whole in its square; the card as tall as its words need
             float pw = t.picture != null ? t.picture.width : 1f, ph = t.picture != null ? t.picture.height : 1f, k = 190f / Mathf.Max(pw, ph);
             cardPicture.texture = t.picture;
@@ -928,6 +996,30 @@ namespace AntGarden
         /// <summary>Chinese with Latin words in it, for Unity's Text, which breaks lines only at spaces (a Latin word with
         /// Chinese after it went down a line whole, the rest of the sentence with it): its spaces made non-breaking.</summary>
         static string Unbroken(string s) => s?.Replace(' ', ' ');
+
+        // what a line of Chinese never starts with: stops, commas, closing brackets
+        const string NoLineStart = "，。、：；！？）」』》〉】…,.:;!?)";
+
+        /// <summary>Chinese words laid out in a label so that no line starts with a stop or a comma (Unity's Text breaks
+        /// Chinese anywhere: lines began with "：" and "、", the headset's session found, 11-03): the character before such
+        /// a line's first goes down to it, after a line break.</summary>
+        static void Unstopped(Text label)
+        {
+            for (int pass = 0; pass < 12; pass++)
+            {
+                TextGenerator gen = label.cachedTextGenerator;
+                gen.Populate(label.text, label.GetGenerationSettings(label.rectTransform.rect.size));
+                IList<UILineInfo> lines = gen.lines;
+                int moveAt = -1;
+                for (int l = 1; l < lines.Count && moveAt < 0; l++)
+                {
+                    int at = lines[l].startCharIdx;
+                    if (at >= 2 && at < label.text.Length && NoLineStart.IndexOf(label.text[at]) >= 0 && label.text[at - 2] != '\n') moveAt = at - 1;
+                }
+                if (moveAt < 0) return;
+                label.text = label.text.Insert(moveAt, "\n");
+            }
+        }
 
         // ---------------------------------------------------------------- checks
 

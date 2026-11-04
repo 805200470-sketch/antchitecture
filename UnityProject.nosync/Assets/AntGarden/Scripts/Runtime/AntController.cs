@@ -101,7 +101,13 @@ namespace AntGarden
         static Material BodyFor(Material body, Material own)
         {
             if (own == null) return body;
-            if (bodies.TryGetValue(own, out Material m) && m != null) return m;
+            if (bodies.TryGetValue(own, out Material m) && m != null)
+            {
+                // (in this nest's dark: the copy, made in the first nest a session played, kept that nest's colour in every
+                // other one, the blue forest's dark teal under the ants of the warm nests; 11-04)
+                m.SetColor("_Color", body.GetColor("_Color"));
+                return m;
+            }
             Texture tex = null;
             foreach (string prop in new[] { "_MainTex", "_BaseMap", "_BaseColorMap" })
                 if (tex == null && own.HasProperty(prop)) tex = own.GetTexture(prop);
@@ -119,6 +125,7 @@ namespace AntGarden
         bool hasFoot, shadows = true;
         int animPhase;
         readonly List<AntController> near = new List<AntController>(16);
+        readonly List<Circle> props = new List<Circle>(64);   // every stem it can touch (CircleGrid.Around)
         Clip gait = Clip.Idle;
         readonly float[] weights = new float[7];
         PlayableGraph graph;
@@ -397,32 +404,27 @@ namespace AntGarden
             Animate(dt, Due());
         }
 
+        /// <summary>How much of its own step the other ants let it take, eased (1: all of it, 0: held up by one). Its legs
+        /// walk at that share of its speed, so an ant held up stands instead of walking on the spot (11-04).</summary>
+        public float WalkFree { get; private set; } = 1f;
+
         Vector3 Collide(Vector3 p, float dt)
         {
             float r = cfg.radius;
-            // other ants: ease apart over a few frames instead of snapping (snapping made crowds tremble)
+            // other ants (11-04): no ant is ever moved by another. They were eased apart, the player's ant pushing the
+            // others aside at twice the rate, and the user saw it when walking among them ("NPC ants push their ant, and
+            // their ant push NPCs"). Now each keeps clear of the others by its own step alone (KeepClear): it stops at
+            // one, or slides along it, as at a stem; the NPCs steer round or wait (NpcAnt.GiveWay, NpcAnt.Tick)
             if (grid != null) grid.Near(p.x, p.z, near);
             List<AntController> crowd = grid != null ? near : others;
-            float maxPush = cfg.separation * Mathf.Max(dt, 1e-3f);
-            foreach (var o in crowd)
-            {
-                if (o == this || o.altitude > 1f) continue;
-                // the player's ant is never pushed by the others: they give way to it (NpcAnt.GiveWay), and one that
-                // still bumps it steps aside the whole way itself
-                if (NpcAnt.GiveWayOn && npc == null && o.npc != null) continue;
-                bool fromPlayer = NpcAnt.GiveWayOn && npc != null && o.npc == null;
-                float dx = p.x - o.transform.position.x, dz = p.z - o.transform.position.z;
-                float min = o.Radius + r, d2 = dx * dx + dz * dz;
-                if (d2 < min * min && d2 > 1e-8f)
-                {
-                    float dist = Mathf.Sqrt(d2);
-                    float push = Mathf.Min((min - dist) * (fromPlayer ? 1f : 0.5f), maxPush * (fromPlayer ? 2f : 1f));
-                    p.x += dx / dist * push;
-                    p.z += dz / dist * push;
-                }
-            }
+            Vector3 from = transform.position;
+            float want = Flat(p.x - from.x, p.z - from.z);
+            p = KeepClear(from, p, crowd, dt);
+            if (want > 1e-5f) WalkFree += (Mathf.Clamp01(Flat(p.x - from.x, p.z - from.z) / want) - WalkFree) * (1 - Mathf.Exp(-8f * dt));
+            else WalkFree += (1f - WalkFree) * (1 - Mathf.Exp(-8f * dt));
             for (int iter = 0; iter < 3; iter++)
             {
+                if (iter > 0) p = KeepClear(from, p, crowd, dt);
                 // canyon walls (distance field); an ant allowed to climb (the player) may go up the banks to
                 // an invisible wall just below their crest
                 bool climbs = cfg.climb > 0;
@@ -440,7 +442,9 @@ namespace AntGarden
                 // props: the body is long and narrow, so against stems and rocks it counts as a smaller disc than
                 // against walls and other ants, and can slip between the stalks of a clump
                 float rp = r * 0.75f;
-                foreach (var c in world.colliders.Near(p.x, p.z))
+                // (also those listed only in the next cell over: else near a cell's edge a stem was missed until the ant crossed
+                // it, then pushed it back a quarter unit in one frame, the camera with it; 11-03)
+                foreach (var c in world.colliders.Around(p.x, p.z, rp, props))
                 {
                     float dx = p.x - c.x, dz = p.z - c.z;
                     float min = c.r + rp, d2 = dx * dx + dz * dz;
@@ -452,7 +456,67 @@ namespace AntGarden
                     }
                 }
             }
+            // a wall or a stem turned it back into another ant: it waits where it stood this frame (clear of everything)
+            if (Crowds(from, p, crowd, 0.01f)) { p.x = from.x; p.z = from.z; }
             return p;
+        }
+
+        static float Flat(float x, float z) => Mathf.Sqrt(x * x + z * z);
+
+        /// <summary>The other ant is on the ground with this one (a flying ant, or one flying over, is neither in its way
+        /// nor kept clear of).</summary>
+        bool Meets(AntController o) => o != this && o != null && o.altitude <= 1f && altitude <= 1f;
+
+        /// <summary>
+        /// Its step from <paramref name="from"/> to <paramref name="p"/>, kept clear of the other ants (11-04): toward one
+        /// it may close only a share of the gap left this frame (cfg.approach), so it slows to a stop as it comes up to
+        /// it, touching, never pressing in; it never comes nearer to one than it already is (two that overlap, after a
+        /// landing or a teleport, part as they walk on); and what it may not take it slides along, as round a stem. Only
+        /// its own step is changed: the other ant stays where it is.
+        /// </summary>
+        Vector3 KeepClear(Vector3 from, Vector3 p, List<AntController> crowd, float dt)
+        {
+            float ease = 1f - Mathf.Exp(-cfg.approach * dt);
+            foreach (var o in crowd)
+            {
+                if (!Meets(o)) continue;
+                Vector3 q = o.transform.position;
+                float min = o.Radius + cfg.radius, d0 = Flat(from.x - q.x, from.z - q.z);
+                float keep = d0 > min ? d0 - (d0 - min) * ease : d0;
+                float dx = p.x - q.x, dz = p.z - q.z, d = Flat(dx, dz);
+                if (d >= keep) continue;
+                if (d < 1e-5f) { dx = from.x - q.x; dz = from.z - q.z; d = Mathf.Max(1e-5f, d0); }
+                p.x = q.x + dx / d * keep;
+                p.z = q.z + dz / d * keep;
+            }
+            return p;
+        }
+
+        /// <summary>At p it would be nearer to another ant than KeepClear allows from where it stood (by more than slack).</summary>
+        bool Crowds(Vector3 from, Vector3 p, List<AntController> crowd, float slack)
+        {
+            foreach (var o in crowd)
+            {
+                if (!Meets(o)) continue;
+                Vector3 q = o.transform.position;
+                float min = o.Radius + cfg.radius, d0 = Flat(from.x - q.x, from.z - q.z);
+                if (Flat(p.x - q.x, p.z - q.z) < Mathf.Min(min, d0) - slack) return true;
+            }
+            return false;
+        }
+
+        /// <summary>Is the ground at (x, z) clear of the ants walking there, for this ant to stand on with room r round it
+        /// (where a flying ant lands)?</summary>
+        public bool ClearOfAnts(float x, float z, float r)
+        {
+            if (grid != null) grid.Near(x, z, near);
+            foreach (var o in grid != null ? near : others)
+            {
+                if (o == null || o == this || o.altitude > 1f) continue;
+                Vector3 q = o.transform.position;
+                if (Flat(x - q.x, z - q.z) < o.Radius + r) return false;
+            }
+            return true;
         }
 
         void Orient(float t, bool keepUp)
@@ -483,13 +547,15 @@ namespace AntGarden
             if (!due) return; // crowd LOD: farther ants are posed every few frames
             dt = animDt;
             animDt = 0;
+            // its legs walk at the pace it gets on, not the one it wants: held up by another ant, it stands (11-04)
+            float gs = speed * WalkFree;
             Clip want;
             bool walkingNow = gait == Clip.Crawl || gait == Clip.Fast;
             // hysteresis: an ant easing to a stop does not flicker between standing and walking
             float idleBelow = walkingNow ? cfg.idleBelow * 0.6f : cfg.idleBelow * 1.6f;
             if (clipOverride.HasValue && hasClip[(int)clipOverride.Value]) want = clipOverride.Value;
-            else if (speed < idleBelow) want = talkTimer > 0 && hasClip[(int)Clip.Talk] ? Clip.Talk : Clip.Idle;
-            else if (speed > cfg.fastAbove || (gait == Clip.Fast && speed > cfg.fastAbove * 0.8f)) want = Clip.Fast;
+            else if (gs < idleBelow) want = talkTimer > 0 && hasClip[(int)Clip.Talk] ? Clip.Talk : Clip.Idle;
+            else if (gs > cfg.fastAbove || (gait == Clip.Fast && gs > cfg.fastAbove * 0.8f)) want = Clip.Fast;
             else want = Clip.Crawl;
             if (!hasClip[(int)want]) want = want == Clip.Fast ? Clip.Crawl : Clip.Idle;
             if (want != gait)
@@ -530,8 +596,8 @@ namespace AntGarden
             float legW = legs != null ? legs.Weight : 0;
             // body layer: a calm walking rhythm over a longer effective stride (see AntSettings.strideScale)
             float stride = Mathf.Max(1f, cfg.strideScale);
-            if (hasClip[(int)Clip.Crawl]) clips[(int)Clip.Crawl].SetSpeed(Mathf.Clamp(speed / Mathf.Max(1e-3f, crawlCycleSpeed * stride), cfg.minCadence, cfg.maxCadence));
-            if (hasClip[(int)Clip.Fast]) clips[(int)Clip.Fast].SetSpeed(Mathf.Clamp(speed / Mathf.Max(1e-3f, fastCycleSpeed * stride), cfg.minCadence, cfg.maxCadence * 1.4f));
+            if (hasClip[(int)Clip.Crawl]) clips[(int)Clip.Crawl].SetSpeed(Mathf.Clamp(gs / Mathf.Max(1e-3f, crawlCycleSpeed * stride), cfg.minCadence, cfg.maxCadence));
+            if (hasClip[(int)Clip.Fast]) clips[(int)Clip.Fast].SetSpeed(Mathf.Clamp(gs / Mathf.Max(1e-3f, fastCycleSpeed * stride), cfg.minCadence, cfg.maxCadence * 1.4f));
             if (hasLegLayer)
             {
                 // leg layer: steps matched to ground speed, so the feet grip instead of skating
@@ -540,8 +606,8 @@ namespace AntGarden
                 layers.SetInputWeight(1, walk);
                 legMixer.SetInputWeight(0, walk > 1e-3f ? wc / (wc + wf) : 1);
                 if (hasLegFast) legMixer.SetInputWeight(1, walk > 1e-3f ? wf / (wc + wf) : 0);
-                legCrawl.SetSpeed(Mathf.Clamp(speed / Mathf.Max(1e-3f, crawlCycleSpeed), cfg.minCadence, cfg.legCadenceMax));
-                if (hasLegFast) legFast.SetSpeed(Mathf.Clamp(speed / Mathf.Max(1e-3f, fastCycleSpeed), cfg.minCadence, cfg.legCadenceMax * 1.3f));
+                legCrawl.SetSpeed(Mathf.Clamp(gs / Mathf.Max(1e-3f, crawlCycleSpeed), cfg.minCadence, cfg.legCadenceMax));
+                if (hasLegFast) legFast.SetSpeed(Mathf.Clamp(gs / Mathf.Max(1e-3f, fastCycleSpeed), cfg.minCadence, cfg.legCadenceMax * 1.3f));
                 layers.SetInputWeight(1, walk * (1 - legW)); // the procedural legs take over near the camera
             }
             if (legW > 0)

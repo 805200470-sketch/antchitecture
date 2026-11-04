@@ -38,6 +38,7 @@ Shader "AntGarden/MicroLife"
             StructuredBuffer<Creature> _Creatures;
             float _Gain, _MaxDistance;
             float4 _MoonDir, _MoonColor, _FillColor, _Pal[8], _Wind;
+            float4 _MidgeTint, _MidgeWing;   // a midge's body tint (a = how much) and its wings, the nest's own (NestTheme.midgeTint, 11-04)
             float4 _TrailPlayer;
 
             struct v2f
@@ -202,8 +203,8 @@ Shader "AntGarden/MicroLife"
                 else if (kind < 2.5)
                 {
                     // midge: a speck of a body, two faint wings beating, a faint glow
-                    if (k < 2) { lp = float3(0, 0, 0.3 - k * 0.6) * L; r = L * 0.2; glow = 0.4; albedo = lerp(albedo, float3(0.5, 0.85, 0.85), 0.5); }
-                    else if (k < 4) { float s = k == 2 ? 1 : -1, beat = sin(t * 60 + seed * 30); lp = float3(s * 0.45, 0.25 + 0.15 * beat, 0) * L; r = L * 0.26; albedo = float3(0.4, 0.46, 0.46) * (0.6 + 0.4 * beat * beat); }
+                    if (k < 2) { lp = float3(0, 0, 0.3 - k * 0.6) * L; r = L * 0.2; glow = 0.4; albedo = lerp(albedo, _MidgeTint.rgb, _MidgeTint.a); }
+                    else if (k < 4) { float s = k == 2 ? 1 : -1, beat = sin(t * 60 + seed * 30); lp = float3(s * 0.45, 0.25 + 0.15 * beat, 0) * L; r = L * 0.26; albedo = _MidgeWing.rgb * (0.6 + 0.4 * beat * beat); }
                     else return o;
                 }
                 else

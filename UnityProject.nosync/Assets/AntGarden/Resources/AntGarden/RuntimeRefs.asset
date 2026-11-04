@@ -2076,6 +2076,17 @@ MonoBehaviour:
     floor3: {fileID: 2800000, guid: a1a21c189f58644a7a65651981cde0e7, type: 3}
     floor2Normal: {fileID: 2800000, guid: 478d879909649405fb8b1d0173fa2629, type: 3}
     floor3Normal: {fileID: 2800000, guid: 554e37865deac4c25b7281188af390c0, type: 3}
+  - id: honey2
+    floor: {fileID: 2800000, guid: 7b1b82184c1944f7c8df81155aaa14d9, type: 3}
+    bank: {fileID: 2800000, guid: 95b88af651202414ebd69d0b5c288d74, type: 3}
+    plateau: {fileID: 2800000, guid: 66755abf4de1a4de99ec4818673fc4e1, type: 3}
+    floorNormal: {fileID: 2800000, guid: 86fb4d6d466fc4d42bbaaf7545e6f8f9, type: 3}
+    bankNormal: {fileID: 2800000, guid: ecaf0a821238144e489b4902e59cbe99, type: 3}
+    plateauNormal: {fileID: 2800000, guid: f12f8a2f0ec754db29e8faf30c99817b, type: 3}
+    floor2: {fileID: 0}
+    floor3: {fileID: 0}
+    floor2Normal: {fileID: 0}
+    floor3Normal: {fileID: 0}
   - id: kiln
     floor: {fileID: 2800000, guid: 3607a0d4359db42b78ea19b1bf079b46, type: 3}
     bank: {fileID: 2800000, guid: 5da266bfa44a04f2da06faaae119948f, type: 3}

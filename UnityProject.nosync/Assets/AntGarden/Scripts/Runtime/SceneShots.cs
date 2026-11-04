@@ -34,7 +34,11 @@ namespace AntGarden
                 {
                     k++;
                     // walk in, so the ant is mid-stride and the camera has settled behind it
-                    DemoMode.PlaceFacing(game, at, toward);
+                    // (at the kiln's morel toward a point beside it, not at it: walking straight at it, the ant hid it from the
+                    // camera behind, k14-k16 content reviews)
+                    Vector2 face = toward;
+                    if (name == "lab_morel") { Vector2 d = (toward - at).normalized; face = toward + new Vector2(-d.y, d.x) * 1.3f; }
+                    DemoMode.PlaceFacing(game, at, face);
                     DemoMode.Shot(game, game.cfg.camera.distance, game.cfg.camera.pitch);
                     // (not at the amber nest's cone: walking in, its ant met the nodules lining the way and turned along it, k21)
                     game.demoKeys = new Vector2(0, name == "lab_resin_cone" ? 0f : 1f);
@@ -47,12 +51,14 @@ namespace AntGarden
                     bool relic = name.StartsWith("relic") || name.StartsWith("temple") || name.StartsWith("amber") || name.StartsWith("lab_own_")
                         || name.StartsWith("lab_temple") || name.StartsWith("lab_relic") || name.StartsWith("lab_ember") || name.StartsWith("lab_char") || name == "lab_heart_close"
                         || name == "lab_morel"   // (the kiln's morels: looking down the way, its eye shot missed them, k6)
-                        || name == "lab_resin_cone";   // (and the amber nest's cone: its eye shot looked down the way past it, k20)
+                        || name == "lab_resin_cone"   // (and the amber nest's cone: its eye shot looked down the way past it, k20)
+                        || name.StartsWith("walkup");   // (and -walkup's: the same way, far off and close by)
                     yield return AntEye(game, Path.Combine(dir, $"r{r}_{k}_eye_{name}.png"), relic ? toward : (Vector2?)null);
                     // a plant's close-up: a photograph of the plant itself too
                     if (PlantShots.Contains(name) || Tall.ContainsKey(name) || name.StartsWith("lab_temple") || name.StartsWith("lab_ember") || name.StartsWith("lab_char"))
                         yield return PlantPhoto(game, Path.Combine(dir, $"r{r}_{k}_photo_{name}.png"), at, toward, Tall.TryGetValue(name, out float tall) ? tall : -1);
                 }
+                if (Game.Arg("-walkup") != null) continue;   // (its stills only: a short run)
                 // the player's ant close up, as a player sees it zoomed right in (is it made of points?)
                 yield return AntClose(game, Path.Combine(dir, $"r{r}_8_ant_close.png"), 1.9f, 35f);
                 yield return AntClose(game, Path.Combine(dir, $"r{r}_8_ant_side.png"), 2.8f, 80f);
@@ -89,6 +95,25 @@ namespace AntGarden
                 }
                 return spots;
             }
+            // checks (-walkup): what lies ahead down the way seen from far off, then from close by, looking the same way (does
+            // it keep its colour as the ant walks up? the user, 11-04, of the moss forest: a vivid point far off turned pale)
+            if (game.LabNest != null && r == 0 && Game.Arg("-walkup") != null && game.LabNest.Track != null && game.LabNest.Track.Count > 4)
+            {
+                List<Vector2> t = game.LabNest.Track;
+                float length = 0;
+                for (int i = 1; i < t.Count; i++) length += (t[i] - t[i - 1]).magnitude;
+                int n = 0;
+                foreach (float along in new[] { 0.15f, 0.4f, 0.65f })
+                {
+                    int a = PointAlong(t, length * along), b = PointAlong(t, length * along + 22f), c = PointAlong(t, length * along + 15f);
+                    if (b <= c || c <= a) continue;
+                    Vector2 dir = (t[b] - t[a]).normalized;
+                    n++;
+                    spots.Add(($"walkup{n}_far", t[a], t[a] + dir * 30f));
+                    spots.Add(($"walkup{n}_near", t[c], t[c] + dir * 30f));
+                }
+                return spots;
+            }
             if (game.LabNest != null && r == 0 && game.LabNest.Track != null && game.LabNest.Track.Count > 4)
             {
                 // the particle nest: the way in, halfway, and the heart
@@ -99,6 +124,7 @@ namespace AntGarden
                 if (m + 6 < t.Count) spots.Add(("lab_halfway", t[m], t[m + 6]));
                 // (from the way in, as a player comes: Approach alone could stand behind a bank on another canyon)
                 if (OnWayIn(game, 3.4f, out Vector2 at) || Approach(game, r, game.LabNest.Heart, 7f, out at)) spots.Add(("lab_heart", at, game.LabNest.Heart));
+                if (Game.Arg("-shotsmain") != null) return spots;   // (checks, 11-04: these three alone, then the ant and the view from above; a short run for before-and-after stills)
                 // a curled plant and a glass-bulbed one close up, seen from the way (for judging the plants' detail)
                 void CloseUp(string kind, string name, float back)
                 {
@@ -162,6 +188,16 @@ namespace AntGarden
                         // its carved end and its cracks show, 1.5: from 4.2 it was 12.8 away, a tenth of its points drawn, k6; the
                         // amber nest's cone from 3.5, across the way where nothing grows, LabNest: from 5 gumweed hid it, k20)
                         Vector2 back = from - (pos - from).normalized * (id.StartsWith("temple") ? 2.4f : id == "ember_log" ? 1.5f : id == "char_stump_temple" ? 5.5f : 3.5f);
+                        // (the amber nest's cone from the way 5.5 before it, as one coming sees it: from across the way the camera
+                        // behind the ant stood in the bank and swung along the way, k21-k23)
+                        if (id == "resin_cone")
+                        {
+                            int nearI = 0;
+                            for (int ti = 1; ti < t.Count; ti++) if ((t[ti] - from).sqrMagnitude < (t[nearI] - from).sqrMagnitude) nearI = ti;
+                            float runLen = 0f;
+                            while (nearI > 0 && runLen < 5.5f) { runLen += (t[nearI] - t[nearI - 1]).magnitude; nearI--; }
+                            back = t[nearI];
+                        }
                         spots.Add(("lab_" + id, back, pos));
                     }
                 // this nest's own things close up (of each kind the one nearest the way), and the thing at its heart
@@ -227,6 +263,16 @@ namespace AntGarden
                 CloseUp("tear_tree", "lab_tear_tree", 3.0f);
                 CloseUp("gumweed", "lab_gumweed", 2.2f);
                 Tall["lab_resin_cone"] = 3.2f;   // (and a photograph of its cone, framed as for a plant 3.2 tall: lying, it is 5.4 long)
+                // (the world's plants the granary and the garden grow since 11-04, after the amber nest's for the same reason; in
+                // those two only, so the amber nest, which grows the same grass and husks, keeps its shots as they were)
+                if (NestTheme.Current != null && (NestTheme.Current.id == "yellow" || NestTheme.Current.id == "chartreuse"))
+                {
+                    CloseUp("dry_grass_tuft", "lab_grass", 3.0f);
+                    CloseUp("seed_husk", "lab_husk", 2.6f);
+                    CloseUp("boulder_moss", "lab_boulder", 3.2f);
+                    CloseUp("bracket_shelf", "lab_shelf", 2.6f);
+                    CloseUp("cup_fungus", "lab_cup_fungus", 1.8f);
+                }
                 return spots;
             }
             WEdge e = DemoMode.LongEdge(game, r);
@@ -446,7 +492,7 @@ namespace AntGarden
         static readonly Dictionary<string, float> Tall = new Dictionary<string, float>();
 
         /// <summary>A nest's own things lying flat on the floor, photographed from above.</summary>
-        static readonly HashSet<string> LookDown = new HashSet<string> { "BittenLeaf", "LeafBits", "AshDrift", "PineNeedles", "StarMoss" };   // (the kiln's cold ash too, k11; the amber nest's needles, k21; the moss forest's star moss tufts, their stars on top: level with them, review k20 saw none)
+        static readonly HashSet<string> LookDown = new HashSet<string> { "BittenLeaf", "LeafBits", "AshDrift", "PineNeedles", "StarMoss", "SlateSlabs" };   // (the kiln's cold ash too, k11; the amber nest's needles, k21; the moss forest's star moss tufts, their stars on top: level with them, review k20 saw none)
 
         static readonly HashSet<string> PlantShots = new HashSet<string>
             { "lab_curl", "lab_spore", "lab_crozier", "lab_lantern", "lab_hook", "lab_coral", "lab_frond", "lab_cluster", "lab_double", "lab_corkscrew", "lab_puff", "lab_mushroom", "lab_resin", "lab_thorn",

@@ -55,6 +55,9 @@ Shader "AntGarden/ParticleLook"
             float _UsePalette;
             float4 _BodyPal[8], _GlowPal[8];
             float4 _TrailPlayer;   // global (GuideTrail): points near the ant brighten a little
+            float4 _NestFar;       // global: a nest's far off darker, from x to y units from the camera down to z of itself (w 1: on; NestTheme.farDark)
+            float4 _GroundCalm, _CalmRange;   // the ground's points: their nest's calm and further off (ParticleLook.Calm, 11-04)
+            float4 _NestFarSat;    // global: and calmer, its points' saturation from x to y units from the camera down to z of itself (w 1: on; NestTheme.farSat, 11-04)
 
             struct v2f
             {
@@ -183,6 +186,22 @@ Shader "AntGarden/ParticleLook"
                     o.col *= (1 + 1.4 * rip) * (1 + 0.16 * sin(dot(pos.xz, float2(0.21, 0.13)) - t * 0.5));
                     o.col += NestBeacon(pos) * _BeaconColor.rgb * 0.1 * soft;
                 }
+                // (11-04) the ground's and walls' points never more vivid or lighter than the carpet and wall splats they give way
+                // to round the ant: their nest's own calm (x of their saturation, y of their light), calmer still further off (z, w
+                // by _CalmRange.y units from the camera, from .x; w 1: on). Where the nest's own far off is calmer already (farDark,
+                // farSat, just below), that alone: the stronger of the two, never both
+                if (_CalmRange.w > 0.5 && ground > 0.5)
+                {
+                    float calmK = smoothstep(_CalmRange.x, _CalmRange.y, dist);
+                    float calmNF = _NestFar.w > 0.5 ? lerp(1, _NestFar.z, smoothstep(_NestFar.x, _NestFar.y, dist)) : 1;
+                    float calmNS = _NestFarSat.w > 0.5 ? lerp(1, _NestFarSat.z, smoothstep(_NestFarSat.x, _NestFarSat.y, dist)) : 1;
+                    float calmL = dot(o.col, float3(0.2126, 0.7152, 0.0722));
+                    o.col = lerp(calmL.xxx, o.col, min(1, lerp(_GroundCalm.x, _GroundCalm.z, calmK) / max(calmNS, 0.01)))
+                        * min(1, lerp(_GroundCalm.y, _GroundCalm.w, calmK) / max(calmNF, 0.01));
+                }
+                if (_NestFar.w > 0.5) o.col *= lerp(1, _NestFar.z, smoothstep(_NestFar.x, _NestFar.y, dist));   // (a nest's far off darker: NestTheme.farDark)
+                if (_NestFarSat.w > 0.5)   // (and calmer: NestTheme.farSat; the granary's mid-ground glitter too vivid, 11-04)
+                    o.col = lerp(dot(o.col, float3(0.2126, 0.7152, 0.0722)).xxx, o.col, lerp(1, _NestFarSat.z, smoothstep(_NestFarSat.x, _NestFarSat.y, dist)));
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;
             }

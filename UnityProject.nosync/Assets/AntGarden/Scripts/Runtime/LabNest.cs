@@ -25,6 +25,11 @@ namespace AntGarden
         int beat;              // 0 walking in, 1 a plant lit on the way, 2 the way out reached
         float cardIn = 1.5f;   // the chapter card comes a moment after the nest appears
         bool begun;
+        /// <summary>The tutorial runs first (Tutorial): the chapter's card and goal wait, and come a moment after it ends.</summary>
+        public bool Hold;
+        /// <summary>The honeycomb (11-03): the nest its way out opens on (Game.RingGates), named on the chapter's last card;
+        /// null when this nest is not one of the ring.</summary>
+        public string WayOutTo;
         float shownD = -1;   // the ant's distance to the heart along the way, as the pulses on the floor are shown
 
         public Vector2 Heart => heart;
@@ -215,22 +220,44 @@ namespace AntGarden
                     ("relic_key", 2.6f, 0.82f, 1, true, false),
                 });
             else if (what == "moss")
+            {
                 plan.AddRange(new (string, float, float, int, bool, bool)[]
                 {
                     // the moss forest's landmarks beside the way (no heart: "不要用心脏的概念了"), its own Tripo plants as
                     // large as the ant's landmarks should be: a liverwort colony with its parasols a third of the way in,
                     // a grove of moss capsules hanging like lamps halfway, pixie-cup lichens with their scarlet caps two
                     // thirds in, and a smaller one of each near the way in and the way out (02_Concepts/Moss_v1); the
-                    // capsules three side by side, a grove (one alone read thin, review k12)
+                    // capsules three side by side, a grove (one alone read thin, review k12); the parasols larger (at 4 and 3,
+                    // small in the game's view and half hidden by the moss stalks before them, k29 content review; at 5 and
+                    // 3.8 their heads out of the game's view, k32 reviews)
                     ("pixie_cup_lichen", 2.4f, 0.12f, 1, false, false),
-                    ("liverwort_parasols", 4.0f, 0.33f, 1, false, false),
+                    ("liverwort_parasols", 4.4f, 0.33f, 1, false, false),
                     ("moss_capsules", 2.2f, 0.5f, -1, false, false),
                     ("moss_capsules", 1.8f, 0.49f, -1, false, false),
                     ("moss_capsules", 1.6f, 0.51f, -1, false, false),
                     ("pixie_cup_lichen", 3.2f, 0.66f, -1, false, false),
-                    ("liverwort_parasols", 3.0f, 0.85f, 1, false, false),
+                    ("liverwort_parasols", 3.4f, 0.85f, 1, false, false),
                 });
+                // and more of them where the way ran long without one (the user, 11-04, of the nests but the blue one: "还是有些
+                // 太空了。可以增加一些大的素材也好、小的素材也好"; the richness review against v15, k34: its way's end, past the
+                // last parasols, only the gate and two slopes, the left of its way in empty, its large things nearly all
+                // capsule groves): parasols in the wide chamber past the way in, on its left, a heap of boulders under moss, cup
+                // lichens. (Side 1 is the left of the way. Large parasols at 0.05 and 0.1, k35 and k36, read as a flat disc
+                // on a thin leg at the game view's edge: smaller, where the chamber widens. None at the way's end: its canyon
+                // narrows to the gate, and what was planned there, k35 and k36, found room only beside the camera that shoots
+                // it, a brown shrub over a corner of its eye view, review k36) Checks: -mossrich 0
+                if (Game.Arg("-mossrich") != "0")
+                    plan.AddRange(new (string, float, float, int, bool, bool)[]
+                    {
+                        ("liverwort_parasols", 2.8f, 0.17f, 1, false, false),
+                        ("boulder_moss", 3.0f, 0.22f, -1, false, false),
+                        ("boulder_moss", 1.9f, 0.23f, -1, false, false),
+                        ("pixie_cup_lichen", 2.6f, 0.42f, 1, false, false),
+                        ("pixie_cup_lichen", 2.4f, 0.77f, 1, false, false),
+                    });
+            }
             else if (what == "ember")
+            {
                 plan.AddRange(new (string, float, float, int, bool, bool)[]
                 {
                     // the kiln temple (02_Concepts/Kiln_Redesign_v1): its temple a cluster of charred stumps grown together
@@ -247,6 +274,38 @@ namespace AntGarden
                     ("ember_log", 2.6f, 0.45f, 1, false, false),
                     ("ember_log", 3.0f, 0.86f, -1, false, false),
                 });
+                // k19, its large forms between them, where the way ran long without one (the user, 11-04, of the nests but
+                // the blue one: "还是有些太空了。可以增加一些大的素材也好、小的素材也好"): dead trunks still standing after the fire,
+                // charred (trunk_night, darkened in its NestTheme.kindGain), in groups of two or three, the tallest taller than
+                // its walls as its temple is, a short broken one at their feet; and four more pieces of fallen log. None by the
+                // way out, where one framed in its gate's arch would read as the goal (the self-check's content review: a far
+                // trunk there already does). Checks: -kilnrich 0
+                if (Game.Arg("-kilnrich") != "0")
+                    plan.AddRange(new (string, float, float, int, bool, bool)[]
+                    {
+                        // (k19b: the first group further in, 0.18 in k19: at the way in one filled a third of the ant's view)
+                        ("trunk_night", 6.5f, 0.25f, 1, false, false),
+                        ("trunk_night", 4.0f, 0.27f, 1, false, false),
+                        ("trunk_night", 2.0f, 0.28f, 1, false, false),
+                        ("ember_log", 2.0f, 0.3f, 1, false, false),
+                        ("trunk_night", 5.0f, 0.36f, -1, false, false),
+                        ("trunk_night", 1.8f, 0.35f, -1, false, false),
+                        ("ember_log", 2.4f, 0.4f, -1, false, false),
+                        ("trunk_night", 7.5f, 0.55f, -1, false, false),
+                        ("trunk_night", 5.5f, 0.57f, -1, false, false),
+                        ("trunk_night", 2.2f, 0.58f, -1, false, false),
+                        ("ember_log", 3.6f, 0.64f, -1, false, false),
+                        ("trunk_night", 5.5f, 0.72f, 1, false, false),
+                        ("trunk_night", 1.6f, 0.74f, 1, false, false),
+                        ("ember_log", 2.2f, 0.79f, 1, false, false),
+                        // (k19d, the k19b content review: still 4-6 things by the way in each view against v15's 8-12) two more
+                        // trunks, and one long fallen trunk, eight ants long. (Its giant morels as relics, k19d, came out black
+                        // porous towers, a relic's own colours darker here, rigidGain: its morels grow larger instead, NestTheme)
+                        ("trunk_night", 6.0f, 0.45f, 1, false, false),
+                        ("ember_log", 8.0f, 0.5f, 1, false, false),
+                        ("trunk_night", 5.0f, 0.67f, -1, false, false),
+                    });
+            }
             else if (what == "amber")
                 plan.AddRange(new (string, float, float, int, bool, bool)[]
                 {
@@ -336,7 +395,7 @@ namespace AntGarden
                     : o.id.StartsWith("temple_arch") ? Mathf.Atan2(a.x - c.x, a.y - c.y) * Mathf.Rad2Deg   // an arch faces the way
                     : o.id == "ember_log" ? Mathf.Atan2(a.x - c.x, a.y - c.y) * Mathf.Rad2Deg + EmberLogOpen + U(-12f, 12f)   // its open end to the way
                     : o.id == "char_stump_temple" ? Mathf.Atan2(a.x - c.x, a.y - c.y) * Mathf.Rad2Deg   // its split side (its model's front) to the way
-                    : o.id == "resin_cone" ? Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg + 90f + U(-15f, 15f)   // lying along the way, its side to it (end on, its scales read as a gold flower)
+                    : o.id == "resin_cone" ? ConeYaw(track, a, c) + U(-6f, 6f)
                     : (float)rng.NextDouble() * 360f;
                 float y = world.Height(c.x, c.y);
                 for (int q = 0; q < 6; q++)
@@ -362,6 +421,7 @@ namespace AntGarden
                     Vector2 across = (c - a).normalized;
                     for (float f = 0.25f; f < 1f; f += 0.25f) world.reserved.Add(new Circle(Mathf.Lerp(a.x, c.x, f), Mathf.Lerp(a.y, c.y, f), r, 1f));
                     for (float b = 1.2f; b <= 3.6f; b += 1.2f) world.reserved.Add(new Circle(a.x - across.x * b, a.y - across.y * b, 1.3f, 1f));
+                    world.reserved.Add(new Circle(c.x - dir.x * r * 1.3f, c.y - dir.y * r * 1.3f, r * 0.8f, 1f));   // (nor right before it, toward the way in: a branch stub there made the small one a round-crowned tree, k23)
                 }
                 // the key, the coins and the button: ants climb onto them; the rest block
                 Bounds bounds = new Bounds(go.transform.position, Vector3.zero);
@@ -378,12 +438,26 @@ namespace AntGarden
                 else if (o.walk) world.steps.Add(new Circle(c.x, c.y, r * 1.05f, top * 0.9f));
                 else world.colliders.Add(new Circle(c.x, c.y, r, scale));
                 Objects.Add((o.id, c, a));
-                if (what == "amber") Debug.Log($"[AntGarden] particle nest: {o.id} at ({c.x:F1}, {c.y:F1}), {o.size:F1} long, planned {o.at:P0} along the way");
+                if (what == "amber") Debug.Log($"[AntGarden] particle nest: {o.id} at ({c.x:F1}, {c.y:F1}), {o.size:F1} long, planned {o.at:P0} along the way, turned {yaw:F0}°");
                 // the temple's spires, arches and cells answer an antenna as its relics did in the ruin: they light up
                 if ((what == "temple" || what == "moss" || what == "ember" || what == "amber") && world.glow != null) world.glow.AddTouchable(new Vector3(c.x, y, c.y), r, top, (NestTheme.Current ?? NestTheme.Cyan).glow[0]);
                 placed++;
             }
             Debug.Log($"[AntGarden] particle nest: {placed} things left beside the way" + (skipped.Count > 0 ? $" (no room for {string.Join(", ", skipped)})" : ""));
+        }
+
+        /// <summary>The amber nest's cone: lying across the line one coming along the way sees it on (from the way 5.5
+        /// before it), turned a quarter of the way toward it, so its side and one end show (along the way, end on to one
+        /// coming, it read as "a round-crowned tree, a big brown flower", k23; turned 35° from that, still end on to the
+        /// view from the way, "a brown ball", k24). Its model's long axis lies along the way at the way's heading + 90°.</summary>
+        static float ConeYaw(List<Vector2> track, Vector2 onWay, Vector2 cone)
+        {
+            int near = 0;
+            for (int i = 1; i < track.Count; i++) if ((track[i] - onWay).sqrMagnitude < (track[near] - onWay).sqrMagnitude) near = i;
+            float run = 0f;
+            while (near > 0 && run < 5.5f) { run += (track[near] - track[near - 1]).magnitude; near--; }
+            Vector2 sight = cone - track[near];
+            return Mathf.Atan2(sight.x, sight.y) * Mathf.Rad2Deg + 155f;
         }
 
         /// <summary>The warm specks on the floor (after the plants have grown), and the field the guiding pulses read.</summary>
@@ -460,9 +534,9 @@ namespace AntGarden
         /// <summary>A plant lit on the way: the goal moves on.</summary>
         public void OnPlantLit(Hud hud)
         {
-            if (beat != 0) return;
+            if (beat != 0 || !begun) return;   // (not while the tutorial holds the chapter back)
             beat = 1;
-            hud.SetObjective(Loc.T("继续跟着光走，它通向出口", "Go on: the light leads to the way out"));
+            hud.SetObjective("继续跟着光走，它通向出口", "Go on: the light leads to the way out");
         }
 
         /// <summary>The nest's living field: the wind, and no rings yet.</summary>
@@ -498,12 +572,12 @@ namespace AntGarden
         public void Tick(float dt, Vector3 ant, Hud hud)
         {
             Breathe(dt, ant);
-            if (!begun && (cardIn -= dt) <= 0)
+            if (!begun && !Hold && (cardIn -= dt) <= 0)
             {
                 begun = true;
                 // the same chapter, with the same words, in every nest (each colour of the room's lights opens its own)
-                hud.ShowChapter(Loc.T("第一章 · 入口", "Chapter One · The Way In"), Loc.T("跟着地上的光，穿过蚁穴", "Follow the light on the ground through the nest"));
-                hud.SetObjective(Loc.T("跟着地上的光走", "Follow the light on the ground"));
+                hud.ShowChapter("第一章 · 入口", "Chapter One · The Way In", "跟着地上的光，穿过蚁穴", "Follow the light on the ground through the nest");
+                hud.SetObjective("跟着地上的光走", "Follow the light on the ground");
             }
             float playerD = route != null ? GuideTrail.PlayerD(route, ant) : -1;
             // eased over a few frames (a change of track, or the heart's ring, would otherwise move the pulses at once)
@@ -525,8 +599,14 @@ namespace AntGarden
             if (begun && beat < 2 && route != null && (new Vector2(ant.x, ant.z) - heart).magnitude < HeartRadius + 1.5f)
             {
                 beat = 2;
-                hud.ShowChapter(Loc.T("第一章 · 完成", "Chapter One · Done"), Loc.T("下一章：育儿室（还没有开放）", "Next: the Nursery (not open yet)"));
-                hud.SetObjective(Loc.T("第一章完成", "Chapter one done"));
+                // (the honeycomb, 11-03: the nest its way out opens on, by the name its gate and the map give it, with its
+                // place on the colour wheel; a nest outside the ring keeps the old card)
+                NestTheme on = WayOutTo != null && WayOutTo.Contains("@") ? NestTheme.For(WayOutTo.Substring(WayOutTo.LastIndexOf('@') + 1).Split('#')[0]) : null;
+                if (on != null)
+                    hud.ShowChapter("第一章 · 完成", "Chapter One · Done", $"下一站：{Mathf.RoundToInt(on.hue)}° {on.nameZh}", $"Next: {on.nameEn}, {Mathf.RoundToInt(on.hue)}°");
+                else
+                    hud.ShowChapter("第一章 · 完成", "Chapter One · Done", "下一章：育儿室（还没有开放）", "Next: the Nursery (not open yet)");
+                hud.SetObjective("第一章完成", "Chapter one done");
                 Voices.Chime(ant + Vector3.up, 1.3f);
             }
         }

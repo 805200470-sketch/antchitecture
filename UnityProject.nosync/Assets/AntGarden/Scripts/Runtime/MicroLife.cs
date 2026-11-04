@@ -95,7 +95,7 @@ namespace AntGarden
             if (buffer == null) return;
             block.SetBuffer("_Creatures", buffer);
             // (a nest lifted above v15's exposure burnt the white fluff out: keep it as bright on screen as there, NestTheme.LightComp)
-            block.SetFloat("_Gain", gain * NestTheme.LightComp(0.8f));
+            block.SetFloat("_Gain", gain * NestTheme.LightComp(0.8f) * (NestTheme.Current?.microGain ?? 1f));   // (and a nest's own: NestTheme.microGain)
             block.SetFloat("_MaxDistance", maxDistance);
             block.SetVector("_MoonDir", new Vector4(0.32f, 0.9f, 0.28f, 0).normalized);
             NestTheme theme = NestTheme.Current ?? NestTheme.Cyan;
@@ -105,6 +105,8 @@ namespace AntGarden
             // quiet colours from the nest's theme
             for (int i = 0; i < 8; i++) palette[i] = theme.microLife[i].linear;
             block.SetVectorArray("_Pal", palette);
+            block.SetVector("_MidgeTint", theme.midgeTint);   // (raw values, as the shader's constants were)
+            block.SetVector("_MidgeWing", theme.midgeWing);
             var bounds = new Bounds(new Vector3((world.minX + world.maxX) / 2, 0, (world.minZ + world.maxZ) / 2),
                 new Vector3(world.maxX - world.minX + 40, 200, world.maxZ - world.minZ + 40));
             Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, count * SplatsPerCreature * 3, 1, null, block, ShadowCastingMode.Off, false, 0);

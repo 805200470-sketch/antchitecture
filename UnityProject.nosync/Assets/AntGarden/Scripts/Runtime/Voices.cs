@@ -3,9 +3,10 @@ using UnityEngine;
 namespace AntGarden
 {
     /// <summary>
-    /// What the world says, in both languages: lines some NPC ants share when you touch antennae with them,
-    /// the preset stories the memory plants hold (placeholders until visitors leave their own), and each
-    /// relic's short script (one line per touch). Plus a soft procedural chime, so every reply is heard.
+    /// What the world says, in both languages: lines some NPC ants share when you touch antennae with them
+    /// (outside the particle nests; theirs are each nest's own, NpcLines, 11-04), the preset stories the memory
+    /// plants hold (placeholders until visitors leave their own), and each relic's short script (one line per
+    /// touch). Plus a soft procedural chime, so every reply is heard.
     /// </summary>
     public static class Voices
     {
@@ -88,6 +89,7 @@ namespace AntGarden
         /// <summary>A soft bell (a few inharmonic partials, slow decay) at a position, pitched per speaker.</summary>
         public static void Chime(Vector3 at, float pitch, float volume = 0.5f)
         {
+            if (Sfx.Reply(at, pitch, volume)) return;   // the natural sounds (11-04): a drop in a cave instead of the bell
             if (chime == null)
             {
                 const int rate = 44100;

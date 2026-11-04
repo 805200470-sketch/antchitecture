@@ -1,0 +1,82 @@
+{
+  "about": "What some NPC ants say when the player touches antennae with them, nest by nest (NpcLines.cs, 11-04). A few quiet lines per nest in 中文 and English; the last of each nest's tells where its light leads, the next nest round the ring. The draft the user reviews: Docs/文本/NPC台词_草稿.md. speaker: who is named as speaking. share: about this share of a nest's ants have something to say (the rest only touch antennae back). perAnt: lines one ant says before it only touches back. again: seconds a line just said stays up when the same ant is touched again at once.",
+  "speaker": { "zh": "一只蚂蚁", "en": "An ant" },
+  "share": 0.5,
+  "perAnt": 2,
+  "again": 4,
+  "nests": [
+    {
+      "nest": "kiln",
+      "name": "0° 古蚁圣殿 · The Ancient Temple",
+      "lines": [
+        { "zh": "火走了很久，灰还是温的。", "en": "The fire is long gone. The ash is still warm." },
+        { "zh": "神殿是烧剩的树桩，祖先把它一点点咬空。", "en": "The temple is a burnt stump the ancestors hollowed, bite by bite." },
+        { "zh": "断面上的一圈圈，是一代代走过的路。", "en": "The rings in the cut wood are paths walked by generations." },
+        { "zh": "火后最先长出来的，是红色的小杯子。", "en": "After the fire, the first to grow were the little red cups." },
+        { "zh": "在这里，我们像祖先那样碰触角。", "en": "Here we touch antennae, as the ancestors did." },
+        { "zh": "灰烬那头，空气里有树脂的味道。", "en": "Past the ash, the air smells of resin." }
+      ]
+    },
+    {
+      "nest": "amber",
+      "name": "30° 暖琥珀蚁穴 · The Amber Nest",
+      "lines": [
+        { "zh": "这里的树在流泪，流得很慢。", "en": "The trees here weep, very slowly." },
+        { "zh": "我们把树脂搬进巢里，它能挡住病。", "en": "We carry resin into the nest. It keeps sickness out." },
+        { "zh": "掉进树脂里的，都会被留住。", "en": "Whatever falls into the resin is kept." },
+        { "zh": "琥珀里睡着一只蚂蚁，比这片林子还老。", "en": "An ant sleeps in the amber, older than this wood." },
+        { "zh": "松果上的光，是一颗颗没落下的泪。", "en": "The lights on the great cone are tears that never fell." },
+        { "zh": "往前走，空气会变甜。", "en": "Walk on, and the air turns sweet." }
+      ]
+    },
+    {
+      "nest": "honey",
+      "name": "60° 蜜罐粮仓 · The Honeypot Granary",
+      "lines": [
+        { "zh": "粮仓满了，冬天就不可怕。", "en": "With the granary full, winter holds no fear." },
+        { "zh": "有些姐妹一辈子挂在顶上，替大家存着蜜。", "en": "Some sisters hang from the roof for life, keeping our honey." },
+        { "zh": "每一粒种子，都是从很远的地方搬回来的。", "en": "Every seed here was carried from far away." },
+        { "zh": "那颗大瓜子裂开以后，这里一直是甜的。", "en": "Since the great seed split open, it has always been sweet here." },
+        { "zh": "蜜放久了，会变成小小的石头。", "en": "Kept long enough, honey turns into little stones." },
+        { "zh": "再往前，叶子都被咬成了月牙。", "en": "Further on, the leaves are bitten into crescents." }
+      ]
+    },
+    {
+      "nest": "leafcut",
+      "name": "90° 切叶蚁菌圃 · The Leafcutters' Garden",
+      "lines": [
+        { "zh": "叶子不是吃的，是用来种菌的。", "en": "We don't eat the leaves. We grow our garden on them." },
+        { "zh": "第一位蚁后来的时候，嘴里含着一小块菌圃。", "en": "The first queen came with a crumb of the garden in her mouth." },
+        { "zh": "新叶铺在上面，旧叶慢慢变褐。", "en": "New leaves go on top. The old ones slowly turn brown." },
+        { "zh": "最小的姐妹坐在叶子上，替我们看着天。", "en": "The smallest sisters ride on the leaves and watch the sky." },
+        { "zh": "菌圃发光的时候，是它吃饱了。", "en": "When the garden glows, it has eaten well." },
+        { "zh": "前面潮湿，苔藓长得比树还高。", "en": "Ahead it is damp, and the moss grows taller than trees." }
+      ]
+    },
+    {
+      "nest": "moss",
+      "name": "120° 苔藓森林 · The Moss Forest",
+      "lines": [
+        { "zh": "对我们来说，苔藓就是森林。", "en": "To us, the moss is a forest." },
+        { "zh": "下过雨，整片林子都会醒过来。", "en": "After rain, the whole forest wakes." },
+        { "zh": "孢蒴熟了，会张开一圈小牙，等风来。", "en": "A ripe capsule opens its ring of teeth and waits for wind." },
+        { "zh": "这里没有谁赶路，苔藓一年只长一点点。", "en": "Nobody hurries here. The moss grows a little each year." },
+        { "zh": "戴红帽子的地衣，比这片林子还要老。", "en": "The red-capped lichen is older than this forest." },
+        { "zh": "再往前，林子会变蓝，会发光。", "en": "Further on, the forest turns blue and glows." }
+      ]
+    },
+    {
+      "nest": "blue",
+      "name": "180° 蓝色真菌林 · The Blue Fungal Forest",
+      "lines": [
+        { "zh": "下面的空气是干净的。", "en": "Down here, the air is clean." },
+        { "zh": "菌丝在土里连成一片，整座林子是一体的。", "en": "Underground the threads join. The whole forest is one." },
+        { "zh": "发光的不是灯，是它们在呼吸。", "en": "Those aren't lamps. That's them breathing." },
+        { "zh": "我们挖过的路，后来变成了你走的路。", "en": "The tunnels we dug became the paths you walk." },
+        { "zh": "上面的人留下了一些东西，碰碰它们。", "en": "The ones above left things here. Touch them." },
+        { "zh": "灯换了颜色，另一个蚁穴就醒了。", "en": "When the light changes colour, another nest wakes." },
+        { "zh": "光的尽头，是一片烧过的林子。", "en": "At the end of the light lies a burnt wood." }
+      ]
+    }
+  ]
+}

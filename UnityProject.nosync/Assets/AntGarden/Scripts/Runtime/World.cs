@@ -46,6 +46,27 @@ namespace AntGarden
             return scratch;
         }
 
+        /// <summary>
+        /// Every circle that may come within reach of (x, z), each once, into the given list. Near gives only the point's
+        /// own cell: a circle listed only in the next cell over is missed until the point crosses into it (11-03: the
+        /// player's ant walked a quarter unit into a stem there, then was pushed out in one frame, the view with it).
+        /// </summary>
+        public List<Circle> Around(float x, float z, float reach, List<Circle> into)
+        {
+            into.Clear();
+            int i0 = Mathf.FloorToInt((x - reach) / cell), i1 = Mathf.FloorToInt((x + reach) / cell);
+            int j0 = Mathf.FloorToInt((z - reach) / cell), j1 = Mathf.FloorToInt((z + reach) / cell);
+            for (int j = j0; j <= j1; j++)
+            for (int i = i0; i <= i1; i++)
+            {
+                if (!cells.TryGetValue(Key(i, j), out var list)) continue;
+                foreach (var c in list)
+                    // (each once: from the first of its cells this query visits)
+                    if (Mathf.Max(i0, Mathf.FloorToInt((c.x - c.r) / cell)) == i && Mathf.Max(j0, Mathf.FloorToInt((c.z - c.r) / cell)) == j) into.Add(c);
+            }
+            return into;
+        }
+
         /// <summary>True when a disc of radius r at (x, z) overlaps any stored circle.</summary>
         public bool Overlaps(float x, float z, float r)
         {

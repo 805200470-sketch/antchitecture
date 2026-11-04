@@ -380,7 +380,8 @@ namespace AntGarden
             r.flash = 1;
             if (!Voices.Relics.TryGetValue(r.id, out var sc)) return;
             said.TryGetValue(r.id, out int k);
-            hud.ShowLine(Loc.T(sc.zhName, sc.enName), Voices.T(sc.lines[k % sc.lines.Length]));
+            var line = sc.lines[k % sc.lines.Length];
+            hud.ShowLine(sc.zhName, sc.enName, line.zh, line.en);   // (both: written again if the language switches while it shows)
             said[r.id] = k + 1;
             Voices.Chime(r.pos + Vector3.up, sc.pitch);
         }

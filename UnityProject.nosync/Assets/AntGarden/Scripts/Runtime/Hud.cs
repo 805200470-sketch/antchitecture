@@ -16,16 +16,29 @@ namespace AntGarden
         readonly CanvasGroup promptGroup, regionGroup, captionGroup, lineGroup;
         readonly Text lineSpeaker, lineText;
         float lineTimer;
+        string lineSpeakerZh, lineSpeakerEn, lineZh, lineEn;   // the line in both languages, written again when the language switches (RelabelLine)
+        string chapterZh, chapterEn, chapterSubZh, chapterSubEn;   // a chapter's card in both languages (RelabelChapter)
         readonly Image fade;
         float captionTarget, fadeTarget;
         bool helpWanted = true, mapOpen;
         RectTransform minimap, playerMarker;
         RectTransform objective;
         Text objectiveLabel;
+        string objectiveZh, objectiveEn;   // the goal in both languages, written again when L switches (RelabelObjective)
         RectTransform controls;
         Text controlsLabel;
         bool controlsWanted;
+        // (11-04) the controls can be put away and brought back: ⧉ on the pad, C on the keyboard, or the × on the panel
+        // (ToggleControls); they fold away by themselves when the tutorial is done (FoldControls); for a few seconds after,
+        // a note in their place says how to bring them back
+        static bool? controlsChosen;   // the player's own choice this session, kept in the next nest (a world's reload makes a new Hud)
+        string controlsShown;          // the language and the device in hand the words were written for (written again when either changes)
+        Text controlsNoteLabel;
+        CanvasGroup controlsNote;
+        float controlsNoteTimer;
         MapPainter map;
+        HoneyMiniMap honeyMini;   // in a nest of the honeycomb, the minimap is the nest among its neighbours (HoneyMap, 11-04)
+        bool honeyWanted;         // (its map still being drawn when the minimap was built: the painter's until it is)
         float fps = 60, statTimer, regionTimer, regionDuration = 2.8f;
 
         public Hud()
@@ -38,6 +51,7 @@ namespace AntGarden
             titleLabel = UiKit.Label(help, "Title", "", 22, UiKit.Ink, TextAnchor.UpperLeft);
             Pad(titleLabel.rectTransform, 18, 14);
             titleLabel.text = Loc.T("<b>Ant Garden · 蚁穴峡谷</b>", "<b>Ant Garden · Nest Canyon</b>");
+            Close(help, () => SetHelpVisible(false));   // (11-04: shut with the mouse too)
 
             // the chapter's current goal, one quiet line top left (chapters only)
             objective = UiKit.Rect(root, "Objective", 0, 1, new Vector2(28, -28), new Vector2(760, 40));
@@ -45,11 +59,20 @@ namespace AntGarden
             objective.gameObject.SetActive(false);
 
             // the pad's controls, a small panel under the goal, while the game is shown to people (-controls)
-            controls = UiKit.Rect(root, "Controls", 0, 1, new Vector2(24, -76), new Vector2(300, 262));
+            controls = UiKit.Rect(root, "Controls", 0, 1, new Vector2(24, -76), new Vector2(300, 286));
             UiKit.Panel(controls, UiKit.PanelBg);
             controlsLabel = UiKit.Label(controls, "ControlsText", "", 19, UiKit.Ink, TextAnchor.UpperLeft);
             Pad(controlsLabel.rectTransform, 16, 12);
             controls.gameObject.SetActive(false);
+            // (11-04) a × to put it away with the mouse (⧉ and C do it too); where it was, for a few seconds after, how to
+            // bring it back
+            Close(controls, () => ChooseControls(false));
+            var note = UiKit.Rect(root, "ControlsNote", 0, 1, new Vector2(28, -80), new Vector2(300, 32));
+            controlsNoteLabel = UiKit.Label(note, "ControlsNoteText", "", 17, UiKit.Dim, TextAnchor.MiddleLeft);
+            controlsNote = note.gameObject.AddComponent<CanvasGroup>();
+            controlsNote.alpha = 0f;
+            controlsNote.blocksRaycasts = false;
+            controlsNote.interactable = false;
 
             stats = UiKit.Rect(root, "Stats", 0, 0, new Vector2(24, 24), new Vector2(520, 64));
             UiKit.Panel(stats, UiKit.PanelBg);
@@ -117,6 +140,24 @@ namespace AntGarden
             rt.offsetMax = new Vector2(-x, -y);
         }
 
+        /// <summary>A small × in a panel's top right corner, for the mouse (11-04). It never stays selected once clicked:
+        /// Space and the pad's A submit the selected button too (the old input's Submit), and would press it again.</summary>
+        static void Close(RectTransform panel, UnityEngine.Events.UnityAction onClick)
+        {
+            RectTransform rt = UiKit.Rect(panel, "Close", 1, 1, new Vector2(-2, -2), new Vector2(34, 34));
+            UiKit.Panel(rt, new Color(0f, 0f, 0f, 0f));   // (clear, but it takes the click)
+            Text x = UiKit.Label(rt, "X", "×", 24, UiKit.Ink, TextAnchor.MiddleCenter);
+            Button b = rt.gameObject.AddComponent<Button>();
+            b.navigation = new Navigation { mode = Navigation.Mode.None };
+            b.targetGraphic = x;
+            ColorBlock c = b.colors;
+            c.normalColor = c.selectedColor = c.disabledColor = new Color(0.62f, 0.74f, 0.74f);   // dim, until the mouse is over it
+            c.highlightedColor = UiKit.Warm;
+            c.pressedColor = Color.white;
+            b.colors = c;
+            b.onClick.AddListener(onClick);
+        }
+
         public void SetProgress(string label, float frac)
         {
             loadingLabel.text = label;
@@ -140,13 +181,13 @@ namespace AntGarden
                 Loc.T("WASD 爬行 · Shift 快爬 · 左键拖动转镜头 · 滚轮远近\n" +
                       "空格 触角动作（触角能碰亮发光植物）· E 打招呼 / 查看物件位\n" +
                       "M 地图与传送（点地图任意处即传送）\n" +
-                      "Tab 切换画质 · F 全屏/窗口 · L English · H 隐藏说明\n" +
-                      "<color=#9bbcbc>手柄：左摇杆 爬行 · 右摇杆 转镜头 · RT 快爬 · A 交互 · B 触角 / 返回 · Y 地图 · LB/RB 远近 · ☰ 说明</color>",
+                      "Tab 切换画质 · F 全屏/窗口 · L English · H 隐藏说明 · C 操作面板\n" +
+                      "<color=#9bbcbc>手柄：左摇杆 爬行 · 右摇杆 转镜头 · RT 快爬 · A 交互 · B 触角 / 返回 · Y 地图 · LB/RB 远近 · X English · ☰ 说明 · " + Loc.View(23) + " 操作面板</color>",
                       "WASD crawl · Shift run · drag to look · scroll to zoom\n" +
                       "Space antenna touch (it lights up glowing plants) · E greet / open a story slot\n" +
                       "M map & teleport (click anywhere on it)\n" +
-                      "Tab quality · F full screen · L 中文 · H hide help\n" +
-                      "<color=#9bbcbc>Pad: left stick crawl · right stick look · RT run · A interact · B antennae / back · Y map · LB/RB zoom · ☰ help</color>") + "</size>";
+                      "Tab quality · F full screen · L 中文 · H hide help · C controls\n" +
+                      "<color=#9bbcbc>Pad: left stick crawl · right stick look · RT run · A interact · B antennae / back · Y map · LB/RB zoom · X 中文 · ☰ help · " + Loc.View(23) + " controls</color>") + "</size>";
             if (controlsWanted) SetControlsVisible(true);   // (in the language just chosen)
         }
 
@@ -158,15 +199,55 @@ namespace AntGarden
             controls.gameObject.SetActive(controlsWanted && !helpWanted && !mapOpen);
         }
 
-        /// <summary>The pad's controls, top left under the goal (the full help, ☰, has them too and takes their place).</summary>
+        /// <summary>The controls, top left under the goal (the full help, ☰, has them too and takes their place): the pad's
+        /// sticks and buttons, or the keys, whichever was used last (Loc.Controls, 11-04). -controls shows them from the start
+        /// (Game); once the player has put them away or brought them back this session (⧉, C, the ×), or the tutorial has
+        /// folded them away, that holds, in the next nest too.</summary>
         public void SetControlsVisible(bool on)
         {
-            controlsWanted = on;
-            const string k = "<color=#e9d7a8>";
-            controlsLabel.text = Loc.T(
-                $"<b>手柄操作</b>\n{k}左摇杆</color>  爬行\n{k}右摇杆</color>  转镜头\n{k}RT</color>  快爬\n{k}A</color>  互动\n{k}B</color>  触角 / 返回\n{k}Y</color>  地图\n{k}LB / RB</color>  拉远 / 拉近\n{k}☰</color>  完整说明",
-                $"<b>Pad controls</b>\n{k}Left stick</color>  crawl\n{k}Right stick</color>  look\n{k}RT</color>  run\n{k}A</color>  interact\n{k}B</color>  antennae / back\n{k}Y</color>  map\n{k}LB / RB</color>  zoom\n{k}☰</color>  all controls");
+            controlsWanted = controlsChosen ?? on;
+            RenderControls(true);
             controls.gameObject.SetActive(controlsWanted && !helpWanted && !mapOpen);
+        }
+
+        /// <summary>⧉ on the pad or C on the keyboard (11-04): what is top left put away (the full help too, when it is open),
+        /// or the controls brought back.</summary>
+        public void ToggleControls()
+        {
+            if (helpWanted && !mapOpen)
+            {
+                SetHelpVisible(false);
+                if (controlsWanted) ChooseControls(false);
+                return;
+            }
+            ChooseControls(!controlsWanted);
+        }
+
+        /// <summary>The tutorial is done (Tutorial.Finish): the controls fold away by themselves (⧉ or C brings them back).</summary>
+        public void FoldControls()
+        {
+            if (controlsWanted) ChooseControls(false);
+        }
+
+        /// <summary>The controls are wanted top left (shown unless the full help or the map is over them; checks).</summary>
+        public bool ControlsOpen => controlsWanted;
+
+        void ChooseControls(bool on)
+        {
+            controlsChosen = on;
+            SetControlsVisible(on);
+            controlsNoteTimer = on ? 0f : 4.5f;   // put away: for a few seconds, how to bring them back
+        }
+
+        /// <summary>The panel's words and its note's, written again only when the language or the device in hand changes.</summary>
+        void RenderControls(bool force)
+        {
+            bool pad = AntGarden.Pad.LastUsed;
+            string key = (Loc.En ? "en|" : "zh|") + (pad ? "pad" : "keys");
+            if (!force && key == controlsShown) return;
+            controlsShown = key;
+            controlsLabel.text = Loc.Controls(pad);
+            controlsNoteLabel.text = Loc.ControlsBack(pad);
         }
 
         /// <summary>The big map covers the screen: the help panel steps aside so the two do not overlap.</summary>
@@ -200,6 +281,10 @@ namespace AntGarden
         public void BuildMinimap(MapPainter painter)
         {
             map = painter;
+            // a nest of the honeycomb: its own canyons among its neighbours' (HoneyMiniMap; 11-04, "too simple" as it was)
+            honeyWanted = HoneyMap.WantedHere;
+            honeyMini = HoneyMiniMap.Build(canvas.transform);
+            if (honeyMini != null) return;
             float size = 260;
             float wpx = painter.Aspect >= 1 ? size : size * painter.Aspect;
             float hpx = painter.Aspect >= 1 ? size / painter.Aspect : size;
@@ -222,6 +307,7 @@ namespace AntGarden
 
         public void ShowRegion(string title, string sub)
         {
+            chapterZh = null;
             regionTitle.text = title;
             regionSub.text = sub;
             regionTimer = regionDuration = 2.8f;
@@ -230,16 +316,50 @@ namespace AntGarden
         /// <summary>A chapter's title card (the region banner, held longer).</summary>
         public void ShowChapter(string title, string sub)
         {
+            chapterZh = null;
             regionTitle.text = title;
             regionSub.text = sub;
             regionTimer = regionDuration = 5f;
         }
 
-        /// <summary>The chapter's current goal top left; empty hides it.</summary>
-        public void SetObjective(string text)
+        /// <summary>A chapter's title card in both languages (written again in place when the language switches).</summary>
+        public void ShowChapter(string titleZh, string titleEn, string subZh, string subEn)
         {
+            ShowChapter(Loc.T(titleZh, titleEn), Loc.T(subZh, subEn));
+            chapterZh = titleZh;
+            chapterEn = titleEn;
+            chapterSubZh = subZh;
+            chapterSubEn = subEn;
+        }
+
+        /// <summary>The nest's banner or a chapter's card is on screen (top centre).</summary>
+        public bool BannerShowing => regionTimer > 0f;
+
+        /// <summary>A chapter card still on screen, again in the language just switched to; false when none is showing
+        /// (then the nest's banner is shown again in the new language instead).</summary>
+        public bool RelabelChapter()
+        {
+            if (chapterZh == null || regionTimer <= 0f) return false;
+            regionTitle.text = Loc.T(chapterZh, chapterEn);
+            regionSub.text = Loc.T(chapterSubZh, chapterSubEn);
+            return true;
+        }
+
+        /// <summary>The chapter's current goal top left, in both languages; empty hides it.</summary>
+        public void SetObjective(string zh, string en)
+        {
+            objectiveZh = zh;
+            objectiveEn = en;
+            string text = Loc.T(zh, en);
             objectiveLabel.text = string.IsNullOrEmpty(text) ? "" : "✦  " + text;
             objective.gameObject.SetActive(!string.IsNullOrEmpty(text));
+            help.anchoredPosition = new Vector2(24, string.IsNullOrEmpty(text) ? -24 : -76);   // the full help (☰) under the goal, as the pad's controls (over it, the two read as one jumble)
+        }
+
+        /// <summary>The goal again in the language L switched to (it is written once, when it changes).</summary>
+        public void RelabelObjective()
+        {
+            if (objectiveZh != null || objectiveEn != null) SetObjective(objectiveZh, objectiveEn);
         }
 
         public void ShowSlot(string html)
@@ -257,15 +377,40 @@ namespace AntGarden
         /// </summary>
         public void ShowLine(string speaker, string text)
         {
+            lineSpeakerZh = lineSpeakerEn = lineZh = lineEn = null;
             lineSpeaker.text = speaker;
             lineText.text = text;
             lineTimer = Mathf.Clamp(2.5f + text.Length * 0.12f, 4f, 9f);
+        }
+
+        /// <summary>A line in both languages: written again in the other one when the language switches while it shows.</summary>
+        public void ShowLine(string speakerZh, string speakerEn, string textZh, string textEn)
+        {
+            ShowLine(Loc.T(speakerZh, speakerEn), Loc.T(textZh, textEn));
+            lineSpeakerZh = speakerZh;
+            lineSpeakerEn = speakerEn;
+            lineZh = textZh;
+            lineEn = textEn;
+        }
+
+        /// <summary>The line still showing, again in the language just switched to (with a moment more to read it).</summary>
+        public void RelabelLine()
+        {
+            if (lineZh == null || lineTimer <= 0f) return;
+            lineSpeaker.text = Loc.T(lineSpeakerZh, lineSpeakerEn);
+            lineText.text = Loc.T(lineZh, lineEn);
+            lineTimer = Mathf.Max(lineTimer, 3f);
         }
 
         public bool LineShowing => lineTimer > 0;
 
         public void Tick(float dt, AntController player, int npcs, string extra)
         {
+            // (11-04) the controls' words follow the language and the device in hand; the note left in their place fades
+            if (controlsWanted || controlsNoteTimer > 0f) RenderControls(false);
+            controlsNoteTimer -= dt;
+            bool taken = controlsWanted || helpWanted || mapOpen;   // (the controls back, the help or the map in its place: it goes at once)
+            controlsNote.alpha = taken ? 0f : Mathf.MoveTowards(controlsNote.alpha, controlsNoteTimer > 0f ? 1f : 0f, dt * (controlsNoteTimer > 0f ? 4f : 1.2f));
             lineTimer -= dt;
             lineGroup.alpha = Mathf.MoveTowards(lineGroup.alpha, lineTimer > 0 ? 1 : 0, dt * (lineTimer > 0 ? 5f : 1.5f));
             captionGroup.alpha = Mathf.MoveTowards(captionGroup.alpha, captionTarget, dt * 3f);
@@ -279,7 +424,16 @@ namespace AntGarden
             }
             regionTimer -= dt;
             regionGroup.alpha = Mathf.Clamp01(Mathf.Min((regionDuration - regionTimer) / 0.6f, regionTimer / 0.6f));
-            if (map != null && playerMarker != null)
+            if (honeyWanted && honeyMini == null && HoneyMap.ReadyHere)
+            {
+                // the honeycomb's map drawn since: it takes the painter's place (under everything else, as it was built first)
+                if (minimap != null) Object.Destroy(minimap.gameObject);
+                minimap = playerMarker = null;
+                honeyMini = HoneyMiniMap.Build(canvas.transform);
+                honeyMini?.root.SetAsFirstSibling();
+            }
+            if (honeyMini != null) honeyMini.Tick(player);
+            else if (map != null && playerMarker != null)
             {
                 Vector2 uv = map.ToUv(player.Position.x, player.Position.z);
                 var parent = (RectTransform)playerMarker.parent;

@@ -18,11 +18,17 @@ Shader "AntGarden/ParticleSolid"
         _Gain ("Brightness", Float) = 1
         _GlowGain ("Glow brightness (HDR)", Float) = 0.9
         _MinPixels ("Smallest splat (pixels)", Float) = 0.75
+        // (a see-through pass for clear things, SolidThings -glass, a trial: as drawn, opaque)
+        [HideInInspector] _SrcBlend ("", Float) = 1
+        [HideInInspector] _DstBlend ("", Float) = 0
+        [HideInInspector] _ZWrite ("", Float) = 1
+        _Alpha ("Opacity", Float) = 1
     }
     SubShader
     {
         Tags { "Queue" = "Geometry+30" "RenderType" = "Opaque" "IgnoreProjector" = "True" }
-        ZWrite On
+        ZWrite [_ZWrite]
+        Blend [_SrcBlend] [_DstBlend]
         Cull Off
 
         Pass
@@ -37,10 +43,15 @@ Shader "AntGarden/ParticleSolid"
 
             struct SolidPoint { float3 pos; uint nrm; uint col; float radius; };
             StructuredBuffer<SolidPoint> _Solid;
-            float _Gain, _GlowGain, _MinPixels;
+            float _Gain, _GlowGain, _MinPixels, _Alpha;
             float4 _TrailPlayer;            // global: the player's ant
             float4 _Lod;                    // x: all splats within, y: thinned to z of them by (units from the camera)
             float4 _MoonDir, _MoonColor, _FillColor;   // the light (direction toward it, world), its colour and the fill's
+            float4 _GroundMoonDir;                      // w 1: the walls round the ant lit from here instead, as the terrain is (NestTheme.groundMoon)
+            float4 _NestFar;                            // global: a nest's far off darker, from x to y units from the camera down to z (w 1: on; NestTheme.farDark)
+            float4 _SolidCalm;                          // further off calmer: from x to y units from the camera, down to z of its saturation and w of its light (y 0: off; 11-04)
+            float4 _SolidGrain;                         // and fine-grained: a splat at most e^x pixels (its size) at y units from the camera, e^z at w and beyond (w 0: off; 11-04)
+            float _GroundFill;                          // and their fill this many times the fill (0 or 1: as it is; NestTheme.wallAmbient)
             float _Shell;                               // 1: the fine splats of the plants round the ant
             float4 _NearFade;                           // round the ant the fine splats are drawn out to y, the coarse from x
             float4 _NearDensity;                        // the fine splats: all of a plant's within x of the camera, at least y further
@@ -53,6 +64,7 @@ Shader "AntGarden/ParticleSolid"
             float _WalkLit, _WalkRadius;                // how much what it walked past lights up, and how near it must be
             float _NearLift;                            // how much brighter things are right round the ant (SolidThings; 0.9)
             float _ScatterRadius;                       // what the ant walks through scatters this far round it (0: no)
+            float4 _LensClear;                          // x 0..1: the particle nests' camera inside a plant or a thing clears further round its lens (CameraRig)
             float _ExhibitCount, _ExhibitPeriod;        // a visitor's things (Uploads): how many, and one tide (seconds);
             float4 _Exhibits[8], _ExhibitTide[8];       // where each is (xyz, w: how far round), its tide (x its foot's height, y how tall, z phase, w light)
 
@@ -91,17 +103,23 @@ Shader "AntGarden/ParticleSolid"
                 o.pos = float4(0, 0, 0, 1);
                 uint i = id / 3;
                 SolidPoint p = _Solid[i];
-                float h = Hash(i), h2 = Hash(i + 7919u);
+                // (11-04, _NearFade.w 1: SolidThings) a plant's point is the same point in its coarse and its fine splat:
+                // everything random about it (when it hands over, how it sways and glints, how light it is) from where it
+                // stands, not from its place in its buffer, so the two match exactly where one gives way to the other
+                bool plantPt = _NearFade.w > 0.5 && ((p.radius < 0 && ((p.nrm >> 24) & 127u) != 127u) || (_Shell > 0.5 && p.radius > 0 && (p.nrm >> 31) == 0));
+                uint pid = plantPt ? asuint(p.pos.x) * 73856093u ^ asuint(p.pos.y) * 83492791u ^ asuint(p.pos.z) * 19349663u : i;
+                float h = Hash(pid), h2 = Hash(pid + 7919u);
                 // round the ant, the plants' coarse splats (negative radius) give way to the fine ones (the shell): each
                 // at its own distance, so the change is dithered over a few units, never a line
                 float rad = abs(p.radius);
                 // (a giant beyond the walls, ParticleLook.FarSplats: coarse and ranked 127, its splats as small as its
                 // distance wants already; it has no fine set, and is never thinned further off)
                 bool giant = p.radius < 0 && ((p.nrm >> 24) & 127u) == 127u;
+                float daNear = length(p.pos.xz - _TrailPlayer.xz);
                 if (_NearFade.y > 0)
                 {
-                    float da = length(p.pos.xz - _TrailPlayer.xz), edge = lerp(_NearFade.x, _NearFade.y, Hash(i + 31337u));
-                    if ((_Shell > 0.5 && da > edge) || (_Shell < 0.5 && p.radius < 0 && !giant && da < edge)) return o;
+                    float edge = lerp(_NearFade.x, _NearFade.y, Hash(pid + 31337u));
+                    if ((_Shell > 0.5 && daNear > edge) || (_Shell < 0.5 && p.radius < 0 && !giant && daNear < edge)) return o;
                 }
                 // far away: fewer splats, the rest a little larger
                 float dist = distance(p.pos, _WorldSpaceCameraPos);
@@ -111,6 +129,12 @@ Shader "AntGarden/ParticleSolid"
                     float want = clamp(_NearDensity.x * _NearDensity.x / max(dist * dist, 1e-4), _NearDensity.y, 1);
                     // (a building's, bit 31, at least its nest's share however far: z, NestTheme.relicKeep; 0 elsewhere)
                     if ((p.nrm >> 31) != 0) want = max(want, _NearDensity.z);
+                    // (11-04) toward the handover a plant's fine splats thin to exactly its coarse set (its share of them in
+                    // the radius's low bits: ParticleLook.SolidShell), each grown to its coarse splat's size: where the two
+                    // swap they are the same splats, so nothing shows round the ant, and nothing comes in point by point
+                    else if (_NearFade.w > 0.5 && _NearFade.z > 0)
+                        // (not right by the camera, beside or behind it: there a plant stays fine, its swap out of sight)
+                        want = lerp(want, (asuint(p.radius) & 127u) / 128.0, smoothstep(_NearFade.x - _NearFade.z, _NearFade.x, daNear) * smoothstep(6.0, 9.0, dist));
                     if (((p.nrm >> 24) & 127u) / 128.0 >= want) return o;
                     rad /= sqrt(want);
                 }
@@ -187,9 +211,12 @@ Shader "AntGarden/ParticleSolid"
                 float3 B = normalize(cross(N, R)), T = cross(B, N);
                 float turn = h2 * 6.2831853, cs = cos(turn), sn = sin(turn);
                 float3 A1 = T * cs + B * sn, A2 = -T * sn + B * cs;
-                float stretch = 1 + 0.3 * Hash(i + 104729u);
+                float stretch = 1 + 0.3 * Hash(pid + 104729u);
                 float pixel = 2 * dist / (unity_CameraProjection._m11 * _ScreenParams.y);
                 float size = max(rad / sqrt(max(keep, 0.05)), pixel * _MinPixels);
+                // (11-04) far off fine-grained points, not big discs (the kiln's far ember cups were heaps of large dark discs: the
+                // few coarse splats of a small plant, grown by the thinning further off); SolidThings: _SolidGrain
+                if (_SolidGrain.w > 0) size = min(size, pixel * exp(lerp(_SolidGrain.x, _SolidGrain.z, smoothstep(_SolidGrain.y, _SolidGrain.w, dist))));
                 // shrunk away where it is scattered, on the line between the camera and the ant (the ant is never
                 // hidden behind a vine), and right at the lens
                 float sight = 0;
@@ -204,7 +231,10 @@ Shader "AntGarden/ParticleSolid"
                         sight = (1 - smoothstep(0.25, 0.45, length(off))) * smoothstep(0.02, 0.12, t) * (1 - smoothstep(0.82, 0.95, t));
                     }
                 }
-                size *= saturate(1 - max(max(scatter, sight), 1 - smoothstep(0.25, 0.8, dist)));
+                // right at the lens: gone within 0.25, whole from 0.8; while the particle nests' camera stands inside a plant
+                // or a thing, gone within 1 and whole from 2.4 (_LensClear.x, eased in and out by CameraRig.TickSteady)
+                float lensC = saturate(_LensClear.x);
+                size *= saturate(1 - max(max(scatter, sight), 1 - smoothstep(lerp(0.25, 1.0, lensC), lerp(0.8, 2.4, lensC), dist)));
                 if (size < 1e-5) return o;
                 float2 c = corners[id % 3];
                 o.pos = mul(UNITY_MATRIX_VP, float4(pos + (A1 * (c.x * stretch) + A2 * (c.y / stretch)) * size, 1));
@@ -217,12 +247,14 @@ Shader "AntGarden/ParticleSolid"
                 // the ground itself (ThingPen.Terrain: the walls round the ant): no glow, no rim, no glints
                 bool terrain = building && ((p.col >> 24) & 255u) == 2u;
                 if (terrain) glow = 0;
-                float key = saturate(dot(n, _MoonDir.xyz) * 0.85 + 0.15);
+                // (the walls round the ant from the scene's moon where a nest asks: lit from above, a slope the moon lit was near
+                // black round the ant, the lit terrain between its splats flat orange patches, the kiln's, k15-k16)
+                float key = saturate(dot(n, terrain && _GroundMoonDir.w > 0.5 ? _GroundMoonDir.xyz : _MoonDir.xyz) * 0.85 + 0.15);
                 float rim = terrain ? 0.0 : pow(1 - saturate(dot(n, V)), 3);
                 // a building (ThingPen.Building: the kiln's spires, arches, chimneys and cells) lights only where it glows,
                 // along its paths and at a few points, when the ant comes near, walks past or touches it; not the whole of it
                 float near = 1 + _NearLift * (1 - smoothstep(0.8, 4.5, length(pos.xz - _TrailPlayer.xz))) * (building ? 0.3 : 1);
-                float3 lit = albedo * (_FillColor.rgb + _MoonColor.rgb * key * key) * near + rim * 0.08 * albedo * 4;
+                float3 lit = albedo * (_FillColor.rgb * (terrain && _GroundFill > 0 ? _GroundFill : 1) + _MoonColor.rgb * key * key) * near + rim * 0.08 * albedo * 4;
                 // a thin silvery light along the outlines, as in a scan; a few splats glint now and then
                 lit += _RimColor.rgb * rim * (0.5 + 0.5 * key);
                 if (glossy)
@@ -236,7 +268,7 @@ Shader "AntGarden/ParticleSolid"
                 }
                 float tw = 0.5 + 0.5 * sin(AG_TIME * (0.45 + 1.1 * h) + h * 61);
                 // (far fewer on a building or a crystal: their splats dense and pale, the glints read as white specks all over)
-                lit += _GlintColor.rgb * step(terrain ? 2.0 : building ? 0.997 : 0.972, Hash(i + 555u)) * pow(tw, 8);
+                lit += _GlintColor.rgb * step(terrain ? 2.0 : building ? 0.997 : 0.972, Hash(pid + 555u)) * pow(tw, 8);
                 // the steps' rings and the threads' pools of light
                 lit *= 1 + 1.2 * rip;
                 lit += albedo * NestBeacon(pos) * _BeaconColor.rgb * lerp(1.2, 4.5, low);
@@ -262,7 +294,17 @@ Shader "AntGarden/ParticleSolid"
                 flare *= part;
                 lit = lit * (1 + 3 * flare) + flare * albedo * (0.6 + 2.5 * glow) * float3(0.95, 1.0, 1.05);
                 // each splat a little lighter or darker than its neighbours, as the points of a capture are
-                o.col = lit * _Gain * (0.88 + 0.24 * Hash(i + 999u));
+                o.col = lit * _Gain * (0.88 + 0.24 * Hash(pid + 999u));
+                // (11-04) a little calmer further off, never more vivid than near (SolidThings: _SolidCalm); where the nest's own far
+                // off is darker already (farDark, just below), that alone: the stronger of the two, never both
+                if (_SolidCalm.y > 0)
+                {
+                    float calmK = smoothstep(_SolidCalm.x, _SolidCalm.y, dist);
+                    float calmNF = _NestFar.w > 0.5 ? lerp(1, _NestFar.z, smoothstep(_NestFar.x, _NestFar.y, dist)) : 1;
+                    float calmL = dot(o.col, float3(0.2126, 0.7152, 0.0722));
+                    o.col = lerp(calmL.xxx, o.col, lerp(1, _SolidCalm.z, calmK)) * min(1, lerp(1, _SolidCalm.w, calmK) / max(calmNF, 0.01));
+                }
+                if (_NestFar.w > 0.5) o.col *= lerp(1, _NestFar.z, smoothstep(_NestFar.x, _NestFar.y, dist));   // (a nest's far off darker: NestTheme.farDark)
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;
             }
@@ -275,7 +317,7 @@ Shader "AntGarden/ParticleSolid"
                 float wobble = 0.07 * sin(ang * 3 + i.shape * 31) + 0.04 * sin(ang * 5 + i.shape * 57);
                 clip(1 + wobble - r2);
                 // its edge a little darker, so every splat reads as a point of its own
-                fixed4 col = fixed4(i.col * (1 - 0.1 * smoothstep(0.45, 1.0, r2)), 1);
+                fixed4 col = fixed4(i.col * (1 - 0.1 * smoothstep(0.45, 1.0, r2)), _Alpha);
                 UNITY_APPLY_FOG(i.fogCoord, col);
                 return col;
             }

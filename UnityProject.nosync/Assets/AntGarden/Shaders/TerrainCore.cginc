@@ -11,7 +11,13 @@ float _DetailScale, _DetailMix, _ParallaxDepth, _ParallaxRange, _HeightBlend, _C
 fixed4 _FloorTint, _BankTint, _PlateauTint, _GlowColor;
 float _FloorScale, _BankScale, _PlateauScale, _FloorSmooth, _BankSmooth, _DetailStrength, _GlowSpecks;
 float _NormalStrength, _HueShift, _Saturation;
+float _SatNear, _SatFar;   // its saturation near the camera and far off, of _Saturation's (a nest's own; _SatFar 0: the same everywhere)
+float4 _SatRange;          // from x to y world units from the camera
+float4 _NestFar;           // global: a nest's far off darker, from x to y units from the camera down to z of itself (w 1: on; NestTheme.farDark)
 float _GroundDim;   // global, set by the particle look (ParticleLook.cs): the ground sinks behind its points
+float4 _GroundNear; // global, the particle look's too (w 1: on): round the ant, where the walls are opaque splats, their terrain
+                    // sinks to z of itself out to x units from the ant, back to all of itself by y (NestTheme.groundNearKeep)
+float4 _TrailPlayer;   // global: the player's ant
 
 struct Input
 {
@@ -154,7 +160,16 @@ void TerrainSurf(Input IN, inout SurfaceOutputStandard o)
     // broad light/dark patches so the ground never reads as a repeating tile
     float big = vnoise(IN.wpos.xz * 0.045) * 0.65 + vnoise(IN.wpos.xz * 0.13) * 0.35;
     albedo *= lerp(1.0, 0.65 + 0.7 * big, _DetailStrength);
-    o.Albedo = AG_HueShift(albedo, _HueShift, _Saturation) * (1 - _GroundDim);
+    // (a nest may have its ground purer near the camera than far off, as distance mutes colour: the user, 10-29,
+    // "近处可以饱和度高，远处低，现在反了")
+    float satK = _SatFar > 0 ? lerp(_SatNear, _SatFar, smoothstep(_SatRange.x, _SatRange.y, dist)) : 1;
+    // (where a nest asks, its walls round the ant, drawn there as opaque splats, sink further behind them, so between them
+    // the terrain reads as their shadow, not as a lighter wall: the kiln's, its far walls lit, k17; the floor is the carpet's)
+    float nearKeep = 1;
+    if (_GroundNear.w > 0.5)
+        nearKeep = lerp(lerp(_GroundNear.z, 1, smoothstep(_GroundNear.x, _GroundNear.y, distance(IN.wpos.xz, _TrailPlayer.xz))), 1, smoothstep(0.65, 0.8, n.y));
+    o.Albedo = AG_HueShift(albedo, _HueShift, _Saturation * satK) * (1 - _GroundDim) * nearKeep;
+    if (_NestFar.w > 0.5) o.Albedo *= lerp(1, _NestFar.z, smoothstep(_NestFar.x, _NestFar.y, dist));   // (a nest's far off darker: NestTheme.farDark)
 
     // surface relief: each layer's own normal map, plus the close-up floor detail
     float3 nf = triplanarNormal(_FloorNormal, IN.wpos, n, w, _FloorScale, shift);
@@ -193,7 +208,7 @@ void TerrainSurf(Input IN, inout SurfaceOutputStandard o)
     o.Emission = _GlowColor.rgb * speck * twinkle * lw.x * _GlowSpecks * 3;
 
     // the particle look: the ground sinks dark behind its points, its sheen and glints with it
-    float keep = 1 - _GroundDim;
+    float keep = (1 - _GroundDim) * nearKeep;
     o.Smoothness *= keep;
     o.Occlusion *= keep;
     o.Emission *= keep;

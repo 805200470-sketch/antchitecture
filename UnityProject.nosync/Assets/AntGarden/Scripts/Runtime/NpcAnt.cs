@@ -37,20 +37,16 @@ namespace AntGarden
         State state = State.Walk;
         public bool carrying;               // a forager on its way home with food
         public string StateName => state.ToString();   // for the movement check's breakdown
-        public int lineIndex = -1;          // a messenger: the next line it shares when antennae touch (-1: none)
-
-        /// <summary>A messenger's next line (it has a few, in turn), or null for an ant that only touches.</summary>
-        public string NextLine()
-        {
-            if (lineIndex < 0) return null;
-            string line = Voices.T(Voices.AntLines[lineIndex % Voices.AntLines.Length]);
-            lineIndex += 1 + Voices.AntLines.Length / 3;   // its next line is a different one
-            return line;
-        }
+        /// <summary>What it has to say when antennae touch, its nest's lines (NpcLines, 11-04: in place of the world's old
+        /// lines in turn); null: it only touches back.</summary>
+        public NpcLines.Voice voice;
         float recruit;                      // seconds of eager trail following after meeting a carrier
         float timer, greetCooldown, meetCooldown, meetCheck, flyCooldown, flightAlt, flightTime;
         float waitCooldown;                 // after stopping to let the player's ant pass, not again for a while
-        public static bool GiveWayOn = true;   // NPCs give way to others and never push the player's ant (-giveway 0: off)
+        float heldFor;                      // seconds held up by another ant while it wanted to walk (it turns away: Tick)
+        bool landChecked;                   // its landing spot looked at for other ants on this way down
+        public static bool GiveWayOn = true;   // NPCs steer round others and wait for the player's ant (-giveway 0: off)
+        public static int HeldTurns;           // checks: how often an NPC held up by another turned away (Tick)
         float age, baseLane, phaseA, phaseB, phaseC;
         float stall, bestGap = float.MaxValue;   // no progress towards the current path point: give it up
         bool fast;
@@ -77,7 +73,7 @@ namespace AntGarden
             this.landForward = landForward;
             greetCooldown = Range(0, 6);
             meetCooldown = Range(0, 5);
-            flyCooldown = Range(cfg.flight.cooldown.x, cfg.flight.cooldown.y);
+            flyCooldown = Game.Lab ? Range(cfg.flight.labFirst.x, cfg.flight.labFirst.y) : Range(cfg.flight.cooldown.x, cfg.flight.cooldown.y);
             phaseA = Range(0, 100);
             phaseB = Range(0, 100);
             phaseC = Range(0, 100);
@@ -294,17 +290,53 @@ namespace AntGarden
             return world.SnapToWalkable(c.x, c.y, 0.7f, out Vector2 s) ? s : c;
         }
 
-        Vector2 PickFlightTarget()
+        /// <summary>Where a flight comes down: on a path, well inside its floor, some way off. In the particle nests
+        /// (11-04) every other flight comes down on the way ahead of the player's ant, where its camera looks: a nest's
+        /// six ants are spread over all of it, and flights elsewhere were never seen.</summary>
+        Vector2 PickFlightTarget(AntController player)
         {
+            bool ahead = Game.Lab && player != null && Chance(cfg.flight.labNearPlayer);
+            Vector2 pl = player != null ? new Vector2(player.Position.x, player.Position.z) : Pos;
+            Vector2 look = CameraAt.HasValue ? pl - new Vector2(CameraAt.Value.x, CameraAt.Value.z) : new Vector2(Mathf.Sin(player != null ? player.heading : 0), Mathf.Cos(player != null ? player.heading : 0));
             for (int tries = 0; tries < 60; tries++)
             {
                 WEdge e = Pick(regionEdges);
                 Vector2 q = Pick(e.pts);
                 if (world.Dist(q.x, q.y) > -1.5f || world.HexDist(q.x, q.y) > -8) continue;
-                if (Vector2.Distance(q, Pos) < 15) continue;
+                if (Vector2.Distance(q, Pos) < (Game.Lab ? 10 : 15)) continue;
+                if (ahead && tries < 50)
+                {
+                    float dp = Vector2.Distance(q, pl);
+                    if (dp < 5f || dp > 16f || Vector2.Dot(q - pl, look) < 0.4f * dp * look.magnitude) continue;
+                }
                 return q;
             }
             return Pos;
+        }
+
+        /// <summary>A spot near q, on the floor, that no ant stands on (where it lands: 11-04, it came down on another).</summary>
+        Vector2 ClearSpotNear(Vector2 q)
+        {
+            for (int tries = 0; tries < 12; tries++)
+            {
+                if (ant.ClearOfAnts(q.x, q.y, ant.Radius + 0.4f)) return q;
+                float a = Range(0, Mathf.PI * 2);
+                Vector2 c = q + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * Range(1.2f, 2.6f);
+                if (world.Dist(c.x, c.y) < -1.0f) q = c;
+            }
+            return q;
+        }
+
+        /// <summary>The particle nests (11-04): a winged ant, rested, takes off now and then from open floor wherever it
+        /// walks (more readily with the player's ant near, so its takeoffs are seen too).</summary>
+        bool LabTakeoff(float dt, AntController player)
+        {
+            if (!species.canFly || !Game.Lab || state != State.Walk || flyCooldown > 0 || !ant.HasClip(AntController.Clip.TakeOff)) return false;
+            Vector3 p = ant.Position;
+            if (world.Dist(p.x, p.z) > -1.2f || world.HexDist(p.x, p.z) > -8f) return false;   // open floor, clear of the walls
+            if (!Chance(cfg.flight.labTakeoffRate * (Near(player, 20f) ? 2f : 1f) * dt)) return false;
+            StartTakeoff();
+            return true;
         }
 
         public bool Near(AntController player, float radius)
@@ -407,7 +439,8 @@ namespace AntGarden
             meetCooldown -= dt;
             flyCooldown -= dt;
             recruit -= dt;
-            if (species.canFly && TickFlight(dt)) return;
+            if (species.canFly && TickFlight(dt, player)) return;
+            if (LabTakeoff(dt, player)) return;
 
             if (state == State.Walk && greetCooldown <= 0 && Near(player, cfg.greetRadius) && player.speed < 1.2f)
             {
@@ -435,12 +468,26 @@ namespace AntGarden
             if (state == State.TakeOff) return; // started this frame; TickFlight drives it from now on
             if (GiveWayOn && move.sqrMagnitude > 1e-6f) move = GiveWay(move, player);
             ant.Tick(dt, move, fast);
+            // held up by another ant for a while (it may not push past: AntController.KeepClear), it turns away and goes
+            // another way, as a real ant does, instead of pressing on into it (11-04)
+            if (state == State.Walk && move.sqrMagnitude > 0.01f && ant.WalkFree < 0.35f) heldFor += dt;
+            else heldFor = 0;
+            if (heldFor > 1.6f)
+            {
+                heldFor = 0;
+                HeldTurns++;
+                if (role == Role.Chamber && chamber != null) millTarget = MillPoint();
+                else if (pts != null) TurnBack();
+                state = State.Pause;
+                timer = Range(0.3f, 0.9f);
+            }
         }
 
         /// <summary>
         /// Gives way: another ant close ahead (the player's above all) makes it bear off to the side it is already on
         /// and slow down, and the player's ant right in front of it makes it stop for a moment and let it pass, so it
-        /// walks round others instead of into them. (The player's ant is never pushed by the others: AntController.)
+        /// walks round others instead of into them. (No ant pushes another: each keeps clear by its own step,
+        /// AntController.KeepClear; 11-04. The player's ant coming up behind it, it steps aside to let it by.)
         /// It also keeps out of the strip between the camera and the player's ant: one heading into it bears off to
         /// the nearer side, more the nearer the camera, so it passes beside the camera and walks out of the picture
         /// instead of through the lens or across the player's ant.
@@ -456,7 +503,14 @@ namespace AntGarden
                 float dist = to.magnitude, touch = ant.Radius + o.Radius, reach = touch * (isPlayer ? 3.2f : 2.2f);
                 if (dist > reach || dist < 1e-4f) return;
                 float ahead = Vector2.Dot(to, dir) / dist;   // 1: straight ahead
-                if (ahead < 0.05f) return;
+                if (ahead < 0.05f)
+                {
+                    // (11-04) the player's ant coming up behind it or beside it: it steps aside to let it by (neither may push
+                    // the other now: AntController.KeepClear), keeping its pace
+                    if (isPlayer && dist < touch * 2f && o.speed > 0.15f && Vector2.Dot(new Vector2(Mathf.Sin(o.heading), Mathf.Cos(o.heading)), -to / dist) > 0.5f)
+                        steer += side * ((Vector2.Dot(to, side) >= 0f ? -1f : 1f) * (1f - dist / (touch * 2f)) * 1.4f);
+                    return;
+                }
                 float k = Mathf.Clamp01(1f - dist / reach) * ahead * (isPlayer ? 1.6f : 0.8f);
                 steer += side * ((Vector2.Dot(to, side) >= 0f ? -1f : 1f) * k * 1.8f);
                 slow = Mathf.Min(slow, Mathf.Lerp(1f, 0.3f, Mathf.Clamp01(k)));
@@ -581,6 +635,14 @@ namespace AntGarden
             return d.normalized * (0.6f * Pace());
         }
 
+        /// <summary>Checks (NpcCheck): a winged ant walking takes off now. False when it cannot.</summary>
+        public bool TakeOffNow()
+        {
+            if (!species.canFly || state != State.Walk || !ant.HasClip(AntController.Clip.TakeOff)) return false;
+            StartTakeoff();
+            return true;
+        }
+
         void StartTakeoff()
         {
             state = State.TakeOff;
@@ -590,7 +652,7 @@ namespace AntGarden
         }
 
         /// <summary>Flight states (winged species only). Returns true when it handled this frame.</summary>
-        bool TickFlight(float dt)
+        bool TickFlight(float dt, AntController player)
         {
             var fl = cfg.flight;
             switch (state)
@@ -604,8 +666,9 @@ namespace AntGarden
                         // TakeOff ends with the root already lifted, and Fly keeps it there: no extra altitude jump
                         ant.altitude = 0;
                         ant.clipOverride = AntController.Clip.Fly;
-                        flyTarget = PickFlightTarget();
-                        flightAlt = Range(fl.altitude.x, fl.altitude.y);
+                        flyTarget = PickFlightTarget(player);
+                        landChecked = false;
+                        flightAlt = Game.Lab ? Range(fl.labAltitude.x, fl.labAltitude.y) : Range(fl.altitude.x, fl.altitude.y);
                         flightTime = Range(fl.duration.x, fl.duration.y);
                         state = State.Fly;
                     }
@@ -615,11 +678,22 @@ namespace AntGarden
                     flightTime -= dt;
                     float dx = flyTarget.x - ant.Position.x, dz = flyTarget.y - ant.Position.z;
                     float d = Mathf.Sqrt(dx * dx + dz * dz);
+                    if (d < 7 && !landChecked)
+                    {
+                        // coming down: on a spot no ant stands on (11-04)
+                        landChecked = true;
+                        flyTarget = ClearSpotNear(flyTarget);
+                        dx = flyTarget.x - ant.Position.x; dz = flyTarget.y - ant.Position.z;
+                        d = Mathf.Sqrt(dx * dx + dz * dz);
+                    }
                     bool descending = d < 7;
                     float alt = descending ? 0 : flightAlt;
                     float speed = descending ? Mathf.Max(0.5f, Mathf.Min(fl.speed, d * 0.45f)) : fl.speed;
                     ant.FlyTick(dt, Mathf.Atan2(dx, dz), speed, alt);
-                    if (descending && d < 1.2f && ant.altitude < 0.15f)
+                    // (another ant walked onto the spot meanwhile: it comes down beside it)
+                    if (descending && d < 1.2f && ant.altitude < 0.15f && !ant.ClearOfAnts(ant.Position.x, ant.Position.z, ant.Radius + 0.15f))
+                        flyTarget = ClearSpotNear(flyTarget + new Vector2(Mathf.Sin(ant.heading), Mathf.Cos(ant.heading)) * 1.5f);
+                    else if (descending && d < 1.2f && ant.altitude < 0.15f)
                     {
                         state = State.Land;
                         ant.clipOverride = AntController.Clip.Land;
@@ -639,7 +713,7 @@ namespace AntGarden
                         role = role == Role.Chamber ? Role.Trail : role;
                         RejoinPath();
                         state = State.Walk;
-                        flyCooldown = Range(30, 70);
+                        flyCooldown = Game.Lab ? Range(fl.labCooldown.x, fl.labCooldown.y) : Range(30, 70);
                     }
                     return true;
                 default:

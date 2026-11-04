@@ -174,6 +174,8 @@ namespace AntGarden
         public Color fogTint = Color.clear;                     // alpha > 0: the fog this colour instead of the biome's
         public Color skyTopTint = Color.clear, skyHorizonTint = Color.clear;   // and the sky
         public float tunnelAmbient = 0.9f, tunnelMoon = 0.8f, tunnelRim = 0.9f, tunnelExposure = -0.05f, tunnelAntDim = 0.2f;
+        public float equatorGain = 1f;   // the light from the sides (the walls'), of the biome's (a nest's own: NestTheme.wallAmbient)
+        public float equatorGrey = 0f;   // and how far it turns to a grey as light (NestTheme.wallAmbientGrey)
         Biome target;
         float elapsed, probeTimer;
         bool settled = true;
@@ -260,7 +262,9 @@ namespace AntGarden
         {
             float a = Mathf.Lerp(1, tunnelAmbient, shade);
             RenderSettings.ambientSkyColor = skyAmbient * a;
-            RenderSettings.ambientEquatorColor = equatorAmbient * a;
+            Color eq = equatorAmbient;
+            if (equatorGrey > 0f) eq = Color.Lerp(eq, new Color(eq.grayscale, eq.grayscale, eq.grayscale), equatorGrey);
+            RenderSettings.ambientEquatorColor = eq * (a * equatorGain);
             RenderSettings.ambientGroundColor = groundAmbient * a;
             if (moon != null) moon.intensity = moonIntensity * Mathf.Lerp(1, tunnelMoon, shade);
             if (rim != null) rim.intensity = rimIntensity * Mathf.Lerp(1, tunnelRim, shade);

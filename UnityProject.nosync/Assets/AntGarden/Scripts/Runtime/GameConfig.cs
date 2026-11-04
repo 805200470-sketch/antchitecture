@@ -30,7 +30,13 @@ namespace AntGarden
         // the giant's relics; blue, the rain cistern
         // (each nest its own drawing from the 13 path images, 04_Paths/Images; where two look alike, a fork or a loop, the
         // later one mirrored: "~m", Game.Drawing)
-        public string labWorld = "lab:path-007@kiln,lab:path-010@amber,lab:path-005@honey,lab:path-008@leafcut,lab:path-011~m@moss,lab:path-013@verdigris,lab:path-012@blue,lab:path-003~m@azure,lab:path-006@cistern";
+        // (only the six being worked on, the user 11-02: "目前我们就先做这6个世界"; left out for now, to put back in their
+        // places: lab:path-013@verdigris after the moss forest, lab:path-003~m@azure and lab:path-006@cistern after the blue)
+        public string labWorld = "lab:path-007@kiln,lab:path-010@amber,lab:path-005@honey,lab:path-008@leafcut,lab:path-011~m@moss,lab:path-012@blue";
+        // they make the honeycomb (the user, 11-03): a ring of hexagons in this order, the first at the top and on clockwise,
+        // each nest's exits opening on its two neighbours (Game.RingGates, BigMap.RingAt). The game starts in this one when
+        // no -world is given (the old archipelago, defaultWorld, only with -world archipelago)
+        public string startWorld = "lab:path-012@blue";
         public float labWidth = 0.55f;      // its canyons, narrowed into passages
         // its passages need not be one width, only never wide, and change width along their length: each its own width
         // (labPassageSpread times the nest's), swelling into bays and narrowing into squeezes as it goes (± labPassageSwell),
@@ -49,7 +55,8 @@ namespace AntGarden
         public GateSettings gates = new GateSettings();
         public DisplaySettings display = new DisplaySettings();
         /// <summary>
-        /// The world built when nothing else is chosen: three stitched nests in the blue fungal forest,
+        /// The old archipelago, the world built when nothing else was chosen until 11-03 (now startWorld, the honeycomb of
+        /// particle nests; this one only with -world archipelago): three stitched nests in the blue fungal forest,
         /// plus one separate nest in a warm amber style elsewhere on the map (reached through a portal gate).
         /// Format: regions separated by '|'; each is "path-NNN" or "stitch:row|cluster:ids", with "@biome".
         /// </summary>
@@ -91,7 +98,9 @@ namespace AntGarden
                 moonColor = new Color(1f, 0.84f, 0.68f), skyTop = new Color(0.06f, 0.03f, 0.05f), skyHorizon = new Color(0.36f, 0.16f, 0.1f),
                 rimColor = new Color(1f, 0.62f, 0.38f),
                 gateColor = new Color(1f, 0.74f, 0.36f),
-                nativePlants = "amber_resin,soil_spire,dry_mushroom,seed_husk,fungus_garden,dry_grass_tuft,thorn_succulent,seed_pile",
+                // (and its lab nest's own Tripo plants, made in its colours: turned +165 as a blue plant is, its frankincense
+                // trees' orange bark read a mauve grey and its gumweed's gold buds lilac, k20-k25)
+                nativePlants = "amber_resin,soil_spire,dry_mushroom,seed_husk,fungus_garden,dry_grass_tuft,thorn_succulent,seed_pile,tear_tree,gumweed",
                 landmarkPlant = "dry_mushroom",
                 surroundings = "soil_spire,dry_mushroom,trunk_night",
             },
@@ -124,7 +133,7 @@ namespace AntGarden
                 // (its loess turned 13° toward yellow and much paler: as it was, its walls and floor were caramel orange, 16° from
                 // the amber nest's next to it, "墙是焦糖橙"; turned 20° and more it went olive, "暗沉、土"; the loess twice as vivid
                 // as v15's ground; negative turns orange to gold)
-                groundSet = "honey", terrainHue = -13, terrainSaturation = 0.6f, mapHue = 140, mapSaturation = 1f,   // (its own textures, v11: loess, seed litter, honey)
+                groundSet = "honey", terrainHue = -13, terrainSaturation = 0.6f, mapHue = 140, mapSaturation = 1f,   // (10-29, the user, at 0.85-0.9: "近处可以饱和度高，远处低，现在反了": near the ant its floor is the carpet, mostly its palette's floor colour, NestTheme.Granary; these textures are its far floor and walls, the most vivid gold in view)   // (10-29: its floor "暗沉", grey and dull at 0.6: purer; at 0.85, the 40th, still a dark olive ochre)   // (its own textures, v11: loess, seed litter, honey)
                 speckColor = new Color(1.00f, 0.92f, 0.35f), plantHue = 0, plantSaturation = 1f, plantGlow = new Color(1.00f, 0.92f, 0.35f), groundColor = new Color(0.15f, 0.10f, 0.04f),
                 antHue = 0, antSaturation = 1f,
                 fogColor = new Color(0.15f, 0.10f, 0.04f), ambientSky = new Color(0.40f, 0.32f, 0.12f), ambientEquator = new Color(0.40f, 0.32f, 0.12f), ambientGround = new Color(0.15f, 0.10f, 0.04f),
@@ -284,7 +293,9 @@ namespace AntGarden
         public float kneeOut = 0.6f;        // knees bend up and outward
         public float ikBlend = 0.3f;        // seconds to blend between clip legs and procedural legs
         public float bodySettle = 7f;       // how quickly the body follows the ground's tilt (1/s); lower = steadier
-        public float separation = 2.2f;     // how fast crowded ants ease apart (units / s)
+        public float separation = 2.2f;     // how fast crowded ants ease apart (units / s; unused since 11-04: no ant is pushed)
+        public float approach = 10f;        // how quickly an ant slows to a stop as it comes up to another (1/s; 11-04:
+                                            // each keeps clear of the others by its own step, AntController.KeepClear)
         public float climb = 3.9f;          // how far up the banks past the canyon edge this ant may climb (the crest is
                                             // about 4.5 up; NPCs keep to the floor with 0)
         public Color rimColor = new Color(0.62f, 0.96f, 1f);
@@ -355,6 +366,17 @@ namespace AntGarden
         public float speed = 2.6f;
         public Vector2 duration = new Vector2(8f, 16f);
         public Vector2 cooldown = new Vector2(25f, 60f);
+        // the particle nests (11-04): none was ever seen flying there. Of a nest's six ants one was winged, it took off only
+        // at the end of a path (8 % of the times it got there), a nest's paths are long, and it flew 5-9 up, above the
+        // camera's view. Now two of the six are winged (Game.SpawnNpcs), and each takes off from wherever it walks on open
+        // floor, now and then after a rest, flies low enough to cross the camera's view, every other time to the way
+        // ahead of the player's ant, and lands there (NpcAnt.LabTakeoff, PickFlightTarget)
+        public int labFlyers = 2;
+        public float labTakeoffRate = 0.06f;       // takeoffs a second, once rested (twice that with the player's ant near)
+        public Vector2 labFirst = new Vector2(8f, 30f);       // seconds before its first flight
+        public Vector2 labCooldown = new Vector2(40f, 80f);   // and its rest after each landing
+        public Vector2 labAltitude = new Vector2(2.6f, 4.4f); // above the ground (over the banks too)
+        public float labNearPlayer = 0.5f;          // how often a flight goes to the way ahead of the player's ant
     }
 
     [Serializable]
@@ -384,18 +406,7 @@ namespace AntGarden
         public float blockingPropHeight = 3f; // props lower than this never push the camera in
     }
 
-    /// <summary>Levels of the synthesised sounds (Sfx), 0..1. Everything is meant to sit quietly under the scene.</summary>
-    [Serializable]
-    public class SoundSettings
-    {
-        public float master = 1f;
-        public float ambience = 0.16f;   // night air: wind and far crickets, or tunnel hum and drips
-        public float steps = 0.14f;      // the player's feet
-        public float touch = 0.3f;       // antennae touching
-        public float flare = 0.22f;      // a glowing plant lighting up
-        public float gate = 0.35f;       // portals, teleports, light gates
-        public float map = 0.25f;        // opening and closing the map
-    }
+    // (SoundSettings, the levels of the sounds, lives with them in Sfx.cs since 11-04)
 
     /// <summary>Plant placement: bands are signed distance to the canyon edge (negative = on the canyon floor).</summary>
     [Serializable]
@@ -457,6 +468,7 @@ namespace AntGarden
         public bool noShadow;                 // small ground detail: no shadow casting (cheaper, and it reads as texture)
         public float patchiness = 0.85f;      // 0 = spread evenly; 1 = only in patches (with a few strays between)
         public bool faceWay;                  // its model's front (+z) turned to the way, a little off (a cluster made side by side from the front)
+        public float faceTurn;                // and then turned this much more (degrees), so its side-by-side row faces down the way, where the views look from
         // >1: each grows as a tuft of this many from one crown (a fern's fronds), each turned so the way the model
         // itself leans (tuftFace: its azimuth in the model, degrees from +z toward +x) faces out from the middle, and
         // tipped out by up to tuftLean degrees; each member tuftScale of the tuft's height
@@ -528,7 +540,11 @@ namespace AntGarden
     public class Biome
     {
         public string id, displayName, displayNameEn;
-        public string Name => Loc.T(displayName, string.IsNullOrEmpty(displayNameEn) ? displayName : displayNameEn);
+        /// <summary>Shown in banners and labels. In a particle nest it is its theme's name, the same as on the honeycomb map
+        /// and the gates (11-03: three old names, 腐海·蓝 · 琥珀·暖 · 古蚁圣殿·窑火, still showed on arriving).</summary>
+        public string Name => Game.Lab && NestTheme.For(id) is NestTheme t && !string.IsNullOrEmpty(t.nameZh)
+            ? Loc.T(t.nameZh, string.IsNullOrEmpty(t.nameEn) ? t.nameZh : t.nameEn)
+            : Loc.T(displayName, string.IsNullOrEmpty(displayNameEn) ? displayName : displayNameEn);
         public string groundSet = "";                        // Art/Ground/<id> textures; empty = recolour the default ones
         public float terrainHue, terrainSaturation = 1f;      // hue rotation (degrees) applied to the ground textures
         public float mapHue, mapSaturation = 1f;              // the same for the map (its colours come from the blue palette)

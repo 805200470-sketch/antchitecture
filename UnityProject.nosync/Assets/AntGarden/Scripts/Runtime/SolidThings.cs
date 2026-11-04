@@ -43,7 +43,7 @@ namespace AntGarden
             SugarCrystals, PollenPellets, HoneyDrip, FungusTuft, BittenLeaf, LeafBits, Gleanings, SoilPatch,
             AmberNodules, ResinRun,
             CharTwigs, CharBalls, AshStones, AshDrift,   // the kiln's (after the fire)
-            PineNeedles,   // the amber nest's (k21)
+            PineNeedles, SlateSlabs,   // the amber nest's (k21, k25)
         }
 
         static bool Own(Kind k) => k >= Kind.GoldBalls;
@@ -80,12 +80,39 @@ namespace AntGarden
         public static SolidThings Instance { get; private set; }
         readonly MaterialPropertyBlock shellBlock = new MaterialPropertyBlock();
         const int UploadChunk = 262144;
+        // (11-03) the shell's upload was a walking hitch: on Metal each SetData makes the frame wait for the GPU, so the
+        // dozen frames of a shell's upload ran 33 ms each (every 2.5 s, a quarter to half a second at 30 fps; four smaller
+        // SetData a frame ran 66 ms: the cost is the call, not the bytes). Now the shells are written straight into their
+        // buffers (ComputeBufferMode.SubUpdates, BeginWrite / EndWrite: no wait), the same chunk a frame into the one not
+        // drawn. And a shell is centred ahead of the ant along its walk, made again when the ant would leave its margin
+        // before the next one is drawn (that time measured): the fine splats' far edge lagged up to a unit behind the
+        // ant's even walking, now never. -shellold: the shell as it was (SetData, round the ant, every 2 units), for checks.
+        static readonly bool shellOld = Game.Arg("-shellold") != null;
+        static readonly bool handoverOld = Game.Arg("-handoverold") != null;
+        static readonly bool calmOld = Game.Arg("-calmold") != null;
+        static readonly float FarGrain = Game.Arg("-fargrain") is string fg && float.TryParse(fg, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float fgv) ? fgv : 0f;   // (off: 4 and 2 left the kiln's heaps as they were, k19's are 10 to 14 units off, where a cap that
+        // made them fine would thin every plant there; their discs are a small thing's few coarse splats, thinned to a tenth there and
+        // grown to cover: hub 共用粒子交接, 11-04)
+        Vector2 shellCenter, frontCenter, antVel, lastAntAt;
+        bool velSet;
+        float shellLatency = 1f, shellStarted, fadeLag;
+        /// <summary>Checks (StutterCheck): this frame's upload time (ms), a shell being made on the worker, and how far the
+        /// fine splats' far edge still reaches past the ant's (units; below 0 the plants there are thinned).</summary>
+        public static float ShellUploadMs, ShellEdge;
+        public static bool ShellBusy;
+        /// <summary>Checks only (StutterCheck -handover, 11-04): the plants drawn coarse everywhere; no brightening round the ant.</summary>
+        public static bool DebugPlantsCoarse, DebugNoLift;
+        /// <summary>Checks only: the fine shell made again now, where the ant and the camera are (with the debug choices above).</summary>
+        public void DebugRebuild() { if (look.solidPlants && ant != null && shellTask == null && uploading < 0 && !shellPending) ShellNow(); }
 
         World world;
         ParticleLook look;
         Material mat;
         ComputeBuffer buffer;
         int count;
+        ComputeBuffer glassBuffer;   // (a trial, -glass N: the honey's clear parts, ThingPen.Clear, drawn after the rest at opacity N)
+        int glassCount;
+        Material glassMat;
         readonly MaterialPropertyBlock block = new MaterialPropertyBlock();
         uint rs = 0x9E3779B9u;
 
@@ -109,6 +136,19 @@ namespace AntGarden
             int things = Place(pen), rootsMade = Roots(pen), thingSplats = made.Count * Fine;
             var splats = new List<SolidPoint>(thingSplats + (1 << 21));
             Densify(made, splats);
+            if (pen.Glass.Count > 0)
+            {
+                var clear = new bool[made.Count];
+                foreach (int g in pen.Glass) clear[g] = true;
+                var solid = new List<SolidPoint>(splats.Capacity);
+                var glass = new List<SolidPoint>(pen.Glass.Count * Fine);
+                for (int k = 0; k < splats.Count; k++) (clear[k / Fine] ? glass : solid).Add(splats[k]);
+                splats = solid;
+                glassCount = glass.Count;
+                glassBuffer = new ComputeBuffer(glassCount, 24);
+                glassBuffer.SetData(glass);
+                Debug.Log($"[AntGarden] see-through (-glass): {glassCount} splats");
+            }
             // the plants too, as solid splats, when the particle look draws them so
             if (look.solidPlants) look.BuildSolidPlants(splats);
             splats.AddRange(look.extraSolids);   // the vines round the guiding beams
@@ -221,8 +261,17 @@ namespace AntGarden
             bool Floor(float x, float z) => world.HexDist(x, z) <= -1.5f && world.Dist(x, z) <= -0.15f && look.LayerAt(x, z).r >= 0.55f
                 && float.IsInfinity(world.Ceiling(x, z));   // on the canyon floor, not under a tunnel roof
             // this nest's own thing that also lines the way (the kiln's embers in the floor's cracks): one every so often,
-            // on alternate sides, just off the way, where the ant passes close enough to touch it
-            if (nest?.Track != null && !string.IsNullOrEmpty(theme.wayThing) && System.Enum.TryParse(theme.wayThing, out Kind wk))
+            // on alternate sides, just off the way, where the ant passes close enough to touch it. Several kinds may take
+            // turns, each as large as it says ("HoneyDrip,PollenPellets*1.6": the pollen 1.6 times a way thing's half size)
+            var wayKinds = new List<(Kind kind, float scale)>();
+            if (nest?.Track != null && !string.IsNullOrEmpty(theme.wayThing))
+                foreach (string w in theme.wayThing.Split(','))
+                {
+                    string[] ws = w.Split('*');
+                    if (System.Enum.TryParse(ws[0].Trim(), out Kind one))
+                        wayKinds.Add((one, ws.Length > 1 && float.TryParse(ws[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float sc) ? sc : 1f));
+                }
+            if (wayKinds.Count > 0)
             {
                 List<Vector2> t = nest.Track;
                 float along = 0, next = theme.wayEvery * 0.6f;
@@ -235,11 +284,12 @@ namespace AntGarden
                     next = along + theme.wayEvery * (0.75f + 0.5f * R());
                     side = -side;
                     Vector2 dir = (t[i] - t[i - 1]) / seg, nrm = new Vector2(-dir.y, dir.x) * side;
-                    float size = Size(wk) * 0.5f;
+                    Kind wk = wayKinds[spots % wayKinds.Count].kind;
+                    float size = Size(wk) * 0.5f * wayKinds[spots % wayKinds.Count].scale;
                     spots++;
                     bool done = false;
                     for (int tryside = 0; tryside < 2 && !done; tryside++, nrm = -nrm)   // this side, else the other
-                        for (float off = 1.0f; off < 2.6f && !done; off += 0.2f)
+                        for (float off = theme.wayNear; off < 2.6f && !done; off += 0.2f)
                         {
                             Vector2 c = t[i] + nrm * off;
                             if (!Floor(c.x, c.y)) { offFloor++; continue; }
@@ -355,7 +405,8 @@ namespace AntGarden
                 case Kind.CharBalls: return 0.8f + 0.8f * u;   // (the cluster's width)
                 case Kind.AshStones: return 0.22f + 0.22f * u;   // (small, but its slab's straight edges read: 0.16-0.34 to k12)
                 case Kind.AshDrift: return 0.6f + 0.6f * u;   // (its width; 0.8-1.7 in k11b, big pale patches by the ant)
-                case Kind.PineNeedles: return 1.8f + 1.6f * u;   // (the longest needle: two to three ants long)
+                case Kind.SlateSlabs: return 0.7f + 0.8f * u;   // (its larger slab's length, about an ant: at 0.5-1.1, a third of the cool its family needs, k25f; at 1-2 fewer fitted, k25l)
+                case Kind.PineNeedles: return 2.4f + 1.6f * u;   // (the longest needle: two to four ants long; 1.8-3.4 to k24)
                 default: return 0.6f + 0.7f * u;   // shell
             }
         }
@@ -395,8 +446,9 @@ namespace AntGarden
                 case Kind.SoilPatch: return size * 0.5f;
                 case Kind.AmberNodules: return size * 0.6f;
                 case Kind.ResinRun: return size * 0.45f;   // (a stub standing, its runs down its side, a pool at its foot)
-                case Kind.CharTwigs: return size * 0.42f;
+                case Kind.CharTwigs: return size * 0.8f;   // (lying apart since k17, out to about 1.3 of the longest: at 0.42, crossed in a heap)
                 case Kind.CharBalls: return size * 0.5f;
+                case Kind.SlateSlabs: return size * 0.5f;
                 case Kind.PineNeedles: return size * 0.3f;   // (long and thin, lying apart: room between them for others)
                 default: return size * 0.52f;
             }
@@ -520,12 +572,17 @@ namespace AntGarden
                 case Kind.Gleanings: NestThingsThemed.Gleanings(pen, p, n, ta, tb, size); break;
                 case Kind.SoilPatch: NestThingsThemed.SoilPatch(pen, p, n, ta, tb, size); break;
                 case Kind.PineNeedles: NestThingsThemed.PineNeedles(pen, p, n, ta, tb, size); break;
+                case Kind.SlateSlabs: NestThingsThemed.SlateSlabs(pen, p, n, ta, tb, size); break;
                 default: NestThingsGrowth.SnailShell(pen, p, n, ta, tb, size); break;
             }
             // the kiln's clay buildings light only where they glow (their holes, mouths, cells), not whole; and the amber
             // nest's stones, bark and fallen needles, which stay still in the wind too; and the moss forest's star moss,
             // only its stars' lit tips (its solid tufts lit whole glared beside the ant, k19)
-            if ((theme.buildingsGlowInParts && (k == Kind.ClayChimney || k == Kind.HexCells)) || k == Kind.AmberNodules || k == Kind.ResinRun || k == Kind.PineNeedles || k == Kind.StarMoss)
+            // (and the kiln's charred twigs, only their embers: lit whole as the ant walked past, their charcoal read as pale
+            // grey-blue glass tubes beside it, k10-k17 content reviews)
+            // (and its slate stones: a pale grey slab beside the ant, lit whole, k17 content review)
+            // (and the moss forest's moss stalks, only the teeth round their capsules' mouths: the user's pick, 10-30)
+            if ((theme.buildingsGlowInParts && (k == Kind.ClayChimney || k == Kind.HexCells)) || k == Kind.AmberNodules || k == Kind.ResinRun || k == Kind.PineNeedles || k == Kind.StarMoss || k == Kind.CharTwigs || k == Kind.AshStones || k == Kind.Sporophyte || k == Kind.SlateSlabs)
                 for (int i = from; i < pen.into.Count; i++)
                 {
                     SolidPoint sp = ThingPen.Building(pen.into[i]);
@@ -628,7 +685,7 @@ namespace AntGarden
             // the floor; at 0.25 the ant stood on the leaf's end. Their drifts of bits flat: further back, plants hid them)
             // (the moss forest's star moss, its tufts now up to a third of its colony's width tall, as half that width; an
             // antenna lights it)
-            float height = k == Kind.BittenLeaf || k == Kind.PineNeedles ? size * 0.6f : k == Kind.StarMoss ? size * 0.5f
+            float height = k == Kind.BittenLeaf || k == Kind.PineNeedles ? size * 0.6f : k == Kind.SlateSlabs ? size * 0.25f : k == Kind.StarMoss ? size * 0.5f
                 : k == Kind.WaxComb || k == Kind.EmberCracks || k == Kind.PotShards || k == Kind.Puddle || k == Kind.Wire
                 || k == Kind.Gleanings || k == Kind.SoilPatch || k == Kind.LeafBits ? 0.25f : k == Kind.HexCells ? size * 0.4f : k == Kind.HoneyDrip ? size * 0.6f
                 : k == Kind.SugarCrystals || k == Kind.PollenPellets || k == Kind.FungusTuft ? size * 0.5f
@@ -636,7 +693,7 @@ namespace AntGarden
                 : k == Kind.AmberNodules ? size * 0.45f : k == Kind.ResinRun ? size * 0.9f
                 : k == Kind.CharTwigs ? 0.3f : k == Kind.CharBalls ? size * 0.4f : k == Kind.AshStones ? size * 0.3f : k == Kind.AshDrift ? 0.25f : size;
             Owned.Add((k.ToString(), new Vector2(x, z), height));
-            if (world.glow == null || k == Kind.PotShards || k == Kind.PollenPellets || k == Kind.BittenLeaf || k == Kind.LeafBits || k == Kind.Gleanings || k == Kind.SoilPatch || k == Kind.AshStones || k == Kind.AshDrift || k == Kind.PineNeedles) return;
+            if (world.glow == null || k == Kind.PotShards || k == Kind.PollenPellets || k == Kind.BittenLeaf || k == Kind.LeafBits || k == Kind.Gleanings || k == Kind.SoilPatch || k == Kind.AshStones || k == Kind.AshDrift || k == Kind.PineNeedles || k == Kind.SlateSlabs) return;
             float y = look.HeightAt(x, z);
             world.glow.AddTouchable(new Vector3(x, y, z), footprint, height, theme.glow[0]);
             touchables++;
@@ -1080,12 +1137,14 @@ namespace AntGarden
         void ShellNow()
         {
             shellAt = new Vector2(ant.position.x, ant.position.z);
+            shellCenter = frontCenter = shellAt;
             Vector3 cam = CamPos();
             shellCam = new Vector2(cam.x, cam.z);
             shellWorkCount = look.SolidShell(shellAt, shellReach, ref shellWork, cam, shellMove + 0.6f);
             int back = 1 - shellFront;
             Ensure(back, shellWorkCount);
-            if (shellWorkCount > 0) shellBuffers[back].SetData(shellWork, 0, 0, shellWorkCount);
+            if (!shellOld) Ensure(shellFront, shellWorkCount);   // (the other one too, now rather than mid-walk)
+            if (shellWorkCount > 0) Upload(back, 0, shellWorkCount);
             shellCounts[back] = shellWorkCount;
             shellFront = back;
             ShellsMade++;
@@ -1109,7 +1168,20 @@ namespace AntGarden
         {
             if (shellBuffers[which] != null && shellBuffers[which].count >= n) return;
             shellBuffers[which]?.Release();
-            shellBuffers[which] = new ComputeBuffer(Mathf.Max(1024, Mathf.NextPowerOfTwo(n)), 24);
+            int size = Mathf.Max(1024, Mathf.NextPowerOfTwo(n));
+            // (both made at the start, as large as the largest shell: made mid-walk, a buffer cost a frame of 66-140 ms)
+            if (!shellOld) size = Mathf.Max(size, ShellRoom);
+            shellBuffers[which] = shellOld ? new ComputeBuffer(size, 24) : new ComputeBuffer(size, 24, ComputeBufferType.Default, ComputeBufferMode.SubUpdates);
+        }
+
+        /// <summary>Splats [from, from + n) of the shell into a buffer: written straight in (no wait for the GPU; the buffer is
+        /// the one not being drawn), or with SetData as before (-shellold).</summary>
+        void Upload(int which, int from, int n)
+        {
+            if (shellOld) { shellBuffers[which].SetData(shellWork, from, from, n); return; }
+            var into = shellBuffers[which].BeginWrite<SolidPoint>(from, n);
+            Unity.Collections.NativeArray<SolidPoint>.Copy(shellWork, from, into, 0, n);
+            shellBuffers[which].EndWrite<SolidPoint>(n);
         }
 
         /// <summary>Once the ant has walked shellMove from where the shell was made, it is made again on a worker thread,
@@ -1117,6 +1189,16 @@ namespace AntGarden
         void UpdateShell()
         {
             var at = new Vector2(ant.position.x, ant.position.z);
+            // the ant's walk (eased; a jump is not a walk), and how far the fine splats still reach past it
+            float dt = Mathf.Max(Time.deltaTime, 1e-4f);
+            Vector2 v = velSet ? (at - lastAntAt) / dt : Vector2.zero;
+            if (v.sqrMagnitude > 16f) v = Vector2.zero;
+            antVel += (v - antVel) * (1 - Mathf.Exp(-4f * dt));
+            lastAntAt = at;
+            velSet = true;
+            ShellUploadMs = 0;
+            ShellBusy = shellTask != null;
+            ShellEdge = shellReach - nearFade.y - (at - frontCenter).magnitude;
             // (12: a walking ant can get 8 ahead of a shell still being made, and making it at once stalled a second)
             if (shellTask == null && !shellPending && uploading < 0 && (at - shellAt).sqrMagnitude > 144f) { ShellNow(); return; }
             if (shellTask != null && shellTask.IsCompleted)
@@ -1134,27 +1216,39 @@ namespace AntGarden
             }
             if (uploading >= 0)
             {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 int n = Mathf.Min(UploadChunk, shellWorkCount - uploadedSoFar);
-                if (n > 0) shellBuffers[uploading].SetData(shellWork, uploadedSoFar, uploadedSoFar, n);
+                if (n > 0) Upload(uploading, uploadedSoFar, n);
                 uploadedSoFar += n;
+                ShellUploadMs = (float)sw.Elapsed.TotalMilliseconds;
                 if (uploadedSoFar < shellWorkCount) return;
                 shellCounts[uploading] = shellWorkCount;
                 shellFront = uploading;
                 uploading = -1;
+                frontCenter = shellCenter;
+                shellLatency += (Time.time - shellStarted - shellLatency) * 0.5f;   // (how long one takes, from starting it to drawing it)
                 ShellsShown++;
                 if (ShellsShown % 4 == 1) Debug.Log($"[AntGarden] solid shell: {shellWorkCount} fine splats, made in {shellMs} ms");
                 return;
             }
             Vector3 cam = CamPos();
             var camAt = new Vector2(cam.x, cam.z);
-            if (shellTask != null || ((at - shellAt).sqrMagnitude < shellMove * shellMove && (camAt - shellCam).sqrMagnitude < shellMove * shellMove)) return;
+            if (shellTask != null) return;
+            // made again once the camera has moved shellMove, or the ant would be near the edge of the shell's margin by the
+            // time a new one is drawn; centred where the ant will be a little after that
+            bool camMoved = (camAt - shellCam).sqrMagnitude >= shellMove * shellMove;
+            if (shellOld ? (at - shellAt).sqrMagnitude < shellMove * shellMove && !camMoved
+                         : (at + antVel * shellLatency - frontCenter).magnitude < shellReach - nearFade.y - 0.4f && !camMoved) return;
             shellAt = at;
             shellCam = camAt;
+            Vector2 centre = shellOld ? at : at + Vector2.ClampMagnitude(antVel * (shellLatency + 0.4f), shellReach - nearFade.y + 1f);
+            shellCenter = centre;
+            shellStarted = Time.time;
             float slack = shellMove + 0.6f;
             shellTask = System.Threading.Tasks.Task.Run(() =>
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                shellWorkCount = look.SolidShell(at, shellReach, ref shellWork, cam, slack);
+                shellWorkCount = look.SolidShell(centre, shellReach, ref shellWork, cam, slack);
                 shellMs = sw.ElapsedMilliseconds;
             });
             ShellsMade++;
@@ -1179,13 +1273,54 @@ namespace AntGarden
             block.SetVector("_MoonDir", new Vector4(0.32f, 0.9f, 0.28f, 0).normalized);
             block.SetVector("_MoonColor", theme.moon);
             block.SetVector("_FillColor", theme.fill);
-            block.SetVector("_NearFade", look.solidPlants ? (Vector4)nearFade : Vector4.zero);
+            // (NestTheme.groundMoon: the walls round the ant lit from the scene's moon, as the terrain behind them is)
+            Vector4 groundMoon = Vector4.zero;
+            if (theme.groundMoon && RenderSettings.sun != null) { groundMoon = -RenderSettings.sun.transform.forward; groundMoon.w = 1f; }
+            block.SetVector("_GroundMoonDir", groundMoon);
+            block.SetFloat("_GroundFill", theme.wallAmbient);   // (NestTheme.wallAmbient: the walls round the ant's fill, 1 in all but the kiln's)
+            // (11-03) while the shell lags behind a running ant (its worker slower than the run), the fine splats' zone
+            // shrinks to what the shell covers, so the plants at its far edge keep their coarse splats instead of vanishing
+            // (and grows back over a moment once the next shell is drawn, not in a frame)
+            float lag = shellOld ? 0f : Mathf.Max(0f, -ShellEdge);
+            fadeLag = lag >= fadeLag ? lag : Mathf.MoveTowards(fadeLag, lag, 4f * Time.deltaTime);
+            var fade = new Vector4(Mathf.Max(2.5f, nearFade.x - fadeLag), Mathf.Max(3.5f, nearFade.y - fadeLag), 0, 0);
+            // (11-04) the handover made invisible: from nearFade.x the fine splats thin to exactly each plant's coarse set,
+            // as large as its coarse splats, by half a unit before nearFade.y, where the two (the same splats by then) swap
+            // over that last half unit, point by point (x: where they swap, y: swapped, z: how wide the thinning, w: on).
+            // -handoverold: as it was (dithered over x..y, a fine set much denser than the coarse one: a patch round the ant)
+            if (!handoverOld) fade = new Vector4(fade.y - 0.5f, fade.y, Mathf.Max(0.5f, fade.y - 0.5f - fade.x), 1f);
+            block.SetVector("_NearFade", look.solidPlants && !DebugPlantsCoarse ? fade : Vector4.zero);
+            // (11-04) a little calmer further off, never more vivid than near: from 12 to 40 units from the camera down to 0.8 of
+            // its saturation and 0.88 of its light (the plants' fine splats round the ant are nearer than that; where the nest's
+            // own far off, farDark, is darker, that alone: the stronger of the two, never both). And far off fine-grained points,
+            // not big discs: a splat at most 80 pixels across at 9 units from the camera, FarGrain times 2 at 18 and beyond (the
+            // kiln's far ember cups, review k19: heaps of large dark discs, a small plant's few coarse splats grown by the thinning
+            // further off). The blue forest, v15, the others' reference, as it is. -calmold: off; -fargrain N: N (0, the default: off)
+            bool v15 = theme != null && theme.id == "cyan";
+            var calm = calmOld || v15 ? Vector4.zero : new Vector4(12f, 40f, 0.8f, 0.88f);
+            var grain = calmOld || v15 || FarGrain <= 0f ? Vector4.zero : new Vector4(Mathf.Log(40f), 9f, Mathf.Log(FarGrain), 18f);
+            block.SetVector("_SolidCalm", calm);
+            block.SetVector("_SolidGrain", grain);
             block.SetVector("_ThingNear", new Vector4(look.nearDist, 1f / Fine, 0, 0));
-            block.SetFloat("_NearLift", theme.nearLift);
+            block.SetFloat("_NearLift", DebugNoLift ? 0f : theme.nearLift);
             block.SetFloat("_Shell", 0f);
             var bounds = new Bounds(new Vector3((world.minX + world.maxX) / 2, 0, (world.minZ + world.maxZ) / 2),
                 new Vector3(world.maxX - world.minX + 40, 200, world.maxZ - world.minZ + 40));
             Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, count * 3, 1, null, block, ShadowCastingMode.Off, false, 0);
+            if (glassCount > 0)
+            {
+                if (glassMat == null)
+                {
+                    float alpha = Game.Arg("-glass") is string ga && float.TryParse(ga, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float gv) && gv > 0f && gv < 1f ? gv : 0.5f;
+                    glassMat = new Material(mat) { renderQueue = 3000 };
+                    glassMat.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+                    glassMat.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+                    glassMat.SetFloat("_ZWrite", 0f);
+                    glassMat.SetFloat("_Alpha", alpha);
+                }
+                block.SetBuffer("_Solid", glassBuffer);
+                Graphics.DrawProcedural(glassMat, bounds, MeshTopology.Triangles, glassCount * 3, 1, null, block, ShadowCastingMode.Off, false, 0);
+            }
             if (shellCounts[shellFront] > 0)
             {
                 shellBlock.SetFloat("_FlareCount", nf);
@@ -1200,9 +1335,13 @@ namespace AntGarden
                 shellBlock.SetVector("_MoonDir", new Vector4(0.32f, 0.9f, 0.28f, 0).normalized);
                 shellBlock.SetVector("_MoonColor", theme.moon);
                 shellBlock.SetVector("_FillColor", theme.fill);
-                shellBlock.SetVector("_NearFade", nearFade);
+                shellBlock.SetVector("_GroundMoonDir", groundMoon);
+                shellBlock.SetFloat("_GroundFill", theme.wallAmbient);
+                shellBlock.SetVector("_NearFade", fade);
+                shellBlock.SetVector("_SolidCalm", calm);
+                shellBlock.SetVector("_SolidGrain", grain);
                 shellBlock.SetVector("_NearDensity", new Vector4(look.nearDist, Mathf.Clamp01(look.solidFine / look.solidNear), theme.relicKeep, 0));   // (z: NestTheme.relicKeep)
-                shellBlock.SetFloat("_NearLift", theme.nearLift);
+                shellBlock.SetFloat("_NearLift", DebugNoLift ? 0f : theme.nearLift);
                 shellBlock.SetFloat("_Shell", 1f);
                 Graphics.DrawProcedural(mat, bounds, MeshTopology.Triangles, shellCounts[shellFront] * 3, 1, null, shellBlock, ShadowCastingMode.Off, false, 0);
             }
@@ -1211,6 +1350,7 @@ namespace AntGarden
         void OnDestroy()
         {
             buffer?.Release();
+            glassBuffer?.Release();
             foreach (ComputeBuffer b in shellBuffers) b?.Release();
         }
 
