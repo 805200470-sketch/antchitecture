@@ -17,7 +17,10 @@ if [[ -n "$ANTGARDEN_LOCK_HELD" ]]; then exec zsh -c "$*"; fi
 zmodload zsh/datetime
 T="$Q/${ANTGARDEN_PRIORITY:+0}$(printf '%.6f' $EPOCHREALTIME).$$"
 echo "${ANTGARDEN_WHO:-$PWD} $(date '+%H:%M:%S')" > "$T"
-trap 'mv "$T" "$Q/.done/" 2>/dev/null' EXIT INT TERM
+trap 'mv "$T" "$Q/.done/" 2>/dev/null' EXIT
+# a TERM or INT ends the script (11-04: a trap that only tidied up left a killed waiter waiting for good, its ticket gone;
+# the holder still finishes its foreground job first, then lets the lock go)
+trap 'exit 143' INT TERM
 waited=0
 while true; do
   # a ticket leaves the queue when its job ends, or when it is the one running (an older with_lock.sh keeps its ticket)
@@ -37,7 +40,7 @@ done
 mv "$T" "$Q/.done/" 2>/dev/null
 echo $$ > "$LOCK/pid"
 echo "${ANTGARDEN_WHO:-$PWD} $(date '+%H:%M:%S')" > "$LOCK/who"
-trap 'mv "$LOCK" "$L/.machine.lock.done.$$" 2>/dev/null' EXIT INT TERM
+trap 'mv "$LOCK" "$L/.machine.lock.done.$$" 2>/dev/null' EXIT
 min=${ANTGARDEN_MIN_FREE_GB:-6}; waited=0
 while (( $(df -g "$L" | awk 'NR==2{print $4}') < min )); do
   (( waited % 300 == 0 )) && echo "with_lock: less than $min GB free on the disk, not starting until space is freed"

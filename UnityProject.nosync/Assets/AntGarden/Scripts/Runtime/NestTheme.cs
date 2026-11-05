@@ -114,6 +114,17 @@ namespace AntGarden
         public float rigidGain = 1f, rigidTint; // the props' and relics' own colours: how bright, how far toward body[0]
         public System.Collections.Generic.Dictionary<string, float> kindRigidTint;   // a relic kind's own rigidTint (null or not listed: rigidTint): the kiln's standing dead trunks, a model made for the blue forest, toward its palette (ParticleLook)
         public bool kindsSpareFar;              // kindSat, kindGain and kindRigidTint leave the giants beyond the walls as they are (the kiln's trunks, of their kind, darkened in its canyon, its far giants black, k19b-k19d)
+        public System.Collections.Generic.Dictionary<string, float> kindHue;   // a kind's own colour set to this hue (HSV degrees) after its region's turn and before its band (null or not listed: as it is; ParticleLook): the kiln's borrowed plants, turned 172° by its biome, landed gold wherever their textures sent them (k20)
+        public System.Collections.Generic.Dictionary<string, float> kindGlow;  // a kind's own light times this (its glowing parts' glowGain; null or not listed: as it is; ParticleLook): the kiln's small mushrooms' caps, lit whole, burnt out to a pale gold (k20d)
+        // a kind's own colour pulled toward a colour, `by` of the way (0-1), as a lerp of colours (null or not listed: as it is;
+        // ParticleLook). `to` is sRGB, as the palette's; only its hue and chroma count: it is taken at the plant's own mean
+        // lightness, so how light the kind is stays (kindGain sets that), and its light and dark are evened as far as it is
+        // pulled. A white or grey kind, which kindHue cannot colour, is coloured too. After its region's turn, kindHue and its
+        // band. Its glowing parts' colour is pulled as far, how brightly they glow kept (kindGlow sets that); its spots and
+        // markings as they were (kindMark); not relics (kindRigidTint).
+        // Example: t.kindTint ??= new(); t.kindTint["puff_a_stalked"] = (new Color(0.5f, 0.2f, 0.1f), 0.8f);
+        // The kiln's borrowed puffballs and corals, grey-white and spotted, made its ember red-brown (k21)
+        public System.Collections.Generic.Dictionary<string, (Color to, float by)> kindTint;
         public string[] touchParts = new string[0];   // which of glowParts' plants an antenna can light (not every grass tuft)
         public Vector2 ownBand;                  // the plants' own colours kept within this hue band (centre, half-width; 0: any)
         public Vector2 tintBand;                 // and their tints from its palette (as ownBand; 0: any)
@@ -652,7 +663,7 @@ namespace AntGarden
                     // tall clumps of dry grass along the tops of its banks, three to five ants tall, several blades' tufts from one
                     // crown leaning out over the way, their tips lit gold (a thin plant alone is flat: "做成一丛一丛"; up to 7 from
                     // the floor's edge and 2.4-4.4 tall in the first trial, the blind review still saw no forms in its middle distance)
-                    new ScatterRule { plant = "dry_grass_tuft", dMin = -0.6f, dMax = 6f, spacing = 4.5f, height = new Vector2(3.4f, 6f), tilt = 0.15f, tintJitter = 0.1f, patchiness = 0.45f,   // (from the floor's edge: up the banks only, the second trial's review saw nothing taller than the ant by its way)
+                    new ScatterRule { plant = "dry_grass_tuft", dMin = 0f, dMax = 6f, spacing = 4.5f, height = new Vector2(3.4f, 6f), tilt = 0.15f, tintJitter = 0.1f, patchiness = 0.45f,   // (from the floor's edge: up the banks only, the second trial's review saw nothing taller than the ant by its way)
                         tuft = new Vector2Int(3, 5), tuftLean = 24f, tuftScale = new Vector2(0.6f, 1f) },
                 }, r => !no.Contains(r.plant));
                 t.noKinds = System.Array.FindAll(t.noKinds, k => k != "Seed");   // (its pebbles still out: a pale stone mottled grey, "camouflage", as the amber nest's 24th)
@@ -685,6 +696,113 @@ namespace AntGarden
                 t.midgeTint = new Color(0.30f, 0.20f, 0.05f, 0.5f);   // (raw, linear, as the shader's: v15's 0.5, 0.85, 0.85)
                 t.midgeWing = new Color(0.16f, 0.12f, 0.05f);
                 t.microGain = 0.7f;   // (0.55 to now: its fluff and midges dim specks)
+                // (11-05, the user: "对比一下其他颜色的版本和v15的素材数量，我现在感觉其他版本的场景不够丰富啊": 503 plants of 9 kinds
+                // against the blue forest's 1534 of 38, and bare floor beside its way where v15 has big forms on both sides at every
+                // turn. Now more of the shared library, folded into its band like the rest: beside its way, on both sides, forms one
+                // and a half to three and a half ants tall (earthen chimneys, thorny desert succulents, pod stalks whose pods glow
+                // faintly, more croziers, branching coral, small dry mushrooms); up its banks and on its plateau the same at their
+                // full size; shelf fungi on its walls; and small things by its floor's edge (jelly and coral fungi, tiny mushrooms).
+                // Its rules run last, the big ones first, so the small fill the gaps. Left out: what read as eggs (pebbles, seed
+                // heaps), coins (cups), crystals or glass (spray and mixed crystals, glass bulbs, glass sponges), the green clam
+                // husk, eggshell leaves, the amber nest's resin and lanterns, the garden's ferns, honeycomb-like sponges.
+                // Checks: -honeyrich2 0, as on 11-04; -honeyno a,b leaves those kinds out)
+                if (Check("-honeyrich2", 1f) > 0f)
+                {
+                    // (beside the way from half a unit onto its floor: from 0.9, the first trial, they took the floor its seed-cup
+                    // landmark needs, "no room" a third of the way in)
+                    // (from half a unit up its bank: at -0.5, the second trial, still no room for the cup; from the bank's foot, the
+                    // fifth and sixth, a group's second member may stand half a unit out onto the floor, and with its new plants
+                    // the cup had no room again)
+                    ScatterRule Beside(string plant, float spacing, float lo, float hi, int c0 = 1, int c1 = 1) => new ScatterRule { plant = plant, dMin = 0.5f, dMax = 1.8f, spacing = spacing,
+                        height = new Vector2(lo, hi), tilt = 0.12f, tintJitter = 0.1f, patchiness = 0.2f, cluster = new Vector2Int(c0, c1) };
+                    var more = new System.Collections.Generic.List<ScatterRule>(t.extraRules ?? new ScatterRule[0]);
+                    more.AddRange(System.Array.FindAll(new[]
+                    {
+                        // beside the way, both sides
+                        Beside("soil_spire", 7f, 1.8f, 3.6f),
+                        Beside("thorn_succulent", 6f, 1.6f, 2.8f, 1, 2),
+                        // (no pod stalks: near the camera their pods were a row of pale glowing ovals, eggs again, the sixth trial)
+                        Beside("curl_b_double", 10f, 2.0f, 3.4f),
+                        Beside("coral_b_branching", 10f, 1.6f, 2.6f, 1, 2),
+                        Beside("dry_mushroom", 12f, 1.8f, 3.2f),
+                        // up its banks and on its plateau, larger
+                        new ScatterRule { plant = "soil_spire", dMin = 2.5f, dMax = 14f, spacing = 9f, height = new Vector2(4f, 8f), tilt = 0.08f, tintJitter = 0.1f, patchiness = 0.4f },
+                        new ScatterRule { plant = "dry_mushroom", dMin = 3.5f, dMax = 16f, spacing = 13f, height = new Vector2(5f, 9f), tilt = 0.06f, tintJitter = 0.08f, patchiness = 0.4f },
+                        // dry grass in small clumps all up its banks (not by the way, where a few curled blades read as spiders)
+                        new ScatterRule { plant = "dry_grass_tuft", dMin = 1f, dMax = 9f, spacing = 2.6f, height = new Vector2(0.9f, 1.8f), tilt = 0.4f, tintJitter = 0.12f, patchiness = 0.5f, noShadow = true,
+                            tuft = new Vector2Int(2, 3), tuftLean = 18f, tuftScale = new Vector2(0.6f, 1f) },
+                        // (no shelf fungi: a stack of pink-violet shelves up its wall, its palette's accent, the first trial)
+                        new ScatterRule { plant = "thorn_succulent", dMin = 1.5f, dMax = 10f, spacing = 4.2f, height = new Vector2(1f, 2.2f), tilt = 0.3f, tintJitter = 0.1f, cluster = new Vector2Int(1, 2), patchiness = 0.5f },
+                        new ScatterRule { plant = "curl_c_hook", dMin = 0.2f, dMax = 3f, spacing = 11f, height = new Vector2(2f, 3.6f), tilt = 0.2f, tintJitter = 0.08f, patchiness = 0.4f,
+                            tuft = new Vector2Int(2, 3), tuftLean = 10f, tuftFace = -90f, tuftScale = new Vector2(0.7f, 1f) },
+                        // small things at its floor's edge, from the bank's foot up (on the floor itself, the third trial, the
+                        // seed cup a third of the way in still found no room)
+                        new ScatterRule { plant = "jelly_fungus", dMin = 0f, dMax = 2.5f, spacing = 4.5f, height = new Vector2(0.6f, 1.2f), tilt = 0.5f, tintJitter = 0.08f, patchiness = 0.5f },
+                        new ScatterRule { plant = "coral_fungus", dMin = 0.5f, dMax = 3f, spacing = 4.5f, height = new Vector2(0.8f, 1.6f), tilt = 0.3f, tintJitter = 0.1f, cluster = new Vector2Int(1, 3), patchiness = 0.5f },   // (its groups' members out onto the floor from 0)
+                        new ScatterRule { plant = "tiny_mushrooms", dMin = 0f, dMax = 3f, spacing = 2.3f, height = new Vector2(0.3f, 0.7f), tilt = 0.7f, tintJitter = 0.1f, cluster = new Vector2Int(1, 2), noShadow = true, patchiness = 0.5f },
+                    }, r => !no.Contains(r.plant)));
+                    // its own new plants (11-05, the user: "我给Trello充过积分了，所以你就先干吧，好吧？": made for it in Tripo, high
+                    // precision, from 02_Concepts/Richness_v1_蜜罐切叶): tall clumps of grain grass in seed, their ears drooping over
+                    // the way, a little honey on a few; dried seed heads hanging their faces, honey seeping from one; dried teasel.
+                    // Beside its way after its other big ones, and up its banks; in its band as its others, their grains darker than
+                    // its ground's highlights (the hub: a pale oval reads as an ant egg, "像蚁卵"). A kind not built yet is left out
+                    // (Scatter). Off with -honeytripo 0
+                    if (Check("-honeytripo", 1f) > 0f)
+                    {
+                        more.InsertRange(more.FindIndex(r => r.plant == "dry_mushroom") + 1, System.Array.FindAll(new[]
+                        {
+                            Beside("seed_grass", 5f, 2.2f, 3.8f, 1, 2),
+                            Beside("seedhead_drip", 8f, 1.8f, 3.0f),
+                            Beside("teasel", 7f, 2.0f, 3.4f, 1, 2),
+                            new ScatterRule { plant = "seed_grass", dMin = 1.5f, dMax = 10f, spacing = 4.2f, height = new Vector2(3.5f, 6.5f), tilt = 0.1f, tintJitter = 0.1f, patchiness = 0.45f },
+                            new ScatterRule { plant = "seedhead_drip", dMin = 1.5f, dMax = 9f, spacing = 5.5f, height = new Vector2(2.6f, 4.6f), tilt = 0.08f, tintJitter = 0.1f, patchiness = 0.45f },
+                            new ScatterRule { plant = "teasel", dMin = 2f, dMax = 12f, spacing = 5.5f, height = new Vector2(3f, 6f), tilt = 0.08f, tintJitter = 0.1f, patchiness = 0.45f },
+                        }, r => !no.Contains(r.plant)));
+                        // (its grass's ears golden brown: at 0.45 and 0.6 of their colour, the sixth trial, dark grey weed)
+                        foreach (var (k, g) in new[] { ("seed_grass", 0.6f), ("seedhead_drip", 0.5f), ("teasel", 0.5f) })
+                            t.kindGain[k] = g;
+                        foreach (var (k, sat) in new[] { ("seed_grass", 0.85f), ("seedhead_drip", 0.6f), ("teasel", 0.5f) })
+                            t.kindSat[k] = sat;
+                        t.bio["seed_grass"] = new Vector4(5, 0.025f, 0, 0.5f);      // its ears' tips, faintly (not its palest parts: its grains)
+                        t.bio["seedhead_drip"] = new Vector4(4, 0.02f, 0, 0.3f);    // its honey and its palest seeds (at 0.03 and 0.7, the sixth trial, its drip a bright gold tube; at 0.45, the seventh, still bright)
+                        t.bio["teasel"] = new Vector4(5, 0.03f, 0, 0.6f);           // its spines' tips
+                    }
+                    t.extraRules = more.ToArray();
+                    // and two large things on either side of the way where its pictures stand (LabNest.PlaceObjects: its
+                    // chambers are wide, the way through their middle, its plants by its walls): living plants, folded into its
+                    // band as its others are (relics are tinted toward body[0], its teal: a grey-green mushroom and agave and a
+                    // dark teal boulder at 0.6-0.7, the second trial, teal ones at 1, the third)
+                    t.objects = "honey";
+                    // (its boulders up its banks denser too; its root arches as they were, 1.1: at 0.7 they and its new plants
+                    // together left no room for its seed cup in its first chamber, the fourth trial's probes; -honeyarch f for others)
+                    t.sparserBy[System.Array.IndexOf(t.sparserKinds, "root_arch")] = Check("-honeyarch", 1.1f);
+                    t.sparserBy[System.Array.IndexOf(t.sparserKinds, "boulder_moss")] = 0.9f;
+                    // their bodies darker and calmer than its honey, their markings their light (as its croziers'); its fungi lit at
+                    // their markings alone (their whole caps lit read as crystals in the garden), its tiny mushrooms' lump of soil
+                    // under the floor
+                    // (the first trial: its branching coral a cream-white bush, its succulents pale rosettes, its pods' heads pale
+                    // glowing balls, its dry mushrooms' caps pale discs overhead: darker and quieter, their pods' light a few points)
+                    foreach (var (k, g) in new[] { ("soil_spire", 0.55f), ("thorn_succulent", 0.5f), ("curl_b_double", 0.5f), ("curl_c_hook", 0.5f), ("coral_b_branching", 0.4f),
+                        ("dry_mushroom", 0.45f), ("jelly_fungus", 0.7f), ("coral_fungus", 0.55f), ("tiny_mushrooms", 0.6f) })
+                        t.kindGain[k] = g;
+                    // (its succulents at 0.35 a lime rosette by the way, the sixth trial: their grey-green leaves fold to its band's
+                    // green edge)
+                    foreach (var (k, sat) in new[] { ("soil_spire", 0.5f), ("thorn_succulent", 0.2f), ("curl_b_double", 0.6f), ("curl_c_hook", 0.6f), ("dry_mushroom", 0.4f), ("coral_b_branching", 0.4f),
+                        ("jelly_fungus", 0.6f), ("coral_fungus", 0.4f), ("tiny_mushrooms", 0.5f) })
+                        t.kindSat[k] = sat;
+                    // (and their leaves turned gold before its band: at 0.2 still a lime rosette, the seventh trial, the band's edge)
+                    t.kindHue ??= new System.Collections.Generic.Dictionary<string, float>();
+                    t.kindHue["thorn_succulent"] = 42f;
+                    // (its big mushrooms by the way, living plants since the fifth trial, with smaller, softer spots: at the shared
+                    // 0.12 and 0.8 a leopard's cap of bright gold dots overhead)
+                    t.bio["dry_mushroom"] = new Vector4(1, 0.07f, 0.3f, 0.5f);
+                    t.kindFoot["curl_b_double"] = 0.5f;
+                    t.kindFoot["curl_c_hook"] = 0.5f;
+                    t.headGlowKinds = new[] { "curl_d_cluster", "curl_a_crozier", "fallen_leaf", "tiny_mushrooms", "coral_fungus", "jelly_fungus" };
+                    t.headGlowFrom = new[] { -1f, -1f, -1f, -1f, -1f, -1f };
+                    t.sunkKinds = new[] { "tiny_mushrooms" };
+                    t.sunkBy = new[] { 0.28f };
+                }
             }
             // its ants in its honey, as the amber nest's are in its amber (the 52nd: grey-blue, its one cool colour on a
             // living thing; leaning to the palette's turned colour, the ants' own teal still showed through)
@@ -890,6 +1008,87 @@ namespace AntGarden
                 // its small life in its own leaf colours, not v15's pale cyan (fixed in the shader for every nest until 11-04)
                 t.midgeTint = new Color(0.17f, 0.24f, 0.05f, 0.5f);
                 t.midgeWing = new Color(0.10f, 0.13f, 0.05f);
+                // (11-05, the user: "对比一下其他颜色的版本和v15的素材数量，我现在感觉其他版本的场景不够丰富啊": 906 plants of 14 kinds
+                // against the blue forest's 1534 of 38, and bare floor beside its way. Now more of the shared library, folded into
+                // its band: beside its way, on both sides, forms one and a half to three and a half ants tall (spongy mounds as its
+                // gardens are, stalked puffballs whose hearts glow faintly, pod stalks, hooked croziers, branching coral, the soil
+                // turrets a leafcutter nest raises); up its banks and on its plateau big dry mushrooms, taller turrets, pods, more
+                // sponges and croziers; and anemone fungi by its floor's edge. Its rules run last, the big ones first. Left out: what
+                // read as eggs (pebbles, seed heaps), the dry grass (tan in its greens), porous trunks and the fan tree (a blue
+                // scaly trunk), glass bulbs and sponges, the moss forest's and the amber nest's own. Checks: -leafrich2 0, as on
+                // 11-04; -leafno a,b leaves those kinds out)
+                if (Game.Arg("-leafrich2") != "0")
+                {
+                    // (from 0.3 onto its floor: from 0.9, the fourth trial, its garden found no room in its first chamber a little past
+                    // a quarter of the way in, the probes; -leafbeside d for others)
+                    float besideFrom = float.TryParse(Game.Arg("-leafbeside") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float lbf) ? lbf : -0.3f;
+                    ScatterRule Beside(string plant, float spacing, float lo, float hi, int c0 = 1, int c1 = 1) => new ScatterRule { plant = plant, dMin = besideFrom, dMax = 1.3f, spacing = spacing,
+                        height = new Vector2(lo, hi), tilt = 0.12f, tintJitter = 0.1f, patchiness = 0.2f, cluster = new Vector2Int(c0, c1) };
+                    var more = new System.Collections.Generic.List<ScatterRule>(t.extraRules ?? new ScatterRule[0]);
+                    more.AddRange(System.Array.FindAll(new[]
+                    {
+                        // beside the way, both sides
+                        Beside("sponge_mound", 6f, 1.5f, 2.6f),
+                        new ScatterRule { plant = "puff_a_stalked", dMin = -0.7f, dMax = 1.3f, spacing = 9f, height = new Vector2(1.8f, 3.2f), tilt = 0.15f, tintJitter = 0.08f, patchiness = 0.2f,
+                            tuft = new Vector2Int(3, 5), tuftLean = 12f, tuftScale = new Vector2(0.55f, 1f) },
+                        Beside("lantern_pods", 8f, 2.0f, 3.6f),
+                        new ScatterRule { plant = "curl_c_hook", dMin = -0.5f, dMax = 1.5f, spacing = 10f, height = new Vector2(2f, 3.6f), tilt = 0.2f, tintJitter = 0.08f, patchiness = 0.2f,
+                            tuft = new Vector2Int(2, 3), tuftLean = 10f, tuftFace = -90f, tuftScale = new Vector2(0.7f, 1f) },
+                        Beside("coral_b_branching", 10f, 1.4f, 2.4f, 1, 2),
+                        Beside("soil_spire", 9f, 1.8f, 3.4f),
+                        // up its banks and on its plateau, larger
+                        new ScatterRule { plant = "dry_mushroom", dMin = 3f, dMax = 15f, spacing = 12f, height = new Vector2(4f, 8f), tilt = 0.06f, tintJitter = 0.08f, patchiness = 0.4f },
+                        new ScatterRule { plant = "soil_spire", dMin = 2.5f, dMax = 14f, spacing = 11f, height = new Vector2(3.5f, 7f), tilt = 0.08f, tintJitter = 0.1f, patchiness = 0.4f },
+                        new ScatterRule { plant = "lantern_pods", dMin = 1.5f, dMax = 8f, spacing = 9f, height = new Vector2(2.6f, 4.6f), tilt = 0.12f, tintJitter = 0.08f, patchiness = 0.5f },
+                        new ScatterRule { plant = "sponge_mound", dMin = 0.5f, dMax = 7f, spacing = 4f, height = new Vector2(1.2f, 2.6f), tilt = 0.7f, tintJitter = 0.15f, patchiness = 0.5f },
+                        new ScatterRule { plant = "curl_b_double", dMin = 0.2f, dMax = 3.5f, spacing = 11f, height = new Vector2(2f, 3.6f), tilt = 0.2f, tintJitter = 0.08f, patchiness = 0.4f },
+                        // small things by its floor's edge
+                        new ScatterRule { plant = "anemone_fungus", dMin = -0.6f, dMax = 2.5f, spacing = 4.5f, height = new Vector2(0.8f, 1.5f), tilt = 0.4f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2), patchiness = 0.5f },   // (from 1.2 onto its floor until the fourth trial)
+                    }, r => !no.Contains(r.plant)));
+                    // its own new plants (11-05, as the granary's, Tripo, 02_Concepts/Richness_v1_蜜罐切叶): big pieces of leaf the ants
+                    // have cut, standing on their edges in twos and threes like sails; young saplings whose leaves they have been
+                    // cutting, crescent bites in them; pillars of its fungus garden grown up a rootlet. Beside its way after its
+                    // other big ones, and up its banks; in its band. A kind not built yet is left out (Scatter). Off with -leaftripo 0
+                    if (Game.Arg("-leaftripo") != "0")
+                    {
+                        more.InsertRange(more.FindIndex(r => r.plant == "soil_spire") + 1, System.Array.FindAll(new[]
+                        {
+                            Beside("cut_leaf", 6f, 1.6f, 2.8f, 2, 3),
+                            // (its saplings in groups of three to five from one root, mixed heights, one leafy mass: one thin stem alone
+                            // is flat, the hub; the user: "做成一丛一丛")
+                            new ScatterRule { plant = "bitten_sapling", dMin = besideFrom, dMax = 1.3f, spacing = 9f, height = new Vector2(2.6f, 4.2f), tilt = 0.1f, tintJitter = 0.1f, patchiness = 0.2f,
+                                tuft = new Vector2Int(3, 5), tuftLean = 14f, tuftScale = new Vector2(0.55f, 1f) },
+                            Beside("garden_pillar", 9f, 2.0f, 3.6f),
+                            new ScatterRule { plant = "cut_leaf", dMin = 1f, dMax = 8f, spacing = 7f, height = new Vector2(2f, 3.5f), tilt = 0.25f, tintJitter = 0.1f, cluster = new Vector2Int(2, 3), patchiness = 0.45f },
+                            new ScatterRule { plant = "bitten_sapling", dMin = 1.5f, dMax = 10f, spacing = 10f, height = new Vector2(3.5f, 6f), tilt = 0.08f, tintJitter = 0.1f, patchiness = 0.45f,
+                                tuft = new Vector2Int(3, 5), tuftLean = 12f, tuftScale = new Vector2(0.55f, 1f) },
+                            new ScatterRule { plant = "garden_pillar", dMin = 2f, dMax = 10f, spacing = 10f, height = new Vector2(3f, 5.5f), tilt = 0.06f, tintJitter = 0.08f, patchiness = 0.45f },
+                        }, r => !no.Contains(r.plant)));
+                        foreach (var (k, g) in new[] { ("cut_leaf", 0.6f), ("bitten_sapling", 0.6f), ("garden_pillar", 0.55f) })
+                            t.kindGain[k] = g;
+                        foreach (var (k, sat) in new[] { ("cut_leaf", 0.6f), ("bitten_sapling", 0.6f), ("garden_pillar", 0.4f) })
+                            t.kindSat[k] = sat;
+                        t.bio["cut_leaf"] = new Vector4(4, 0.04f, 0, 0.8f);          // its veins and cut rims
+                        t.bio["bitten_sapling"] = new Vector4(5, 0.04f, 0, 0.8f);    // its shoots' tips
+                        t.bio["garden_pillar"] = new Vector4(1, 0.08f, 0.34f, 0.9f); // spots, as its fungus garden's
+                    }
+                    t.extraRules = more.ToArray();
+                    foreach (var (k, g) in new[] { ("sponge_mound", 0.7f), ("lantern_pods", 0.6f), ("curl_c_hook", 0.8f), ("curl_b_double", 0.8f), ("coral_b_branching", 0.6f), ("soil_spire", 0.6f),
+                        ("dry_mushroom", 0.6f), ("anemone_fungus", 0.6f) })
+                        t.kindGain[k] = g;
+                    // and two large things on either side of the way where its pictures stand (LabNest.PlaceObjects), living plants
+                    // in its band (as relics, toward body[0], teal sponges, blue-grey boulders and rust turrets at 0.4-0.6, the
+                    // first trial, blue-teal ones at 1, the second); its small mushrooms and corals a little denser, its sponges and
+                    // anemones too
+                    t.objects = "leafcut";
+                    t.sparserBy[System.Array.IndexOf(t.sparserKinds, "tiny_mushrooms")] = 1.4f;
+                    t.sparserBy[System.Array.IndexOf(t.sparserKinds, "coral_fungus")] = 1.8f;
+                    foreach (var (k, sat) in new[] { ("sponge_mound", 0.4f), ("soil_spire", 0.5f), ("dry_mushroom", 0.5f), ("anemone_fungus", 0.4f), ("coral_b_branching", 0.6f) })
+                        t.kindSat[k] = sat;
+                    t.headGlowKinds = new[] { "coral_fungus", "tiny_mushrooms", "fallen_leaf", "cup_fungus", "jelly_fungus", "anemone_fungus" };
+                    t.headGlowFrom = new[] { -1f, -1f, -1f, -1f, -1f, -1f };
+                    t.heartLampGain = 0.35f;   // (its puffballs' hearts a faint light, as the granary's 0.3: at 1 a great white glow)
+                }
             }
             return t;
         }
@@ -1156,6 +1355,102 @@ namespace AntGarden
                 t.kindGain["trunk_night"] = 0.4f;   // (0.5 and 0.35, k35)
                 t.kindSat["moss_capsules"] = 0.7f;
                 t.things = System.Array.ConvertAll(t.things, th => th.kind == "Sporophyte" ? new Thing { kind = th.kind, weight = 6 } : th);
+            }
+            // (11-05, the hub for the user, "对比一下其他颜色的版本和v15的素材数量，我现在感觉其他版本的场景不够丰富啊": v15 had 1534
+            // plants of 38 kinds and 232 glass lamps in its pictures' run, the moss forest 443 of 7 and none, its sides of the
+            // way a flat green with a few capsule stalks) the library's plants that suit a moss forest at ant scale, in its
+            // hues (each takes its palette's colour by its name and keeps less of its own; the yellower ones calmer): ferns,
+            // puffballs and the branching coral fungus close beside the way, as its own plants are (their tufts the large
+            // things at its sides); spore stalks whose glass heads hold a faint light (its lamps: knots of light in the bulbs,
+            // GlassLamps, the ground not lit by them), sedge tufts, jelly and coral fungi, lantern pods and anemone fungi among
+            // them; its trunks denser; and, with every plant's own colours folded into its green band (ownBand, half as vivid
+            // beyond it: k42 without it, its borrowed coral clumps the blue forest's white and pale blue, the brightest
+            // things beside its way, 0.064 -> 0.078 overall), the shelf fungi, small cup fungi, sponge mounds (the small ones
+            // up its walls: moss cushions there, the richness review's "墙上什么都没长"), and a few arching roots, darkened (a
+            // green pipe at their own colours, k35). Not what reviews found like eggs, coins or crystals (the hub's rule,
+            // 11-05): fallen leaves, pebbles, seeds, crystals, relics; nor the amber nest's and the kiln's own. Its own
+            // plants as many as before: with more own kinds each is sparser (Game), theirs denser by as much (the liverworts
+            // halved in k42, crowded out by the ferns and puffballs placed first). Colour and light as they were (k34's,
+            // the user's "就这样", with 11-04's far off): the pale borrowed kinds darker. Checks: -mossfull 0 (as k41)
+            // (k45, the hub's look at k44: the borrowed corals and sponges "发白、成块成斑，像褪了色，不像长在这里的", the jelly
+            // fungus an olive cream: out this round, its own plants denser in their place, until its own new models come.
+            // Their textures: the branching coral 40% pale grey, the coral fungus and the anemone light and once vivid blue
+            // and pink, half as vivid in its band a pale grey, the lantern pods white in a sixth, the sponges and the jelly
+            // blotched grey and cream. kindRigidTint, which turned the kiln's trunks, acts on relics only, not on these)
+            // (k46: and what was left of the hub's list was the blue forest's own fine plants: its fern tufts the big grey
+            // blotch before the ant's eye halfway, its lantern puffballs the olive cream beside it, its stalked puffballs the
+            // white starbursts by its way, close-ups k45. Out as well, its own denser still; the spore stalks' pale heads
+            // darker, their glass lamps as they were)
+            if (Game.Arg("-mossfull") != "0")
+            {
+                t.scatterPlants = new System.Collections.Generic.List<string>(t.scatterPlants) { "spore_stalk", "dry_grass_tuft", "bracket_shelf", "cup_fungus", "root_arch" }.ToArray();
+                t.labPlants = new[] { "liverwort_parasols", "pixie_cup_lichen", "moss_capsules" };
+                t.glassKinds = new[] { "spore_stalk" };
+                t.ownBand = new Vector2(Try("-mossbandcentre", 105f), Try("-mossband", 30f));
+                t.sparserKinds = new[] { "moss_capsules", "trunk_night", "liverwort_parasols", "pixie_cup_lichen", "spore_stalk", "dry_grass_tuft", "root_arch", "cup_fungus", "boulder_moss" };
+                t.sparserBy = new[] { 1f, 1.5f, 0.33f, 0.38f, 0.9f, 0.9f, 1.5f, 1.2f, 0.55f };   // (k48, the hub: its own denser still while the borrowed kinds wait for their tint; 0.42, 0.5 and 0.7 to k47: 75 liverworts, 42 cups, 83 boulders; capsules as they were, its loudest kind already)
+                // (and more of the floor's things its own, the star-moss colonies and capsule stalks: its green cushions at the
+                // way's end the most moss-forest part of k46, the hub)
+                t.ownShare = 0.48f;   // (0.36, GreenBasic)
+                foreach (var (kind, sat) in new[] { ("dry_grass_tuft", 0.5f) })
+                    t.kindSat[kind] = sat;
+                // (the pale ones darker: white and pale grey are under the band's fold, so in k43 the puffballs stood white
+                // beside its way, 0.064 -> 0.074 overall; the spore stalks' pale stems and heads, half of their texture, and
+                // the many sedge tufts, its lightest texture, darker too; the stalks' glass lamps as they were)
+                foreach (var (kind, gain) in new[] { ("cup_fungus", 0.6f), ("bracket_shelf", 0.6f), ("root_arch", 0.5f), ("dry_grass_tuft", 0.7f), ("spore_stalk", 0.42f) })
+                    t.kindGain[kind] = gain;
+                // (k49, its own second set from Tripo, the user's OK for three, 11-05: colonies of tree moss beside the way,
+                // mossy stumps and fallen branches large and few, Game.LabPlants; and LabNest's landmarks. Placed after its
+                // first three, so these keep their room; with six own kinds each is sparser by (6/3)^0.75 = 1.68 (Game), its
+                // first three denser by as much, back to k47's counts: k48's denser liverworts and cups left the capsule groves,
+                // placed after them, 44 of 108. Checks: -mossnew 0, without them, as k48)
+                bool mossNew = Game.Arg("-mossnew") != "0", mossTint = Game.Arg("-mosstint") != "0";
+                if (mossNew)
+                {
+                    t.labPlants = new[] { "liverwort_parasols", "pixie_cup_lichen", "moss_capsules", "tree_moss", "mossy_stump", "mossy_branch" };
+                    // (k50: its stumps' and branches' moss an olive yellow beside its way in, k49 (the user, 11-04: "黄色的饱和度有点
+                    // 太高了"): toward its own green, enough of their texture kept)
+                    t.kindTint ??= new System.Collections.Generic.Dictionary<string, (Color to, float by)>();
+                    t.kindTint["mossy_stump"] = (new Color(0.30f, 0.44f, 0.26f), 0.75f);   // (0.45 in k50: hardly greener)
+                    t.kindTint["mossy_branch"] = (new Color(0.30f, 0.44f, 0.26f), 0.75f);
+                }
+                // (k49, the hub for the user, 11-05: "为什么会掉，我需要画面的丰富度": the borrowed kinds taken out in k45-k47, white,
+                // grey and blotched there, back, their own colours pulled toward greens of its own, a little apart from each
+                // other, and darker (NestTheme.kindTint, the kiln's: only hue and chroma; kindGain their lightness). Checks:
+                // -mosstint 0, without them)
+                if (mossTint)
+                {
+                    t.scatterPlants = new System.Collections.Generic.List<string>(t.scatterPlants) { "coral_fungus", "anemone_fungus", "lantern_pods", "sponge_mound", "jelly_fungus" }.ToArray();
+                    t.labPlants = new System.Collections.Generic.List<string>(t.labPlants) { "frond_a_feather", "puff_a_stalked", "puff_b_lantern", "coral_b_branching" }.ToArray();
+                    t.kindTint ??= new System.Collections.Generic.Dictionary<string, (Color to, float by)>();
+                    // (k50: further, 0.85: at 0.6-0.75, k49, pale blue pompoms still stood at the edge of its halfway view; the
+                    // ferns at 0.6, some of their pattern kept; and the borrowed cup fungi and shelf fungi, under the band only)
+                    foreach (var (kind, to, by, gain) in new[] {
+                        ("coral_fungus", new Color(0.30f, 0.45f, 0.28f), 0.85f, 0.5f), ("coral_b_branching", new Color(0.32f, 0.44f, 0.30f), 0.85f, 0.45f),
+                        ("anemone_fungus", new Color(0.36f, 0.42f, 0.22f), 0.85f, 0.55f), ("lantern_pods", new Color(0.34f, 0.46f, 0.30f), 0.85f, 0.45f),
+                        ("sponge_mound", new Color(0.26f, 0.40f, 0.24f), 0.85f, 0.6f), ("jelly_fungus", new Color(0.34f, 0.40f, 0.20f), 0.85f, 0.55f),
+                        ("frond_a_feather", new Color(0.28f, 0.44f, 0.26f), 0.6f, 0.75f), ("puff_a_stalked", new Color(0.36f, 0.44f, 0.30f), 0.85f, 0.5f),
+                        ("puff_b_lantern", new Color(0.38f, 0.46f, 0.30f), 0.85f, 0.45f), ("cup_fungus", new Color(0.30f, 0.42f, 0.26f), 0.85f, 0.6f),
+                        ("bracket_shelf", new Color(0.36f, 0.40f, 0.24f), 0.7f, 0.6f),
+                        // (k51: and its fan trees' caps, the pale blue pompoms at the edge of its halfway view in k49 and k50, the
+                        // blue forest's colour kindSat only greyed)
+                        ("fan_tree", new Color(0.30f, 0.42f, 0.28f), 0.8f, 0.45f) })
+                    {
+                        t.kindTint[kind] = (to, by);
+                        t.kindGain[kind] = gain;
+                    }
+                }
+                // its own lab kinds as many as in k47 whatever else grows beside the way: each lab kind is sparser by
+                // (n/3)^0.75 with n own kinds (Game), its first three denser by as much; the new ones a little denser than that
+                int nLab = t.labPlants.Length;
+                float sparser = Mathf.Pow(Mathf.Max(1f, nLab / 3f), 0.75f);
+                var kinds = new System.Collections.Generic.List<string>(t.sparserKinds);
+                var by2 = new System.Collections.Generic.List<float>(t.sparserBy);
+                void Net(string kind, float net) { int i = kinds.IndexOf(kind); if (i < 0) { kinds.Add(kind); by2.Add(net / sparser); } else by2[i] = net / sparser; }
+                Net("moss_capsules", 1f); Net("liverwort_parasols", 0.42f); Net("pixie_cup_lichen", 0.5f);
+                if (mossNew) { Net("tree_moss", 1.2f); Net("mossy_stump", 1.4f); Net("mossy_branch", 1.4f); }
+                t.sparserKinds = kinds.ToArray();
+                t.sparserBy = by2.ToArray();
             }
             return t;
         }
@@ -1432,6 +1727,67 @@ namespace AntGarden
             t.kindGain["tear_tree"] = 0.55f;
             t.sunkKinds = new[] { "boulder_moss", "pebble_cluster" };
             t.sunkBy = new[] { 0.35f, 0.4f };
+            // (k28, the user, 11-05, through the hub: "对比一下其他颜色的版本和v15的素材数量，我现在感觉其他版本的场景不够丰富啊": as
+            // many plants as v15 in k27h, but ten kinds, most of them small (grass, pebbles, leaves), v15's 38; by its way in,
+            // half way and its way's end its sides open sand where v15's stand plants 1.5 to 4.6 tall. Borrowed from the
+            // world's plants, turned into its band as a blue plant is (their textures blue and olive), for a resinous conifer
+            // floor: its big ones bracken fronds, stalked puffballs, corkscrew fiddleheads by its way, shelf fungi, fan trees on
+            // its banks; its small ones cup fungi and little mushrooms (their tops faintly lit, below), coral and jelly fungi,
+            // sponge mounds, star fungi. Its grass, pebbles and leaves thinner, so its plants stay about as many. -amberk27h:
+            // as it was in k27h, to compare)
+            if (Game.Arg("-amberk27h") == null)
+            {
+                t.labPlants = new[] { "tear_tree", "gumweed", "frond_a_feather", "puff_a_stalked", "curl_e_corkscrew" };
+                // (no coral fungus: darkened, still mustard-yellow finger tips by its way's end, the yellow coral of k27 again, k28b)
+                t.scatterPlants = new System.Collections.Generic.List<string>(t.scatterPlants)
+                    { "bracket_shelf", "fan_tree", "cup_fungus", "tiny_mushrooms", "jelly_fungus", "sponge_mound", "anemone_fungus" }.ToArray();
+                // (its own two as dense as they were: with five kinds of finely made plants Game makes each of them half as
+                // sparse again, (5/3)^0.75)
+                t.sparserKinds = new[] { "pebble_cluster", "gumweed", "tear_tree", "thorn_succulent", "dry_grass_tuft", "fallen_leaf", "tiny_mushrooms", "sponge_mound", "frond_a_feather" };
+                t.sparserBy = new[] { 1.3f, 0.34f, 0.38f, 0.8f, 1f, 1.4f, 1.3f, 1.6f, 0.8f };
+                // (the paler of them darker and calmer, as its little trees are: turned, their pale blue went to its band's gold
+                // end, lemon coral fingers, lemon mushrooms and cream-white puffballs, the brightest things by its way, k28:
+                // its picture 0.080 to 0.089, its vivid share 2% to 5%; 0.092 with its big things by the way, k28b: darker again)
+                foreach (var (kind, sat, gain) in new[] { ("tiny_mushrooms", 0.5f, 0.5f), ("puff_a_stalked", 0.6f, 0.45f),
+                    ("anemone_fungus", 0.6f, 0.5f), ("cup_fungus", 1f, 0.65f), ("fan_tree", 0.7f, 0.5f), ("sponge_mound", 0.7f, 0.6f) })
+                {
+                    t.kindSat[kind] = sat;
+                    t.kindGain[kind] = gain;
+                }
+                // (and its big things by the way, placed as relics, LabNest: in its colours, its trees' bark less orange; its
+                // mushrooms in their own tan and darker: a relic leans to its palette's first body colour, here a sage, and at
+                // 0.7 they stood pale sage green by its way, k28c)
+                t.kindRigidTint = new System.Collections.Generic.Dictionary<string, float> { { "tear_tree", 0.3f }, { "soil_spire", 0.3f }, { "dry_mushroom", 0f } };
+                t.kindGain["dry_mushroom"] = 0.5f;
+            }
+            // (k29, its own Tripo plants again (02_Concepts/Amber_v2_丰富度; the user, 11-05: "可以，做三件"): golden larch
+            // seedlings in groves, tall resinous pine stumps leaning, slippery jacks, so it leans less on the world's. -amberk28:
+            // as in k28d)
+            // (k29b: and the stalked puffballs and corkscrew fiddleheads kept beside them, not dropped for a cleaner picture
+            // (the user, 11-05: "我需要画面的丰富度"; k29 left them out, 21 kinds and its 57 lit puffball heads gone). Eight
+            // finely made kinds: Game makes each (8/3)^0.75 sparser, 2.09: its own as dense as in k28, its new ones denser,
+            // 22 larch groves and 10 clumps of slippery jacks in k29)
+            if (Game.Arg("-amberk27h") == null && Game.Arg("-amberk28") == null)
+            {
+                t.labPlants = new[] { "tear_tree", "gumweed", "frond_a_feather", "puff_a_stalked", "curl_e_corkscrew", "larch_sapling", "resin_stump", "slippery_jack" };
+                t.sparserKinds = new[] { "pebble_cluster", "gumweed", "tear_tree", "thorn_succulent", "dry_grass_tuft", "fallen_leaf", "tiny_mushrooms", "sponge_mound", "frond_a_feather",
+                    "puff_a_stalked", "curl_e_corkscrew", "larch_sapling", "slippery_jack" };
+                t.sparserBy = new[] { 1.3f, 0.24f, 0.27f, 0.8f, 1f, 1.4f, 1.3f, 1.6f, 0.56f, 0.7f, 0.7f, 0.45f, 0.4f };
+                t.kindGain["resin_stump"] = 0.65f;   // (its stumps by the way are relics too, LabNest: in their own colours)
+                t.kindRigidTint["resin_stump"] = 0f;
+                // (k29c: its borrowed plants that stayed white, grey or cream after their turn coloured into its amber and
+                // bronze, a little apart from each other (NestTheme.kindTint, the kiln's, 11-05): its puffballs' cream-white
+                // heads, its fan trees' grey fans, its fiddleheads' grey stalks, the pale shelf and star fungi, and the lemon
+                // little mushrooms deeper; not its stones, its cool notes, nor its own plants)
+                t.kindTint ??= new System.Collections.Generic.Dictionary<string, (Color to, float by)>();
+                foreach (var (kind, to, by) in new[] {
+                    ("puff_a_stalked", new Color(0.62f, 0.40f, 0.20f), 0.6f), ("fan_tree", new Color(0.58f, 0.40f, 0.24f), 0.5f),
+                    ("curl_e_corkscrew", new Color(0.56f, 0.34f, 0.18f), 0.5f), ("bracket_shelf", new Color(0.64f, 0.40f, 0.18f), 0.45f),
+                    ("anemone_fungus", new Color(0.62f, 0.34f, 0.18f), 0.45f), ("frond_a_feather", new Color(0.56f, 0.40f, 0.22f), 0.35f),
+                    ("sponge_mound", new Color(0.60f, 0.42f, 0.22f), 0.35f), ("jelly_fungus", new Color(0.66f, 0.40f, 0.16f), 0.35f),
+                    ("tiny_mushrooms", new Color(0.64f, 0.36f, 0.14f), 0.35f) })
+                    t.kindTint[kind] = (to, by);
+            }
             // (no moss cushions either: by its way out one lay lemon green, twice as light as the floor, "from another nest",
             // twentieth review)
             t.noKinds = new[] { "Petal", "Blossom", "Clover", "Shell", "Moss", "Seedling", "Mushrooms", "Crystals", "Feather" };   // (and crystal grit: pale crumbs by its way in, k24c; amber is no crystal; and feathers, a pale cyan-white flake by it, k24h)   // (the floor's seedlings too: a stem and one flat leaf, no body, twenty-third plant review; and its little mushrooms, bone white with mint spots, one nearly two ants tall by its way in, k24)
@@ -1543,6 +1899,26 @@ namespace AntGarden
                 // over, k21; by its pale warm parts, its bark's pale ridges too, pinkish white, k22)
                 new GlowPart { plant = "gumweed", from = 0.55f, to = 1.05f, lumMin = 2.2f, amount = 0.3f },   // (1.7 to k25)   // (at 1.35 and 0.5, and its markings 8% of it, its whole head lit, no bead to be read, k24)
             };
+            if (Game.Arg("-amberk27h") == null)
+            {
+                // (k28: its borrowed plants without their kinds' markings, no gold dots over dark bodies ("leopard print", k27);
+                // its few new glowing points the little mushrooms' caps and the cup fungi's rims, faintly, the floor dark)
+                foreach (string k in new[] { "bracket_shelf", "fan_tree", "coral_fungus", "jelly_fungus", "sponge_mound", "anemone_fungus", "frond_a_feather", "puff_a_stalked", "curl_e_corkscrew", "tiny_mushrooms", "cup_fungus" })
+                    t.bio[k] = Vector4.zero;
+                t.glowParts = new System.Collections.Generic.List<GlowPart>(t.glowParts)
+                {
+                    new GlowPart { plant = "tiny_mushrooms", from = 0.55f, to = 1.05f, lumMin = 1.0f, amount = 0.2f },   // (0.35 in k28: lemon caps)
+                    new GlowPart { plant = "cup_fungus", from = 0.6f, to = 1.05f, lumMin = 1.0f, amount = 0.3f },
+                }.ToArray();
+            }
+            if (Game.Arg("-amberk27h") == null && Game.Arg("-amberk28") == null)
+            {
+                // (k29: its new plants' markings: none on the larch and the slippery jacks (their own colours carry them);
+                // the stumps' resin, their palest share, lit as its little trees' tears are)
+                t.bio["larch_sapling"] = Vector4.zero;
+                t.bio["slippery_jack"] = Vector4.zero;
+                t.bio["resin_stump"] = new Vector4(4, 0.02f, 0f, 0.8f);
+            }
             // the ants in amber and honey, as v15's are in its own teal (leaning to the palette's turned colour, the
             // ants' own teal still showed through: grey-blue ants in a warm nest)
             t.antTint = new Color(0.95f, 0.62f, 0.30f, 0.85f);
@@ -1764,6 +2140,196 @@ namespace AntGarden
                 t.bio["fire_morel"] = new Vector4(8, 0.03f, 0, 0.9f);   // (k19g: 0.036 and 1.4 in k19-k19f, their tips white-hot and a cold white light at their feet, 2.2% of the ant's view near white, the k19f plant review; and their mark an ember orange, kindMark)   // (a dark brown morel with no light of its own, the self-check's plant review: between k10's whole white caps, 0.045 and 1.5, and k11's 0.03 and 1.3)
                 t.ownShare = 0.55f;
                 t.things = new[] { new Thing { kind = "CharTwigs", weight = 40 }, new Thing { kind = "AshStones", weight = 16 }, new Thing { kind = "EmberCracks", weight = 3 } };   // (its stones about as many as before: its cool notes, the family; a crack in about 20 things)
+            }
+            // k20, as full as v15 (the hub, 11-05, the user: "对比一下其他颜色的版本和v15的素材数量，我现在感觉其他版本的场景不够丰富啊";
+            // k19g grew 312 plants of 7 kinds against v15's 1534 of 38, its way's sides mostly bare floor and canyon wall): about
+            // 1200 of 21 kinds, from the shared ones what belongs after a fire, its colours and light left as they are. Checks:
+            // -kilnrich 1 (k19g, as it was), 0 (k18)
+            if (Game.Arg("-kilnrich") != "0" && Game.Arg("-kilnrich") != "1")
+            {
+                // its plants' tints from its palette and its glows folded into its band, as its own colours are (ownBand): a glow
+                // of the palette's gold turned its small mushrooms, its shelves and its leaves mustard whatever their own colour,
+                // k19b-k19e (the amber nest's lesson, its k27e: it is the glow palette, not the plants); its accent glows none
+                t.tintBand = new Vector2(16f, 22f);
+                // (its glows into an ember band, 4-24°, narrower than its tints': a plant's glow is its palette glow made 1.9
+                // times as vivid, ParticleLook, so one at 30-38°, inside the tints' band, burnt gold: k20's small mushrooms,
+                // cup fungi and shelves, 1-4.6% of each view yellow against k19g's 0.02-0.23%)
+                // (k20c: to 12 ± 3°, from 14 ± 10 in k20b: each plant turns its glow a further ±15° at random,
+                // ParticleLook, and at 30-39° its small mushrooms, its fronds' spots and its dry mushrooms' spots glowed gold)
+                Vector2 glowBand = new Vector2(8f, 3f);   // (k20g: 12 in k20c-k20f; a bright red-orange light turns yellow on the screen, so its glows a little redder)
+                for (int i = 0; i < t.glow.Length; i++)
+                {
+                    Color.RGBToHSV(t.glow[i].linear, out float gh, out float gs, out float gv);
+                    float d = Mathf.DeltaAngle(glowBand.x, gh * 360f);
+                    if (Mathf.Abs(d) <= glowBand.y || gs < 0.08f) continue;
+                    Color folded = Color.HSVToRGB(Mathf.Repeat((glowBand.x + Mathf.Sign(d) * glowBand.y) / 360f, 1f), gs, gv, true).gamma;
+                    folded.a = t.glow[i].a;
+                    t.glow[i] = folded;
+                }
+                t.glowAccent = 0f;
+                // the world's plants that follow a fire: back, now that their glow is its own, its small mushrooms on the
+                // charcoal, shelves on dead wood, curled leaves; and cup fungi, dry mushrooms up its banks, jelly and coral
+                // fungi a few, red stinkhorns fewer, spore stalks and lantern pods, their heads its faint lights; and of the
+                // finely made ones bracken (the first fern after a fire), stalked puffballs, a branching coral. All the blue
+                // forest's, made teal: its plant hue (Biome kiln, 172) turns them red, then its band. (Not the moss forest's
+                // liverworts, pixie cups and capsules: green turned 172 is violet, folded a crimson; scarlet caps turn cyan,
+                // folded gold. Not again: pebble heaps (eggs, k6), seed heaps, crystals, relics, sponges, mossy boulders (eggs,
+                // k19 self-check), fan trees)
+                t.scatterPlants = new[] { "trunk_night", "root_arch", "dry_grass_tuft", "tiny_mushrooms", "bracket_shelf", "fallen_leaf", "cup_fungus", "dry_mushroom", "jelly_fungus", "coral_fungus", "spore_stalk", "anemone_fungus", "lantern_pods" };
+                t.labPlants = new[] { "ember_cups", "fire_morel", "frond_a_feather", "puff_a_stalked", "coral_b_branching" };
+                // (five of its own make each sparser, (5/3)^0.75 = 1.47 times their spacing, Game: its cups and morels kept
+                // as many as in k19g; the branching coral few)
+                t.sparserKinds = new[] { "trunk_night", "root_arch", "bracket_shelf", "tiny_mushrooms", "dry_grass_tuft", "fallen_leaf", "fire_morel", "ember_cups", "coral_fungus", "jelly_fungus", "anemone_fungus", "spore_stalk", "lantern_pods", "coral_b_branching" };
+                t.sparserBy = new[] { 3.2f, 1.8f, 1f, 0.8f, 2f, 0.8f, 0.14f, 0.44f, 1.6f, 1.3f, 2f, 1.2f, 1.3f, 1.8f };
+                t.kindGain["coral_fungus"] = 0.8f;
+                t.kindGain["jelly_fungus"] = 0.8f;
+                t.kindGain["spore_stalk"] = 0.8f;
+                // (k20b: the stalked puffballs' heads a pale spoon, the branching corals lilac grey, the palest things in their
+                // views: darker; the borrowed kinds' own colours a little muted, toward its rust; its standing trunks lighter
+                // again, at the way in 8-10% near black in k20)
+                t.kindGain["puff_a_stalked"] = 0.45f;   // (k20c, the palest kinds toward ash grey: spore stalks' bulbs a pale spoon, puffballs silver, corals cream and pinkish white, k20b)
+                t.kindGain["coral_b_branching"] = 0.45f;
+                t.kindGain["spore_stalk"] = 0.5f;
+                t.kindGain["coral_fungus"] = 0.5f;
+                t.sparserBy[System.Array.IndexOf(t.sparserKinds, "tiny_mushrooms")] = 1.6f;   // (245 in k20b, 158 at 1 in k20c-k20g: their lit caps and their bases' ember crumbs still amber by its way out, 0.7% of the view, k20g; fewer, so seldom by a camera)
+                // (and more of what measured clean in their place: spore stalks, cup fungi, burnt grass)
+                t.sparserBy[System.Array.IndexOf(t.sparserKinds, "spore_stalk")] = 0.9f;
+                t.sparserBy[System.Array.IndexOf(t.sparserKinds, "dry_grass_tuft")] = 1.5f;
+                t.sparserKinds = new System.Collections.Generic.List<string>(t.sparserKinds) { "cup_fungus" }.ToArray();
+                t.sparserBy = new System.Collections.Generic.List<float>(t.sparserBy) { 0.75f }.ToArray();
+                t.kindGain["trunk_night"] = 1.7f;   // (2 in k20b-k20g: the pale speckles low on its trunks amber)
+                // k20i (the hub, 11-05, of k20h: its borrowed puffballs and corals grey-white spotted lumps, as the moss forest's
+                // were, its own ember cups by the way at halfway, its best thing, gone from view, and the floor by the way bare
+                // in all three views): no puffballs or corals, more of its own cups and morels (three of its own now, each as
+                // dense as its rule: (3/3)^0.75 = 1), and its way lined twice as closely, charred twigs and dim ember cracks
+                // (k20j: and none of the other borrowed kinds that came out pale or spotted either, k20i: the spore stalks' grey-pink
+                // bulbs, the bracken's silver fronds with pink tips, its 168 glowing gold by its way out, the shelves' lilac
+                // spots, the dry mushrooms' gold spots, a white fingered jelly; its own cups and morels the more, its leaves,
+                // grass and cup fungi a little more. Twelve kinds, every one measured in its band)
+                t.labPlants = new[] { "ember_cups", "fire_morel" };
+                t.scatterPlants = System.Array.FindAll(t.scatterPlants, k => k != "coral_fungus" && k != "spore_stalk" && k != "jelly_fungus" && k != "bracket_shelf" && k != "dry_mushroom" && k != "anemone_fungus");   // (k20k: and no red stinkhorns, an orange star on the floor at halfway, a flower, k20j; the k19 self-check's prediction)
+                t.sparserBy[System.Array.IndexOf(t.sparserKinds, "ember_cups")] = 0.4f;   // (0.44 × 1.47 in k20h, 115; 0.5 in k20i, 146)
+                t.sparserBy[System.Array.IndexOf(t.sparserKinds, "fire_morel")] = 0.12f;   // (0.14 × 1.47, 40; 0.17 in k20i, 32)
+                t.sparserBy[System.Array.IndexOf(t.sparserKinds, "dry_grass_tuft")] = 1.3f;
+                t.sparserBy[System.Array.IndexOf(t.sparserKinds, "fallen_leaf")] = 0.7f;
+                t.sparserBy[System.Array.IndexOf(t.sparserKinds, "cup_fungus")] = 0.6f;
+                t.wayThing = "CharTwigs";   // (k20l: its ember cracks by the way, small and close, read as orange stars, k20i-k20k; they lie on its floor among its other things)
+                t.wayEvery = 2.4f;
+                foreach (var ks in new (string, float)[] { ("cup_fungus", 0.3f), ("coral_fungus", 0.5f), ("jelly_fungus", 0.5f), ("lantern_pods", 0.6f), ("frond_a_feather", 0.7f), ("puff_a_stalked", 0.5f), ("coral_b_branching", 0.5f), ("dry_mushroom", 0.6f), ("spore_stalk", 0.6f) })
+                    t.kindSat[ks.Item1] = ks.Item2;
+                // (k20d: and each borrowed kind's own colour at a hue of its own in its band, ember to rust, its saturation enough
+                // to carry it: turned by its biome's 172°, their textures landed where they would, its small mushrooms, curled
+                // leaves and finger corals gold or olive whatever their saturation, 0.4-2.3% of a view in k20c, its corals and
+                // puffballs pinkish white and silver)
+                t.kindHue = new System.Collections.Generic.Dictionary<string, float>
+                {
+                    { "tiny_mushrooms", 4f }, { "fallen_leaf", 18f }, { "coral_fungus", 10f }, { "cup_fungus", 8f }, { "dry_mushroom", 20f },
+                    { "jelly_fungus", 12f }, { "bracket_shelf", 16f }, { "lantern_pods", 14f }, { "spore_stalk", 16f }, { "coral_b_branching", 12f },
+                    { "puff_a_stalked", 16f }, { "frond_a_feather", 18f }, { "dry_grass_tuft", 22f }, { "anemone_fungus", 6f },
+                };
+                foreach (var ks in new (string, float)[] { ("tiny_mushrooms", 0.7f), ("fallen_leaf", 0.6f), ("cup_fungus", 0.8f), ("coral_fungus", 1.3f), ("coral_b_branching", 1.5f), ("puff_a_stalked", 1.4f), ("spore_stalk", 1.3f) })
+                    t.kindSat[ks.Item1] = ks.Item2;
+                // (k20e: and their own light faint, its faint points (the hub, 11-05): the small mushrooms' caps, lit whole, burnt
+                // out to a pale gold-white at its way out, 2.4% of the view in k20d whatever their hue; the leaves' and shelves'
+                // pale parts too)
+                // (k20f: the small mushrooms' at 0.1 and their caps darker: at 0.25 amber gold, a bright red light turns yellow on
+                // the screen, k20e, 1.6% of the way out's view)
+                t.kindGlow = new System.Collections.Generic.Dictionary<string, float> { { "tiny_mushrooms", 0.05f }, { "dry_mushroom", 0.3f }, { "fallen_leaf", 0.3f }, { "bracket_shelf", 0.3f }, { "lantern_pods", 0.5f }, { "spore_stalk", 0.5f } };
+                t.kindGain["tiny_mushrooms"] = 0.35f;
+                // k21 (the hub, 11-05, of k20l, the user: 「为什么会掉，我需要画面的丰富度」: its kinds are not to drop). Its
+                // borrowed kinds back, as in k20h, and coloured: each pulled into its ember red-brown (NestTheme.kindTint, which
+                // colours the white and grey ones kindHue could not and evens their pale spots), darker as before (kindGain),
+                // their spots and markings in a deep ember and dimmer (kindMark, bio: the dry mushrooms' gold spots, the
+                // shelves' lilac ones, the bracken's pink tips, k20h-k20i). Its own cups by the way at halfway and its twigs
+                // along its way kept. Checks: -kilnrich 2 (k20l)
+                if (Game.Arg("-kilnrich") != "2")
+                {
+                    t.labPlants = new[] { "ember_cups", "fire_morel", "frond_a_feather", "puff_a_stalked", "coral_b_branching" };
+                    t.scatterPlants = new[] { "trunk_night", "root_arch", "dry_grass_tuft", "tiny_mushrooms", "bracket_shelf", "fallen_leaf", "cup_fungus", "dry_mushroom", "jelly_fungus", "coral_fungus", "spore_stalk", "anemone_fungus", "lantern_pods" };
+                    // (five lab kinds make each sparser by (5/3)^0.75 = 1.47, Game: its cups and morels as many as in k20l)
+                    t.sparserBy[System.Array.IndexOf(t.sparserKinds, "ember_cups")] = 0.4f / 1.47f;
+                    t.sparserBy[System.Array.IndexOf(t.sparserKinds, "fire_morel")] = 0.12f / 1.47f;
+                    t.kindTint ??= new System.Collections.Generic.Dictionary<string, (Color to, float by)>();
+                    foreach (var kt in new (string kind, Color to, float by)[]
+                    {
+                        ("puff_a_stalked", new Color(0.50f, 0.20f, 0.11f), 0.85f),      // (a pale spoon, silver, k20b-k20h)
+                        ("coral_b_branching", new Color(0.55f, 0.17f, 0.10f), 0.85f),   // (lilac grey)
+                        ("coral_fungus", new Color(0.52f, 0.19f, 0.10f), 0.8f),         // (cream, pinkish white)
+                        ("spore_stalk", new Color(0.48f, 0.19f, 0.11f), 0.8f),          // (grey-pink bulbs)
+                        ("frond_a_feather", new Color(0.46f, 0.20f, 0.11f), 0.75f),     // (silver fronds)
+                        ("bracket_shelf", new Color(0.44f, 0.18f, 0.11f), 0.7f),
+                        ("dry_mushroom", new Color(0.46f, 0.19f, 0.11f), 0.7f),
+                        ("jelly_fungus", new Color(0.52f, 0.14f, 0.09f), 0.85f),        // (white fingers)
+                        ("anemone_fungus", new Color(0.50f, 0.13f, 0.08f), 0.6f),       // (red stinkhorns, red already: deeper)
+                    })
+                        t.kindTint[kt.kind] = (kt.to, kt.by);
+                    Color deepEmber = new Color(1f, 0.15f, 0.04f);   // (linear: a deep ember; a light this red still reads orange, not gold)
+                    foreach (string k in new[] { "dry_mushroom", "bracket_shelf", "frond_a_feather", "coral_b_branching", "coral_fungus", "jelly_fungus", "puff_a_stalked" })
+                        t.kindMark[k] = deepEmber;
+                    t.bio ??= new System.Collections.Generic.Dictionary<string, Vector4>();
+                    t.bio["dry_mushroom"] = new Vector4(1, 0.12f, 0.34f, 0.35f);   // (its spots, 0.8 in ParticleLook's table: gold, k20h)
+                    t.bio["bracket_shelf"] = new Vector4(1, 0.08f, 0.3f, 0.35f);
+                    t.bio["frond_a_feather"] = new Vector4(5, 0.03f, 0, 0.5f);      // (its tips)
+                    t.kindGlow["frond_a_feather"] = 0.35f;   // (its 168 glowing gold by its way out, k20i)
+                    t.kindGlow["coral_b_branching"] = 0.5f;
+                    t.kindGlow["coral_fungus"] = 0.5f;
+                    // (k21b: and its cup fungi, cream goblets speckled white close up, k21, as the others; its own cups' beaded
+                    // rims a deeper ember, at halfway and its way out rings of gold, 0.40% and 0.15% of the views, k21)
+                    t.kindTint["cup_fungus"] = (new Color(0.50f, 0.18f, 0.10f), 0.7f);
+                    t.kindMark["ember_cups"] = new Color(1f, 0.2f, 0.06f);
+                    // (k21d: its cups' beaded rims still rings of gold at halfway and its way out, k21b, 0.41% and 0.36%: their glow
+                    // half, their pale beads a little toward its red; its bracken's tips, glowing, an orange cluster by the way at
+                    // halfway, k21b: their light less)
+                    t.bio["ember_cups"] = new Vector4(4, 0.02f, 0, 0.5f);
+                    t.kindTint["ember_cups"] = (new Color(0.55f, 0.15f, 0.08f), 0.3f);
+                    t.spots ??= new System.Collections.Generic.Dictionary<string, Vector4[]>();
+                    t.spots["frond_a_feather"] = new[] { new Vector4(2, 0.78f, 0f, 0.12f) };   // (0.4 in ParticleLook's table)
+                    t.bio["frond_a_feather"] = new Vector4(5, 0.03f, 0, 0.25f);
+                    t.kindGlow["frond_a_feather"] = 0.2f;
+                    // k21b (Tripo, 11-05, on the user's own yes in the kiln's conversation, 「如果需要tripo建模，我允许操作」): its
+                    // own three (02_Concepts/Kiln_Models_v1). Heaps of charcoal and ash on the floor beside the way and fire moss,
+                    // as lab plants (Game.LabPlants: first, so they find room by the way); its galleried stump beside the way
+                    // at its three views (LabNest). Seven lab kinds make each sparser by (7/3)^0.75 = 1.89, against 1.47 with
+                    // five: its others as many as in k21. Checks: -kilntripo 0 (k21)
+                    if (Game.Arg("-kilntripo") != "0")
+                    {
+                        t.labPlants = new[] { "ember_cups", "fire_morel", "frond_a_feather", "puff_a_stalked", "coral_b_branching", "ash_debris", "fire_moss" };
+                        float more = Mathf.Pow(7f / 5f, 0.75f);
+                        var sk = new System.Collections.Generic.List<string>(t.sparserKinds);
+                        var sb = new System.Collections.Generic.List<float>(t.sparserBy);
+                        foreach (string k in new[] { "ember_cups", "fire_morel", "frond_a_feather", "puff_a_stalked", "coral_b_branching" })
+                        {
+                            int i = sk.IndexOf(k);
+                            if (i < 0) { sk.Add(k); sb.Add(1f / more); }
+                            else sb[i] /= more;
+                        }
+                        sk.Add("ash_debris"); sb.Add(0.15f);   // (0.36 in k21c: 13 heaps, none in its three views)
+                        sk.Add("fire_moss"); sb.Add(0.45f);
+                        t.sparserKinds = sk.ToArray();
+                        t.sparserBy = sb.ToArray();
+                        // (its heaps' ash a warm dark grey, not pale: the hub, no grey-white blotches; embers lit where it is red)
+                        // (its model's charcoal a mid grey-brown and its ash patch pale grey, 03_Models/Plants/ash_debris_lods_preview.png:
+                        // charcoal dark, its ash a warm dark grey, its pale ash evened toward it)
+                        t.kindTint["ash_debris"] = (new Color(0.36f, 0.20f, 0.15f), 0.6f);
+                        t.kindGain["ash_debris"] = 0.6f;
+                        t.bio["ash_debris"] = Vector4.zero;
+                        // (its moss toned down, its own red a little muted and darker; its capsules' tips a faint ember)
+                        t.kindSat["fire_moss"] = 0.75f;
+                        t.kindGain["fire_moss"] = 0.5f;   // (0.7 in k21b: a pink-white lump on the floor by its way out)
+                        t.bio["fire_moss"] = new Vector4(5, 0.04f, 0, 0.5f);
+                        t.kindMark["fire_moss"] = deepEmber;
+                        t.kindTint["fire_moss"] = (new Color(0.50f, 0.14f, 0.09f), 0.7f);   // (its model's leafy rosettes grey, its foot pink: toward its red)
+                        // (its stump: its pale galleries charred a little, no lighter than its floor's highlights, the hub; its
+                        // embers lit in its cracks, as its log's)
+                        t.glowParts = new System.Collections.Generic.List<GlowPart>(t.glowParts)
+                        {
+                            new GlowPart { plant = "gallery_stump", from = 0f, to = 1.05f, lumMin = 1.0f, amount = 0f, red = 0.8f, hot = 0.6f, burnt = 0.75f },   // (its model's split top and galleries a light orange tan, the brightest of it: charred most of the way)
+                            new GlowPart { plant = "ash_debris", from = 0f, to = 1.05f, lumMin = 9f, amount = 0f, red = 0.65f, hot = 0.5f },
+                        }.ToArray();
+                        t.kindRigidTint ??= new System.Collections.Generic.Dictionary<string, float>();
+                        t.kindRigidTint["gallery_stump"] = 0.3f;
+                    }
+                }
             }
             return t;
         }

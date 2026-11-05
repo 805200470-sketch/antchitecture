@@ -154,7 +154,7 @@ namespace AntGarden
             QualitySettings.globalTextureMipmapLimit = Preset.textureLimit;
             Debug.Log($"[AntGarden] start: world={Selection} quality={Preset.name}");
             StartCoroutine(Build());
-            string capture = Arg("-capture") ?? Arg("-demo") ?? Arg("-photos") ?? Arg("-animcheck") ?? Arg("-lookcheck") ?? Arg("-npccheck") ?? Arg("-camcheck") ?? Arg("-sceneshots") ?? Arg("-legcheck") ?? Arg("-padcheck") ?? Arg("-trailfilm") ?? Arg("-interactshots") ?? Arg("-stuttercheck") ?? Arg("-honeycombcheck") ?? Arg("-wordscheck") ?? Arg("-mapcheck");
+            string capture = Arg("-capture") ?? Arg("-demo") ?? Arg("-photos") ?? Arg("-animcheck") ?? Arg("-lookcheck") ?? Arg("-npccheck") ?? Arg("-camcheck") ?? Arg("-sceneshots") ?? Arg("-legcheck") ?? Arg("-padcheck") ?? Arg("-trailfilm") ?? Arg("-interactshots") ?? Arg("-stuttercheck") ?? Arg("-honeycombcheck") ?? Arg("-wordscheck") ?? Arg("-mapcheck") ?? Arg("-turntablefilm") ?? Arg("-nestpointsfilm");
             if (!string.IsNullOrEmpty(capture)) StartCoroutine(Watchdog(capture));
         }
 
@@ -469,6 +469,7 @@ namespace AntGarden
                 yield return scatter.Run(p => hud.SetProgress(Going(Loc.T("让植物长出来", "Growing the plants")), 0.4f + 0.35f * (ri + p) / world.regions.Count));
                 placed += scatter.Placed;
             }
+            ProcessFilms.Stage(this, root);   // (films only, -turntablefilm: the plants to film, grown far above the nest)
             gates = Gates.Build(world, refs, cfg.gates, root);
             BuildWorldGates(root);
             foreach (RuinScene ruin in ruins) ruin.Build(groundMats[ruin.region.index], root, Preset.terrainStep * 1.6f, 99 + ruin.region.index, cfg.trailBrightness, cfg.trailDensity);
@@ -621,6 +622,14 @@ namespace AntGarden
             // check: -mapcheck <dir> stills of the minimap in each nest of the ring and of the big map at this screen size (MapCheck, 11-04)
             string mapDir = Arg("-mapcheck");
             if (!string.IsNullOrEmpty(mapDir)) StartCoroutine(MapCheck.Run(this, mapDir));
+            // films of how it was made (ProcessFilms, 11-04): a plant or the ant turning; the nest from its points
+            string turnDir = Arg("-turntablefilm");
+            if (!string.IsNullOrEmpty(turnDir)) StartCoroutine(ProcessFilms.Turntable(this, turnDir));
+            string pointsDir = Arg("-nestpointsfilm");
+            if (!string.IsNullOrEmpty(pointsDir)) StartCoroutine(ProcessFilms.NestPoints(this, pointsDir));
+            // the presentation video's story shots (StoryFilm, 11-04; film only): -storyfilm <dir> -storyplan crane,walk,...
+            string storyDir = Arg("-storyfilm");
+            if (!string.IsNullOrEmpty(storyDir)) StartCoroutine(StoryFilm.Run(this, storyDir));
         }
 
         static string[] SelectionIds(string spec) => spec.StartsWith("stitch:") ? spec.Split(':')[2].Split(',') : new[] { spec };
@@ -908,6 +917,11 @@ namespace AntGarden
             // k29 plant review: seven to ten, more alike in height)
             new ScatterRule { plant = "moss_capsules", dMin = -0.4f, dMax = 3.2f, spacing = 10f, height = new Vector2(1.8f, 3.2f), tilt = 0.1f, tintJitter = 0.05f, patchiness = 0.3f,
                 tuft = new Vector2Int(7, 10), tuftLean = 8f, tuftScale = new Vector2(0.72f, 1f) },
+            // and its second set (Tripo, 02_Concepts/Moss_v2, 11-05, for its richness): colonies of tree moss beside the way, a
+            // few small trees to an ant; mossy stumps and fallen branches a little further out, large and few
+            new ScatterRule { plant = "tree_moss", dMin = -0.4f, dMax = 3.4f, spacing = 8f, height = new Vector2(1.6f, 3.0f), tilt = 0.08f, tintJitter = 0.06f, patchiness = 0.3f },
+            new ScatterRule { plant = "mossy_stump", dMin = 0.2f, dMax = 4.5f, spacing = 16f, height = new Vector2(1.6f, 2.6f), tilt = 0.05f, tintJitter = 0.05f, patchiness = 0.3f },
+            new ScatterRule { plant = "mossy_branch", dMin = 0f, dMax = 4f, spacing = 16f, height = new Vector2(0.9f, 1.4f), tilt = 0.06f, tintJitter = 0.05f, patchiness = 0.3f },
             // the kiln temple's own (Tripo, 02_Concepts/Kiln_Redesign_v1/fronts), the life that follows a fire: bonfire cups
             // low on the ash close beside the way, their rims beaded (half the height they had in k1: there a cup was as big
             // as the ant, the cluster a heap of clay bowls); fire morels in ones and twos, a few ants tall
@@ -919,6 +933,11 @@ namespace AntGarden
             // (faced to the way: its model's caps stand side by side from the front; turned any way, from the way the small cap
             // stood before the big one, k12)
             new ScatterRule { plant = "fire_morel", dMin = -1.1f, dMax = -0.4f, spacing = 8.5f, height = new Vector2(1.4f, 2.6f), tilt = 0.05f, tintJitter = 0.06f, cluster = new Vector2Int(1, 2), patchiness = 0.3f, faceWay = true, faceTurn = 90f },   // (faced to the way, its row of caps lay along the views looking down the way, k15: turned a quarter more)
+            // (k21b, the kiln's own, Tripo 11-05, 02_Concepts/Kiln_Models_v1: low heaps of charcoal and ash on the floor beside
+            // the way, the layer its floor lacked (the hub: the near floor bare in all three views); fire moss in red cushions,
+            // the first green after a fire, on the floor and up the banks' foot)
+            new ScatterRule { plant = "ash_debris", dMin = -2.6f, dMax = 0.4f, spacing = 5f, height = new Vector2(0.25f, 0.45f), tilt = 0.6f, tintJitter = 0.05f, cluster = new Vector2Int(1, 2), patchiness = 0.3f },
+            new ScatterRule { plant = "fire_moss", dMin = -1.2f, dMax = 2.6f, spacing = 4f, height = new Vector2(0.35f, 0.6f), tilt = 0.5f, tintJitter = 0.06f, cluster = new Vector2Int(1, 3), patchiness = 0.45f },
             // the amber nest's own (Tripo, 02_Concepts/Amber_v1_候选): little frankincense trees along the way, a few ants
             // tall, tears of resin in rows down their peeling bark; gumweed in clumps low beside it, a bead of resin in each bud
             // (a gumweed tall enough that its surface is over ParticleLook.accentArea: smaller, some took a cool accent whole, lilac)
@@ -926,6 +945,14 @@ namespace AntGarden
             // (gumweed in tufts of three to five from one crown, leaning out: one or two loose stems read as a thin column, k23)
             new ScatterRule { plant = "gumweed", dMin = -0.4f, dMax = 3.0f, spacing = 10f, height = new Vector2(1.9f, 2.6f), tilt = 0.12f, tintJitter = 0.08f, cluster = new Vector2Int(1, 2), patchiness = 0.3f,
                 tuft = new Vector2Int(3, 5), tuftScale = new Vector2(0.75f, 1f), tuftLean = 12f },
+            // (the amber nest's own again, k29 (Tripo, 02_Concepts/Amber_v2_丰富度), so it leans less on the world's plants
+            // (the user, 11-05: "其他版本的场景不够丰富"): golden larch seedlings in groves, each model three seedlings, three or
+            // four together (their needles too fine to stand alone as points, hub); tall pine stumps leaning, resin pooled in
+            // their slantwise breaks; slippery jacks under them in clumps)
+            new ScatterRule { plant = "larch_sapling", dMin = -0.4f, dMax = 3.2f, spacing = 12f, height = new Vector2(2.4f, 3.8f), tilt = 0.06f, tintJitter = 0.06f, patchiness = 0.3f,
+                tuft = new Vector2Int(3, 4), tuftScale = new Vector2(0.6f, 1f), tuftLean = 8f },
+            new ScatterRule { plant = "resin_stump", dMin = -0.3f, dMax = 3.0f, spacing = 14f, height = new Vector2(2.0f, 3.2f), tilt = 0.04f, tintJitter = 0.05f, patchiness = 0.3f },
+            new ScatterRule { plant = "slippery_jack", dMin = -0.6f, dMax = 2.8f, spacing = 6f, height = new Vector2(0.9f, 1.6f), tilt = 0.1f, tintJitter = 0.06f, cluster = new Vector2Int(1, 2), patchiness = 0.3f },
         };
 
         /// <summary>Animation check: the player's ant becomes another species, in place (camera and ring stay).</summary>
@@ -1306,7 +1333,7 @@ namespace AntGarden
         /// the user typed in another window and watched the game run at 15 fps); Update looks again once a second.</summary>
         void OnApplicationFocus(bool focused)
         {
-            if (cfg == null || Arg("-capture") != null || Arg("-demo") != null || Arg("-photos") != null || Arg("-animcheck") != null || Arg("-lookcheck") != null || Arg("-npccheck") != null || Arg("-camcheck") != null || Arg("-sceneshots") != null || Arg("-legcheck") != null || Arg("-padcheck") != null || Arg("-trailfilm") != null || Arg("-interactshots") != null || Arg("-stuttercheck") != null || Arg("-honeycombcheck") != null || Arg("-wordscheck") != null || Arg("-mapcheck") != null) return;
+            if (cfg == null || Arg("-capture") != null || Arg("-demo") != null || Arg("-photos") != null || Arg("-animcheck") != null || Arg("-lookcheck") != null || Arg("-npccheck") != null || Arg("-camcheck") != null || Arg("-sceneshots") != null || Arg("-legcheck") != null || Arg("-padcheck") != null || Arg("-trailfilm") != null || Arg("-interactshots") != null || Arg("-stuttercheck") != null || Arg("-honeycombcheck") != null || Arg("-wordscheck") != null || Arg("-mapcheck") != null || Arg("-turntablefilm") != null || Arg("-nestpointsfilm") != null) return;
             Application.targetFrameRate = focused || WindowOnScreen() ? cfg.display.targetFps : cfg.display.backgroundFps;
         }
 

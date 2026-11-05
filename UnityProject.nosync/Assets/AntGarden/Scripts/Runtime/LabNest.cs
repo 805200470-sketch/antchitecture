@@ -255,6 +255,38 @@ namespace AntGarden
                         ("pixie_cup_lichen", 2.6f, 0.42f, 1, false, false),
                         ("pixie_cup_lichen", 2.4f, 0.77f, 1, false, false),
                     });
+                // and, at the three places its pictures stand (the way in, halfway, near its end), a large thing on either side
+                // of the way, 1.7 to 2.7 ants tall (the hub, 11-05, for the user: "对比一下其他颜色的版本和v15的素材数量": its way's
+                // sides there a flat green, the library's large plants growing by the walls, the way through the chambers'
+                // middle; as the amber nest has it). Near its narrow end the slender ones, whose feet take little room (sizes
+                // are the models' widths: a stalked puffball stands 1.9 times its width, a liverwort colony 0.9). Checks:
+                // -mossfull 0
+                // (k49, its own second set from Tripo, 11-05: a mossy stump at the left of the way in and a long fallen branch
+                // at the left halfway, where a boulder and a capsule grove stood to k48, a branch and a stump along the way
+                // between; sizes the models' widths, a branch's its length. Checks: -mossnew 0, as k48)
+                bool mossNew = Game.Arg("-mossnew") != "0";
+                if (Game.Arg("-mossfull") != "0" && mossNew)
+                    plan.AddRange(new (string, float, float, int, bool, bool)[]
+                    {
+                        ("mossy_stump", 2.8f, 0.1f, 1, false, false),
+                        ("mossy_branch", 6.5f, 0.3f, -1, false, false),
+                        ("mossy_branch", 6.0f, 0.52f, 1, false, false),
+                        ("mossy_stump", 3.0f, 0.7f, 1, false, false),
+                    });
+                if (Game.Arg("-mossfull") != "0")
+                    plan.AddRange(new (string, float, float, int, bool, bool)[]
+                    {
+                        mossNew ? ("moss_capsules", 1.8f, 0.14f, 1, false, false) : ("boulder_moss", 2.4f, 0.08f, 1, false, false),
+                        ("moss_capsules", 1.8f, 0.09f, -1, false, false),
+                        mossNew ? ("boulder_moss", 1.8f, 0.6f, 1, false, false) : ("moss_capsules", 2.0f, 0.53f, 1, false, false),
+                        ("boulder_moss", 2.6f, 0.55f, -1, false, false),
+                        ("moss_capsules", 1.5f, 0.975f, 1, false, false),
+                        ("moss_capsules", 1.6f, 0.98f, -1, false, false),
+                        // (stalked and lantern puffballs and lantern pods in k43-k45, the blue forest's: white starbursts, cream
+                        // bulbs by its way and its gate; out, the hub, 11-05, until its own new models. And not its liverworts or
+                        // cups this large beside the cameras: the parasols' pale caps and the cups' rims, close up, a mottle of
+                        // white blotches at the way in and halfway, k43-k46)
+                    });
             }
             else if (what == "ember")
             {
@@ -305,8 +337,38 @@ namespace AntGarden
                         ("ember_log", 8.0f, 0.5f, 1, false, false),
                         ("trunk_night", 5.0f, 0.67f, -1, false, false),
                     });
+                // k20 (the hub, 11-05, as full as v15: at its way in, halfway and deep, two or three large things on each side
+                // of the way, 1.5 or taller): at its way in a dead trunk and a stump beside its log, a log and a trunk beside
+                // its temple; deep in, where only a log lay, trunks and logs on both sides. Checks: -kilnrich 1
+                if (Game.Arg("-kilnrich") != "0" && Game.Arg("-kilnrich") != "1")
+                    plan.AddRange(new (string, float, float, int, bool, bool)[]
+                    {
+                        ("trunk_night", 3.4f, 0.05f, 1, false, false),
+                        ("trunk_night", 1.8f, 0.06f, 1, false, false),
+                        ("ember_log", 2.4f, 0.1f, -1, false, false),
+                        ("trunk_night", 2.6f, 0.12f, -1, false, false),
+                        ("trunk_night", 4.2f, 0.89f, 1, false, false),
+                        ("trunk_night", 2.0f, 0.9f, 1, false, false),
+                        ("ember_log", 2.6f, 0.93f, 1, false, false),
+                        ("trunk_night", 3.0f, 0.92f, -1, false, false),
+                        ("ember_log", 2.0f, 0.95f, -1, false, false),
+                        // (k20i: its ember cups by the way just ahead of halfway, both sides, where its best view had them: in k20h
+                        // its plants grew elsewhere and they were gone from it, the hub)
+                        ("ember_cups", 1.5f, 0.53f, -1, false, false),
+                        ("ember_cups", 1.2f, 0.55f, 1, false, false),
+                    });
+                // k21b (Tripo, 11-05): its own charred stump, ant galleries in its pale wood, beside the way where each of its
+                // three views looks (NestTheme: its glow parts). Checks: -kilntripo 0
+                if (Game.Arg("-kilnrich") != "0" && Game.Arg("-kilnrich") != "1" && Game.Arg("-kilnrich") != "2" && Game.Arg("-kilntripo") != "0")
+                    plan.AddRange(new (string, float, float, int, bool, bool)[]
+                    {
+                        ("gallery_stump", 2.4f, 0.16f, 1, false, false),
+                        ("gallery_stump", 2.2f, 0.6f, 1, false, false),   // (k21d: at 0.5, beside the halfway camera, out of its view, k21b)
+                        ("gallery_stump", 2.6f, 0.83f, 1, false, false),
+                    });
             }
             else if (what == "amber")
+            {
                 plan.AddRange(new (string, float, float, int, bool, bool)[]
                 {
                     // the amber nest's landmarks beside the way (no heart): a fallen pine cone, giant to an ant, beads and
@@ -317,6 +379,89 @@ namespace AntGarden
                     ("resin_cone", 5.4f, 0.16f, 1, false, false),   // (at 4.2, in the game's view, only twice the ant: not yet a landmark)
                     ("resin_cone", 3.6f, 0.74f, -1, false, false),
                 });
+                // (k28, and big things on both sides of the way where it is seen from, its way in, half way and its way's end,
+                // as the blue forest has (the user, 11-05: "其他版本的场景不够丰富"): its plants grow by the floor's edge and its
+                // chambers are wide, their middle, where the way runs, bare sand. Its little trees, earth spires and a big dry
+                // mushroom, as relics in its colours (NestTheme.kindRigidTint). -amberk27h: none, as in k27h)
+                // (k28c: three in each place, both sides; the half way mushroom smaller: at 2.6 its gills filled a third of
+                // the view, k28b; at 2.0 still half of its right side, k28c)
+                // (k29: its own tall resinous pine stumps (Tripo, 11-05) in place of the borrowed dry mushrooms, whose orange
+                // caps were the brightest things by its way, k28d; one where its half way's right side stood bare. -amberk28:
+                // as in k28d)
+                if (Game.Arg("-amberk27h") == null)
+                    plan.AddRange(Game.Arg("-amberk28") == null ? new (string, float, float, int, bool, bool)[]
+                    {
+                        ("tear_tree", 4.2f, 0.06f, 1, false, false), ("soil_spire", 3.2f, 0.10f, -1, false, false), ("resin_stump", 3.0f, 0.04f, -1, false, false),
+                        ("resin_stump", 3.2f, 0.47f, -1, false, false), ("tear_tree", 4.0f, 0.52f, 1, false, false), ("soil_spire", 3.0f, 0.55f, -1, false, false),
+                        ("soil_spire", 3.6f, 0.90f, 1, false, false), ("tear_tree", 4.4f, 0.94f, -1, false, false), ("resin_stump", 2.8f, 0.92f, -1, false, false),
+                    } : new (string, float, float, int, bool, bool)[]
+                    {
+                        ("tear_tree", 4.2f, 0.06f, 1, false, false), ("soil_spire", 3.2f, 0.10f, -1, false, false), ("dry_mushroom", 1.8f, 0.04f, -1, false, false),
+                        ("dry_mushroom", 1.5f, 0.44f, -1, false, false), ("tear_tree", 4.0f, 0.52f, 1, false, false), ("soil_spire", 3.0f, 0.55f, -1, false, false),
+                        ("soil_spire", 3.6f, 0.90f, 1, false, false), ("tear_tree", 4.4f, 0.94f, -1, false, false), ("dry_mushroom", 1.8f, 0.92f, -1, false, false),
+                    });
+            }
+            else if (what == "honey")
+            {
+                // the honey granary (11-05, the hub, for the user: "对比一下其他颜色的版本和v15的素材数量，我现在感觉其他版本的场景不够丰富
+                // 啊"): at its way in, halfway and near its way out, where its pictures stand, two large things on either side of
+                // the way, as the blue forest has: earthen chimneys, boulders, dry mushrooms and a thorny succulent, living plants
+                // in its band (below: relic = false). Its chambers are wide and its plants grow by its walls, the way through their
+                // middle bare (the amber nest's finding). Off with -honeyrich2 0 (objects "none")
+                // (its own new plants in its boulders' places where they are built, NestTheme: grain grass, dried seed heads and
+                // teasel; its boulders, dark balls lit with spots, read as spotted eggs by the way. -honeytripo 0: the boulders)
+                bool tripo = Game.Arg("-honeytripo") != "0";
+                (string, float) Own(string mine, float size, string otherwise, float otherSize) => tripo && refs.Plant(mine)?.prefab != null ? (mine, size) : (otherwise, otherSize);
+                var (inK, inS) = Own("seed_grass", 2.6f, "boulder_moss", 1.8f);
+                var (midK, midS) = Own("seedhead_drip", 2.6f, "boulder_moss", 2.0f);
+                var (outK, outS) = Own("teasel", 2.6f, "boulder_moss", 1.8f);
+                plan.AddRange(new (string, float, float, int, bool, bool)[]
+                {
+                    // (its mushrooms and boulders smaller than in the first trial, 2.4-2.8 and 2.0-2.4: right by the way a mushroom
+                    // took a third of the picture)
+                    // (its way in's past its first chamber, which its seed cup needs: from 0.06 there was "no room" for the cup a
+                    // third of the way in, the first three trials, which then looks back to that chamber; halfway's and the way
+                    // out's a little ahead of where the pictures stand, not beside the camera)
+                    ("soil_spire", 3.2f, 0.10f, 1, false, false), (inK, inS, 0.13f, 1, false, false),
+                    ("dry_mushroom", 2.0f, 0.11f, -1, false, false), ("soil_spire", 2.4f, 0.15f, -1, false, false),
+                    ("soil_spire", 3.4f, 0.52f, 1, false, false), ("thorn_succulent", 1.8f, 0.55f, 1, false, false),
+                    (midK, midS, 0.51f, -1, false, false), ("dry_mushroom", 2.2f, 0.56f, -1, false, false),
+                    ("soil_spire", 3.0f, 0.95f, 1, false, false), (outK, outS, 0.97f, 1, false, false),
+                    ("dry_mushroom", 2.0f, 0.94f, -1, false, false), ("soil_spire", 2.2f, 0.98f, -1, false, false),
+                });
+                // (and a clump of its seed heads by its way in's right, where the seventh trial's picture had its mushroom alone)
+                if (midK == "seedhead_drip") plan.Add(("seedhead_drip", 2.3f, 0.125f, -1, false, false));
+            }
+            else if (what == "leafcut")
+            {
+                // the leafcutters' garden (11-05, as the granary): at its way in, halfway and near its way out, two large things on
+                // either side of the way: spongy mounds as its gardens are, soil turrets, dry mushrooms and boulders, living
+                // plants in its band (below: relic = false). Off with -leafrich2 0 (objects "none")
+                // (its own new plants in its boulders' places where they are built, NestTheme: standing cut leaves, a pillar of
+                // its garden, a group of bitten saplings. -leaftripo 0: the boulders)
+                bool tripo = Game.Arg("-leaftripo") != "0";
+                (string, float) Own(string mine, float size, string otherwise, float otherSize) => tripo && refs.Plant(mine)?.prefab != null ? (mine, size) : (otherwise, otherSize);
+                var (inK, inS) = Own("cut_leaf", 2.4f, "boulder_moss", 2.2f);
+                var (midK, midS) = Own("garden_pillar", 2.8f, "boulder_moss", 2.0f);
+                var (outK, outS) = Own("bitten_sapling", 3.0f, "boulder_moss", 1.8f);
+                plan.AddRange(new (string, float, float, int, bool, bool)[]
+                {
+                    // (halfway's and the way out's a little ahead of where the pictures stand: at 0.48 a mushroom's cap filled
+                    // the left of the halfway picture, beside the camera; its way out's a little smaller: a mushroom and a sponge
+                    // beside the camera took half its picture, the fourth trial)
+                    ("sponge_mound", 2.4f, 0.06f, 1, false, false), ("dry_mushroom", 2.6f, 0.10f, 1, false, false),
+                    ("soil_spire", 2.8f, 0.07f, -1, false, false), (inK, inS, 0.11f, -1, false, false),
+                    ("dry_mushroom", 2.4f, 0.53f, 1, false, false), ("sponge_mound", 2.0f, 0.56f, 1, false, false),
+                    ("soil_spire", 3.2f, 0.52f, -1, false, false), (midK, midS, 0.57f, -1, false, false),
+                    // (and its mushroom there smaller still and a little ahead: at 2.0 and 0.94 a pale spotted cap filled the right of
+                    // the picture, beside the camera, the sixth trial)
+                    ("sponge_mound", 1.5f, 0.95f, 1, false, false), ("soil_spire", 2.4f, 0.98f, 1, false, false),
+                    ("dry_mushroom", 1.6f, 0.96f, -1, false, false), (outK, outS, 0.97f, -1, false, false),
+                });
+                // (a second leaf by the first, and the saplings in a group, smaller: one thin stem alone is flat, the hub)
+                if (inK == "cut_leaf") plan.Add(("cut_leaf", 1.8f, 0.115f, -1, false, false));
+                if (outK == "bitten_sapling") { plan.Add(("bitten_sapling", 2.4f, 0.972f, -1, false, false)); plan.Add(("bitten_sapling", 2.0f, 0.966f, -1, false, false)); }
+            }
             else if (what == "temple")
             {
                 // the temple: clay spires in pairs down both sides of the way, a carved arch between each pair facing
@@ -408,10 +553,12 @@ namespace AntGarden
                 Quaternion rot = o.id == "relic_teacup" ? Quaternion.Euler(14f, yaw, -9f) : Quaternion.Euler(0, yaw, 0);
                 var go = Object.Instantiate(p.prefab, new Vector3(c.x, y, c.y), rot, root);
                 go.transform.localScale = Vector3.one * scale;
-                // (the moss forest's landmarks are living plants: drawn as its plants are, with their markings, not as relics)
+                // (the moss forest's landmarks are living plants: drawn as its plants are, with their markings, not as relics;
+                // and the granary's and the garden's big forms by their way, 11-05: as relics, tinted toward body[0], they
+                // were teal mushrooms, succulents and sponges in both)
                 // (the kiln's burnt wood glows in its own ember red: in the relics' pale amber its embers read white, k4)
                 Color objGlow = what == "ember" && NestTheme.Current != null ? NestTheme.Current.glowDeep : new Color(1f, 0.82f, 0.5f);
-                world.plantInstances.Add(new PlantInstance { plant = p, t = go.transform, hue = 0, sat = 1, glow = objGlow, scan = new Color(1f, 0.93f, 0.8f), relic = what != "moss" });
+                world.plantInstances.Add(new PlantInstance { plant = p, t = go.transform, hue = 0, sat = 1, glow = objGlow, scan = new Color(1f, 0.93f, 0.8f), relic = what != "moss" && what != "honey" && what != "leafcut" });
                 world.placements.Add(new Placement { plant = o.id, region = region.index, x = c.x, z = c.y, height = scale });
                 world.reserved.Add(new Circle(c.x, c.y, r + 0.4f, 1f));
                 // (the amber nest's cones: nothing grown between one and the way, nor across the way where one stops to look

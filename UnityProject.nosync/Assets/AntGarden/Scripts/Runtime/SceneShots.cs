@@ -273,6 +273,13 @@ namespace AntGarden
                     CloseUp("bracket_shelf", "lab_shelf", 2.6f);
                     CloseUp("cup_fungus", "lab_cup_fungus", 1.8f);
                 }
+                // (the kiln temple's own three of 11-05, Tripo, k21b: in the kiln only and last, so every nest keeps its shots)
+                if (NestTheme.Current != null && NestTheme.Current.id == "red")
+                {
+                    CloseUp("ash_debris", "lab_ash", 2.2f);
+                    CloseUp("fire_moss", "lab_fire_moss", 2.0f);
+                    CloseUp("gallery_stump", "lab_stump", 3.2f);
+                }
                 return spots;
             }
             WEdge e = DemoMode.LongEdge(game, r);

@@ -67,6 +67,8 @@ Shader "AntGarden/ParticleSolid"
             float4 _LensClear;                          // x 0..1: the particle nests' camera inside a plant or a thing clears further round its lens (CameraRig)
             float _ExhibitCount, _ExhibitPeriod;        // a visitor's things (Uploads): how many, and one tide (seconds);
             float4 _Exhibits[8], _ExhibitTide[8];       // where each is (xyz, w: how far round), its tide (x its foot's height, y how tall, z phase, w light)
+            float4 _ExhibitForm[8];                     // (film only, -objectfilm: UploadsFilm.cs) a thing gathering out of specks: x how
+                                                        // unformed (0: whole, as always), y how far its specks start, z their light
 
             struct v2f
             {
@@ -160,6 +162,8 @@ Shader "AntGarden/ParticleSolid"
                 // all else, a soft line of light rising up its lower part and sinking back slowly, like a tide, what lies
                 // under it faintly lit (not the whole of it: "不是整体发光…像潮汐这样律动的发光", 11-03)
                 float tideLight = 0;
+                float gatherSize = 1, gatherGlow = 0;   // (film only: _ExhibitForm; 1 and 0 as always)
+                float3 gatherOff = float3(0, 0, 0);
                 if (building && ((p.col >> 24) & 255u) != 2u)
                     for (int ex = 0; ex < 8; ex++)
                     {
@@ -170,8 +174,28 @@ Shader "AntGarden/ParticleSolid"
                         float tideLevel = tide.x + tide.y * (0.08 + 0.37 * swell);
                         float tideD = (p.pos.y - tideLevel) / max(0.07 * tide.y, 0.05);
                         tideLight = tide.w * (exp(-tideD * tideD) + 0.22 * (1 - smoothstep(-0.5, 0.5, tideD)));
+                        // (film only, -objectfilm) the thing gathering out of specks scattered round it: each speck sets off at its
+                        // own moment (by where it belongs, the same in its coarse and its fine splat), spirals in and lands, small
+                        // and lit on its way, its own size and colour once there
+                        float4 gaForm = _ExhibitForm[ex];
+                        if (gaForm.x > 0)
+                        {
+                            uint gaId = asuint(p.pos.x) * 73856093u ^ asuint(p.pos.y) * 19349663u ^ asuint(p.pos.z) * 83492791u;
+                            float ga0 = Hash(gaId), ga1 = Hash(gaId + 101u), ga2 = Hash(gaId + 202u), ga3 = Hash(gaId + 303u);
+                            float gaT = saturate(((1 - gaForm.x) - ga0 * 0.55) / 0.45);
+                            float gaE = 1 - (1 - gaT) * (1 - gaT) * (1 - gaT);
+                            float3 gaOut = p.pos - _Exhibits[ex].xyz;
+                            gaOut.y = 0;
+                            float3 gaDir = normalize(float3(ga1 - 0.5, 0.25 + 0.6 * ga2, ga3 - 0.5) + normalize(gaOut + float3(1e-4, 0, 0)) * 0.6);
+                            float3 gaOff = gaDir * (gaForm.y * (0.35 + 0.65 * ga1) * (1 - gaE));
+                            float gaTurn = (1 - gaE) * 1.9, gaC = cos(gaTurn), gaS = sin(gaTurn);
+                            gatherOff = float3(gaOff.x * gaC - gaOff.z * gaS, gaOff.y, gaOff.x * gaS + gaOff.z * gaC);
+                            gatherSize = smoothstep(0.0, 0.12, gaT) * lerp(0.45, 1.0, smoothstep(0.65, 1.0, gaT));
+                            gatherGlow = gaForm.z * smoothstep(0.0, 0.15, gaT) * (1 - smoothstep(0.7, 1.0, gaT));
+                        }
                         break;
                     }
+                pos += gatherOff;
                 float low = 1 - smoothstep(0.15, 0.6, above);
                 float rip = NestRipple(pos.xz) * low;
                 pos.y += 0.03 * rip;
@@ -235,6 +259,7 @@ Shader "AntGarden/ParticleSolid"
                 // or a thing, gone within 1 and whole from 2.4 (_LensClear.x, eased in and out by CameraRig.TickSteady)
                 float lensC = saturate(_LensClear.x);
                 size *= saturate(1 - max(max(scatter, sight), 1 - smoothstep(lerp(0.25, 1.0, lensC), lerp(0.8, 2.4, lensC), dist)));
+                size *= gatherSize;   // (film only: a speck of a thing still gathering, _ExhibitForm; 1 as always)
                 if (size < 1e-5) return o;
                 float2 c = corners[id % 3];
                 o.pos = mul(UNITY_MATRIX_VP, float4(pos + (A1 * (c.x * stretch) + A2 * (c.y / stretch)) * size, 1));
@@ -279,6 +304,7 @@ Shader "AntGarden/ParticleSolid"
                     lit += albedo * glow * _GlowGain * (0.4 + 0.6 * b * b);
                 }
                 lit += albedo * tideLight * _GlowGain;   // (a visitor's thing's own light, with its tide)
+                lit += (albedo * 1.2 + 0.2) * gatherGlow;   // (film only: its specks lit on their way, _ExhibitForm; 0 as always)
                 // a plant an antenna has lit: much brighter, and warmer, while its flare lasts
                 float flare = 0, part = building ? lerp(0.12, 1, saturate(glow * 3)) : 1;
                 for (int f = 0; f < 16; f++)

@@ -16,7 +16,7 @@ namespace AntGarden
     /// things stand in which nest, how each is made, how large, and where along the way. -uploadshots &lt;dir&gt; takes a
     /// still of each thing and of its card, and quits.
     /// </summary>
-    public class Uploads
+    public partial class Uploads   // (film only, 11-04: UploadsFilm.cs, -objectfilm)
     {
         [System.Serializable] class Manifest { public string exported; public Item[] items; }
         [System.Serializable] class Item { public int index; public string name, text, cutout; public Original original; }
@@ -209,6 +209,9 @@ namespace AntGarden
             if (!string.IsNullOrEmpty(shots) && Game.Instance != null) Game.Instance.StartCoroutine(u.Shots(Game.Instance, shots, track));
             string film = Game.Arg("-uploadfilm");
             if (!string.IsNullOrEmpty(film) && Game.Instance != null) Game.Instance.StartCoroutine(u.Film(Game.Instance, film, track));
+            // (film only, 11-04: -objectfilm, UploadsFilm.cs: a thing gathering out of specks, its ring lighting, its words typed)
+            string objectFilm = Game.Arg("-objectfilm");
+            if (!string.IsNullOrEmpty(objectFilm) && Game.Instance != null) Game.Instance.StartCoroutine(u.ObjectFilm(Game.Instance, objectFilm, track));
             return u;
         }
 
@@ -231,16 +234,23 @@ namespace AntGarden
             Lift(plant, e.light > 0f ? e.light : 0.68f, Mathf.Max(0f, e.glow), 104729 * item.index);   // (0.62 a little dark still, 11-03)
 
             // beside the way, facing it
-            float longest = e.size > 0f ? e.size : 2f;
-            float scale = longest / Mathf.Max(1f, Mathf.Max(size.x, size.z));
-            // (leaning back, it lies over more of the floor, behind its foot)
-            float lean = e.lean * Mathf.Deg2Rad, behind = scale * Mathf.Sin(Mathf.Max(0f, lean));
-            float r = Mathf.Max(0.3f, Mathf.Max(plant.footprintRadius * scale, 0.5f * (behind + scale * size.z * Mathf.Cos(lean))));
+            float asked = e.size > 0f ? e.size : 2f, longest = asked, scale, behind, r;
+            float lean = e.lean * Mathf.Deg2Rad;
             // (two that belong together, "with": this one beside the other, under one ring; where there is no room there, as any)
             Thing partner = e.with > 0 ? things.Find(o => o.index == e.with) : null;
             Vector2 c = default, a = default;
-            if (partner != null && !Beside(partner, r, longest, lab.Objects, out c, out a)) partner = null;
-            if (partner == null && !Spot(track, e.at, e.side, r, longest, lab.Objects, out c, out a)) throw new System.Exception("no room beside the way");
+            // (where the nest has no room for it as large as asked, a little smaller, down to six tenths: a visitor's thing is
+            // not left out, and the log says so; a richer nest had no room for one made larger, 11-04)
+            for (;; longest *= 0.9f)
+            {
+                scale = longest / Mathf.Max(1f, Mathf.Max(size.x, size.z));
+                // (leaning back, it lies over more of the floor, behind its foot)
+                behind = scale * Mathf.Sin(Mathf.Max(0f, lean));
+                r = Mathf.Max(0.3f, Mathf.Max(plant.footprintRadius * scale, 0.5f * (behind + scale * size.z * Mathf.Cos(lean))));
+                if (partner != null && !Beside(partner, r, longest, lab.Objects, out c, out a)) partner = null;
+                if (partner != null || Spot(track, e.at, e.side, r, longest, lab.Objects, out c, out a)) break;
+                if (longest * 0.9f < 0.6f * asked) throw new System.Exception("no room beside the way");
+            }
             float yaw = Mathf.Atan2(a.x - c.x, a.y - c.y) * Mathf.Rad2Deg + e.turn;
             float y = world.Height(c.x, c.y);
             for (int q = 0; q < 6; q++)
@@ -324,7 +334,8 @@ namespace AntGarden
             }
             if (t.halo != null) UpdateHalo(t.halo, Swell(NestClock.SinceLoad, t.phase), 1f, NestClock.SinceLoad);
             things.Add(t);
-            Debug.Log($"[AntGarden] uploads: #{item.index} ({e.make}) at ({c.x:F1}, {c.y:F1}), {longest:F1} long, {e.at:P0} along the way");
+            string smaller = longest < asked ? $" (asked {asked:F1}, no room for that)" : "";
+            Debug.Log($"[AntGarden] uploads: #{item.index} ({e.make}) at ({c.x:F1}, {c.y:F1}), {longest:F1} long{smaller}, {e.at:P0} along the way");
         }
 
         /// <summary>Beside a thing already placed ("with"), along the way from it, a hand's breadth between them: on fairly
@@ -851,7 +862,7 @@ namespace AntGarden
                 float lt = t.partner != null ? Mathf.Max(t.lit, t.partner.lit) : t.lit;   // (a pair's ring: either read)
                 float lit = lt * lt * (3f - 2f * lt);
                 float now = NestClock.SinceLoad;
-                UpdateHalo(t.halo, Swell(now, t.phase), (1f + 0.3f * near) * (1f + 0.45f * lit), now);
+                UpdateHalo(t.halo, Swell(now, t.phase), (1f + 0.3f * near) * (1f + 0.45f * lit) * RingShown(i), now);   // (RingShown: 1 but in -objectfilm)
             }
             if (shown >= 0)
             {

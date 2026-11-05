@@ -100,7 +100,7 @@ namespace AntGarden
                 gateColor = new Color(1f, 0.74f, 0.36f),
                 // (and its lab nest's own Tripo plants, made in its colours: turned +165 as a blue plant is, its frankincense
                 // trees' orange bark read a mauve grey and its gumweed's gold buds lilac, k20-k25)
-                nativePlants = "amber_resin,soil_spire,dry_mushroom,seed_husk,fungus_garden,dry_grass_tuft,thorn_succulent,seed_pile,tear_tree,gumweed",
+                nativePlants = "amber_resin,soil_spire,dry_mushroom,seed_husk,fungus_garden,dry_grass_tuft,thorn_succulent,seed_pile,tear_tree,gumweed,larch_sapling,resin_stump,slippery_jack",   // (its k29 Tripo plants too, 11-05)
                 landmarkPlant = "dry_mushroom",
                 surroundings = "soil_spire,dry_mushroom,trunk_night",
             },
@@ -122,7 +122,7 @@ namespace AntGarden
                 rimColor = new Color(1f, 0.52f, 0.38f),
                 gateColor = new Color(1f, 0.6f, 0.42f),
                 // (its own keep their own colours: the cups' red, the morels' brown, the log's charcoal; far away, burnt trunks)
-                nativePlants = "char_stump_temple,ember_log,ember_cups,fire_morel,soil_spire,thorn_succulent,dry_grass_tuft,seed_pile,seed_husk,temple_spire,temple_arch,temple_cells,temple_spire_v2,temple_arch_v2,temple_cells_v2",
+                nativePlants = "char_stump_temple,ember_log,ember_cups,fire_morel,soil_spire,thorn_succulent,dry_grass_tuft,seed_pile,seed_husk,temple_spire,temple_arch,temple_cells,temple_spire_v2,temple_arch_v2,temple_cells_v2,ash_debris,gallery_stump,fire_moss",   // (k21b: its own three, Tripo 11-05: charcoal and ash heaps, a charred stump with ant galleries, fire moss)
                 landmarkPlant = "soil_spire",
                 surroundings = "trunk_night",
             },

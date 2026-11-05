@@ -388,6 +388,9 @@ namespace AntGarden
             public float foot;              // how dark its foot is, if its nest wants it darker than fineFoot (NestTheme.kindFoot; 0: fineFoot)
             public float gain = 1f;         // how light it is, if its nest wants a kind darker (NestTheme.kindGain)
             public float rigidTint = -1f;   // a relic's own pull toward its nest's palette (NestTheme.kindRigidTint; under 0: the nest's rigidTint)
+            public float kindHue = -1f;     // its own colour set to this hue (NestTheme.kindHue; under 0: as it is)
+            public Color tintTo;            // its kind's colour, linear, at unit lightness (NestTheme.kindTint)
+            public float tintBy;            // how far its own colour is pulled toward tintTo (NestTheme.kindTint; 0: as it is)
             public Color glowDeep;         // its glow colour, deeper (the palette's glow colours are pale: as light they read white)
             public float ownHue, ownSat = 1;   // its region's turn of the texture's own colour (a blue plant in the amber nest)
             public bool building;              // a prop that lights only in its glowing parts (NestTheme.buildingsGlowInParts)
@@ -1194,6 +1197,15 @@ namespace AntGarden
             if (kinds && NestTheme.Current?.kindSat != null && NestTheme.Current.kindSat.TryGetValue(plant.name, out float kindSat)) slot.ownSat *= kindSat;
             if (kinds && NestTheme.Current?.kindGain != null && NestTheme.Current.kindGain.TryGetValue(plant.name, out float kindGain)) slot.gain = kindGain;   // (and darkens: NestTheme.kindGain)
             if (kinds && NestTheme.Current?.kindRigidTint != null && NestTheme.Current.kindRigidTint.TryGetValue(plant.name, out float kindRigid)) slot.rigidTint = kindRigid;   // (a relic kind toward the palette: NestTheme.kindRigidTint)
+            if (kinds && NestTheme.Current?.kindHue != null && NestTheme.Current.kindHue.TryGetValue(plant.name, out float kindHueDeg)) slot.kindHue = kindHueDeg;   // (a kind's own hue: NestTheme.kindHue)
+            if (kinds && NestTheme.Current?.kindGlow != null && NestTheme.Current.kindGlow.TryGetValue(plant.name, out float kindGlowGain)) slot.glowGain *= kindGlowGain;   // (and its own light: NestTheme.kindGlow)
+            if (kinds && NestTheme.Current?.kindTint != null && NestTheme.Current.kindTint.TryGetValue(plant.name, out var kindTintTo) && kindTintTo.by > 0f)
+            {
+                // (and its own colour pulled toward a colour of its kind's: NestTheme.kindTint; only its hue and chroma count)
+                Color tl = kindTintTo.to.linear;
+                slot.tintTo = tl * (1f / Mathf.Max(1e-4f, Lum(tl)));
+                slot.tintBy = Mathf.Clamp01(kindTintTo.by);
+            }
             // as light, the palette's pale glow colours read white: deeper, and toward the nest's teal
             slot.glowDeep = Color.Lerp(HueShift(slot.glow, 0f, 1.9f), (NestTheme.Current ?? NestTheme.Cyan).glowDeep, slot.glowFrom > 0 ? 0.55f : 0.3f);
             if (pi.relic && NestTheme.Current != null && NestTheme.Current.relicGlow.a > 0f) slot.glow = slot.glowDeep = NestTheme.Current.relicGlow;   // (a nest's own: NestTheme.relicGlow)
@@ -1664,11 +1676,21 @@ namespace AntGarden
             bool glows = gw > 0.5f;
             Color own = lin * (1f / lum);                                   // the texture's own hue, at unit brightness
             if (s.ownHue != 0 || s.ownSat != 1) own = HueShift(own, s.ownHue, s.ownSat);   // turned as its region turns its plants
+            if (s.kindHue >= 0f) own = WithHue(own, s.kindHue);   // (or set to its kind's hue, as its nest wants: NestTheme.kindHue)
             NestTheme th = NestTheme.Current;
             if (th != null && th.ownBand.y > 0) own = th.ownBandKeepsSat ? FoldHue(own, th.ownBand.x, th.ownBand.y) : Fold(own, th.ownBand.x, th.ownBand.y);
+            // (its own colour pulled toward its kind's, as far as its nest wants, NestTheme.kindTint: a lerp of colours, the
+            // kind's taken at the plant's own mean lightness, so a white or grey kind is coloured too and its pale spots and
+            // dark flecks evened as far; how light it is stays, kindGain sets that; its glow, spots and markings as they were)
+            float relCol = rel;
+            if (s.tintBy > 0f)
+            {
+                relCol = Mathf.Lerp(rel, 1f, s.tintBy);
+                own = Color.Lerp(own * rel, s.tintTo, s.tintBy) * (1f / relCol);
+            }
             Color tint = Color.Lerp(s.baseTint, s.tipTint, Smooth(0.05f, 1f, g01));
             Color col = s.rigid ? (th == null ? lin * 1.6f : Color.Lerp(lin, th.body[0].linear * (lum / Mathf.Max(1e-3f, Lum(th.body[0].linear))), s.rigidTint >= 0f ? s.rigidTint : th.rigidTint) * (1.6f * th.rigidGain))
-                : Color.Lerp(tint, own * 0.75f, s.keepOwn) * (s.meanLum * rel * 2.2f);
+                : Color.Lerp(tint, own * 0.75f, s.keepOwn) * (s.meanLum * relCol * 2.2f);
             // (a relic's pale carved wood weathered toward a cool silver grey, as far as its nest has it: the kiln's,
             // NestTheme.GlowPart.grey; in its own tan it read gold, the amber nest's colour, k7-k8)
             if (paleWood > 0f && s.partGrey > 0f)   // (its own glow part's: the kiln's temple, not its log, whose silver rings under its red read pink, k10-k15)
@@ -1692,6 +1714,9 @@ namespace AntGarden
                     // the glowing part leans to the glow colour, paler toward a head's tip, its pattern kept
                     float tipward = s.glowFrom > 0 ? Mathf.Clamp01((g01 - s.glowFrom) / Mathf.Max(0.05f, 1f - s.glowFrom)) : 0f;
                     Color light = Color.Lerp(s.glowDeep, s.glow, 0.4f * tipward);
+                    // (and toward its kind's colour as far as its own, NestTheme.kindTint, how light it is kept: the palette's
+                    // pale glow left the kiln's borrowed spore stalks' heads a pinkish grey and its bracken orange, k21)
+                    if (s.tintBy > 0f) light = Color.Lerp(light, s.tintTo * Lum(light), s.tintBy);
                     // (a finely made plant keeps its own colours and pattern under the glow: a curl's scales, a
                     // lantern's paper, a coral's pale tips)
                     float lean = s.fine ? (s.glowFrom > 0 ? fineLean.x : fineLean.y) : s.glowFrom > 0 ? 0.45f : 0.8f;
@@ -2380,6 +2405,15 @@ namespace AntGarden
             float d = Mathf.DeltaAngle(centre, h * 360f);
             if (Mathf.Abs(d) <= half || s < 0.08f) return c;
             return Color.HSVToRGB(Mathf.Repeat((centre + Mathf.Sign(d) * half) / 360f, 1f), s * 0.5f, v, true);
+        }
+
+        /// <summary>A colour with its hue set to hueDeg (HSV degrees), its saturation and value kept (NestTheme.kindHue).</summary>
+        static Color WithHue(Color c, float hueDeg)
+        {
+            Color.RGBToHSV(c, out _, out float sat, out float val);
+            Color o = Color.HSVToRGB(Mathf.Repeat(hueDeg / 360f, 1f), sat, val, true);
+            o.a = c.a;
+            return o;
         }
 
         static Color HueShift(Color c, float deg, float sat)
